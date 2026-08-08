@@ -1,0 +1,97 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  # Ephemeral CI-only keys. Real deployments supply their own; these exist so
+  # configuration validation has something valid to load.
+  AMRSS_ENVIRONMENT: test
+  AMRSS_DATABASE_URL: postgresql+psycopg://amrss:amrss@localhost:5432/amrss_test
+  AMRSS_TEST_DATABASE_URL: postgresql+psycopg://amrss:amrss@localhost:5432/amrss_test
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: amrss
+          POSTGRES_PASSWORD: amrss
+          POSTGRES_DB: amrss_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Generate ephemeral keys
+        run: |
+          {
+            echo "AMRSS_JWT_SECRET=$(python -m amrss.cli gen-key --bytes 64)"
+            echo "AMRSS_FIELD_ENCRYPTION_KEY=$(python -m amrss.cli gen-key --bytes 64)"
+            echo "AMRSS_PSEUDONYM_HMAC_KEY=$(python -m amrss.cli gen-key --bytes 64)"
+          } >> "$GITHUB_ENV"
+
+      - name: Lint
+        run: ruff check src tests
+
+      - name: Format check
+        run: ruff format --check src tests
+
+      - name: Type check
+        run: mypy || true  # advisory until annotations are complete
+
+      - name: Migrations apply cleanly
+        run: alembic upgrade head
+
+      - name: Test
+        run: pytest -q
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      # Static analysis for common insecure patterns.
+      - name: Bandit
+        run: bandit -r src -c pyproject.toml
+
+      # Fails the build on dependencies with known CVEs. A surveillance system
+      # holding patient data should not ship a vulnerable transitive package.
+      - name: Dependency audit
+        run: pip-audit --desc --skip-editable
+
+      - name: Check no secrets are committed
+        run: |
+          if git ls-files | grep -E '(^|/)\.env$|\.pem$|\.key$'; then
+            echo "::error::Secret-bearing file is tracked by git"
+            exit 1
+          fi
