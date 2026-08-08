@@ -5,6 +5,13 @@
 *.pem
 *.key
 
+# The facility salt is the single most sensitive artefact the offline uploader
+# holds: with it, the transmitted patient linkage keys become searchable against
+# a small identifier space. It never leaves the facility machine, and it must
+# never reach a repository.
+*.amrss-salt
+uploader-data/
+
 # Python
 __pycache__/
 *.py[cod]
@@ -26,7 +33,17 @@ data/breakpoints/*.csv
 *.db
 exports/
 
+# Node / TypeScript (apps/web, apps/uploader)
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+.turbo/
+apps/uploader/release/
+apps/uploader/dist/
+
 # Editors / OS
 .idea/
 .vscode/
 .DS_Store
+*.swp
