@@ -1,0 +1,42 @@
+# Local development stack. NOT a production deployment:
+#   - Postgres is reachable on localhost only, with a development password.
+#   - TLS terminates at your reverse proxy in production, not here.
+# See docs/security.md for the production checklist.
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: amrss
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-amrss_dev_only}
+      POSTGRES_DB: amrss
+    # Bound to the loopback interface so the database is not exposed on the
+    # host's network interfaces.
+    ports: ["127.0.0.1:5432:5432"]
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U amrss"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build: .
+    depends_on:
+      db: {condition: service_healthy}
+    env_file: [.env]
+    environment:
+      AMRSS_DATABASE_URL: postgresql+psycopg://amrss:${POSTGRES_PASSWORD:-amrss_dev_only}@db:5432/amrss
+    ports: ["127.0.0.1:8000:8000"]
+    # Defence in depth: the container needs no write access to its own
+    # filesystem and no privilege escalation.
+    read_only: true
+    tmpfs: ["/tmp"]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn amrss.main:app --host 0.0.0.0 --port 8000 --proxy-headers --no-server-header"
+
+volumes:
+  pgdata:
