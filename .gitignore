@@ -1,47 +1,32 @@
-# Python
-__pycache__/
-*.py[cod]
-.venv/
-venv/
-.pytest_cache/
-.ruff_cache/
-.mypy_cache/
-*.egg-info/
-dist/
-build/
-
-# Node
-node_modules/
-.next/
-out/
-*.tsbuildinfo
-.turbo/
-
-# Electron build output
-apps/uploader/release/
-apps/uploader/dist/
-
-# Environment and secrets
+# Secrets - never commit real configuration
 .env
 .env.*
 !.env.example
+*.pem
+*.key
 
-# Local uploader state — contains the facility salt and must never be committed
-*.amrss-salt
-uploader-data/
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+dist/
+build/
 
-# Data files
+# Local data - may contain patient information or licensed CLSI tables
+data/breakpoints/*.csv
+!data/breakpoints/*.template.csv
 *.sqlite
-*.sqlite3
 *.db
-!tests/**/fixtures/*.sqlite
+exports/
 
-# Editors and OS
-.DS_Store
+# Editors / OS
 .idea/
 .vscode/
-*.swp
-
-# Next.js build output
-apps/web/.next/
-apps/uploader/dist/
+.DS_Store

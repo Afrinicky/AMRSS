@@ -1,0 +1,41 @@
+organism_group,agent_code,method,disk_content,site,route,standard,table_reference,tier,mic_susceptible_max,mic_sdd_min,mic_sdd_max,mic_intermediate_min,mic_intermediate_max,mic_resistant_min,disk_susceptible_min,disk_sdd_min,disk_sdd_max,disk_intermediate_min,disk_intermediate_max,disk_resistant_max,dosage_note,comment
+# AMRSS breakpoint import template.
+#
+# Populate this file from YOUR LABORATORY'S LICENSED COPY of CLSI M100 (or M45,
+# M60, VET01 as applicable). No breakpoint values are distributed with AMRSS:
+# the tables are copyrighted, revised every edition, and a single mistyped
+# threshold turns an R into an S on a real patient's report.
+#
+# COLUMN NOTES
+#   organism_group  Must match a value in organisms.groups (or an organism's
+#                   scientific_name for a species-specific criterion). The
+#                   engine prefers the most specific match, so both
+#                   "Escherichia coli" and "Enterobacterales" rows may coexist.
+#   agent_code      Must match antimicrobials.code.
+#   method          MIC | DISK | GRADIENT
+#   site            Blank, or a qualifier such as meningitis / non_meningitis /
+#                   uti_uncomplicated where M100 tabulates separate criteria.
+#   route           Blank, or oral / iv where the criteria differ.
+#   tier            1-4 per M100 Table 1 (reporting tier), or U if unspecified.
+#   MIC columns     µg/mL. Leave blank where the edition defines no such bound.
+#                   An agent with only mic_susceptible_max reports S or NS.
+#   Disk columns    Zone diameters in mm. Note these run OPPOSITE to MICs:
+#                   disk_susceptible_min must be GREATER than disk_resistant_max.
+#   dosage_note     Required in practice for any SDD row - SDD is only
+#                   interpretable alongside the dosing regimen it assumes.
+#
+# Rows starting with # are ignored. Import with:
+#   python -m amrss.cli import-breakpoints CLSI-M100-Ed36 "CLSI M100 36th ed. (2026)" thisfile.csv
+# The set is created INACTIVE. Review it against the printed tables, then
+# activate it via POST /api/v1/clsi/breakpoint-sets/{version}/activate.
+#
+# Import-time validation rejects: susceptible >= resistant bounds, overlapping
+# category ranges, inverted disk bounds, duplicate scopes, and implausible zone
+# diameters. It warns on values off the doubling-dilution series.
+#
+# --- EXAMPLE ROWS BELOW: ILLUSTRATIVE STRUCTURE ONLY, NOT CLSI VALUES --------
+# Delete these before importing real data.
+#Enterobacterales,CIP,MIC,,,,M100,Table 2A,1,0.25,,,,,1,,,,,,,,
+#Enterobacterales,AMP,DISK,10 ug,,,M100,Table 2A,1,,,,,,,17,,,14,16,13,,
+#Enterobacterales,FEP,MIC,,,,M100,Table 2A,2,2,4,8,,,16,,,,,,,1 g q8h or 2 g q12h,SDD - confirm dosing
+#Streptococcus pneumoniae,PEN,MIC,,meningitis,iv,M100,Table 2G,1,0.06,,,,,0.12,,,,,,,,
