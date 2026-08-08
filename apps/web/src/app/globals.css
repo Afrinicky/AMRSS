@@ -1,0 +1,113 @@
+@import "tailwindcss";
+
+/* AMRSS design tokens — see docs/design/DESIGN_LANGUAGE.md.
+ *
+ * The central rule: the brand palette governs chrome and never encodes clinical
+ * data. Two token families are defined separately so a developer reaching for a
+ * colour has to choose which question they are answering. Using --brand-600 to
+ * fill a susceptibility cell is then a visible mistake rather than a plausible
+ * shortcut. */
+
+@theme {
+  /* Brand — navigation, cards, buttons, backgrounds. Never a data encoding. */
+  --color-brand-50: #eaf6ef;
+  --color-brand-100: #cfeadb;
+  --color-brand-300: #7cc9a0;
+  --color-brand-600: #1f7a4c;
+  --color-brand-700: #186340;
+  --color-brand-900: #0d3a26;
+
+  --color-surface: #ffffff;
+  --color-surface-muted: #f6f8f7;
+  --color-line: #e2e8e5;
+  --color-ink: #12211a;
+  --color-ink-muted: #5c6b64;
+
+  /* Clinical semantics — chosen for convention and clarity, not brand harmony. */
+  --color-sir-s: #1b8a5a;
+  --color-sir-i: #c77800;
+  --color-sir-r: #c2352b;
+  --color-sir-nt: #8a9793;
+  --color-insufficient: #edefee;
+  --color-insufficient-ink: #6b7873;
+
+  /* Multi-series charts, where a series carries no S/I/R meaning. Deliberately
+   * distinct from both families above so a line is never read as a severity. */
+  --color-series-1: #2e5eaa;
+  --color-series-2: #b5651d;
+  --color-series-3: #6a4c93;
+  --color-series-4: #0f8b8d;
+  --color-series-5: #a03e70;
+  --color-series-6: #7a6c0a;
+
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  --radius-card: 12px;
+}
+
+:root:not([data-theme="light"]) {
+  @media (prefers-color-scheme: dark) {
+    --color-brand-50: #0e1a13;
+    --color-brand-100: #14261b;
+    --color-brand-300: #2e6b49;
+    --color-brand-600: #39a16c;
+    --color-brand-700: #2e8a5b;
+    --color-brand-900: #d6f0e1;
+    --color-surface: #0f1512;
+    --color-surface-muted: #161d19;
+    --color-line: #26312c;
+    --color-ink: #e8efea;
+    --color-ink-muted: #9aaaa2;
+    --color-sir-s: #3fb07f;
+    --color-sir-i: #e0a030;
+    --color-sir-r: #e06a5e;
+    --color-sir-nt: #6e7c77;
+    --color-insufficient: #1c2420;
+    --color-insufficient-ink: #7c8a84;
+  }
+}
+
+html {
+  color-scheme: light dark;
+}
+
+body {
+  background: var(--color-surface-muted);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Every number in a table aligns on its decimal. Percentages that jitter
+ * column to column read as unreliable even when they are not. */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* The insufficient-data state carries a texture as well as a fill, so it is
+ * distinguishable without colour vision. */
+.insufficient-fill {
+  background-color: var(--color-insufficient);
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 4px,
+    color-mix(in srgb, var(--color-insufficient-ink) 22%, transparent) 4px,
+    color-mix(in srgb, var(--color-insufficient-ink) 22%, transparent) 5px
+  );
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-brand-600);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

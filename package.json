@@ -1,0 +1,23 @@
+{
+  "name": "amrss",
+  "version": "1.0.0",
+  "description": "Continuously updated, quality-assured antimicrobial susceptibility and resistance intelligence derived from routine microbiology data, enabling clinicians and public-health authorities to view current resistance patterns without waiting for periodic AMR surveys or reports.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Afrinicky/AMRSS.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Afrinicky/AMRSS/issues"
+  },
+  "homepage": "https://github.com/Afrinicky/AMRSS#readme"
+}

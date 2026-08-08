@@ -1,0 +1,47 @@
+name: amrss
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: amrss
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-amrss_dev}
+      POSTGRES_DB: amrss
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U amrss -d amrss"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build:
+      context: ../../apps/api
+      dockerfile: ../../infra/docker/api.Dockerfile
+    environment:
+      AMRSS_DATABASE_URL: postgresql+psycopg://amrss:${POSTGRES_PASSWORD:-amrss_dev}@postgres:5432/amrss
+      AMRSS_JWT_SECRET: ${AMRSS_JWT_SECRET:-dev-secret-not-for-production}
+      AMRSS_ENVIRONMENT: development
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ../../apps/web
+      dockerfile: ../../infra/docker/web.Dockerfile
+    environment:
+      AMRSS_API_URL: http://api:8000
+      NEXT_PUBLIC_AMRSS_API_URL: http://localhost:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+
+volumes:
+  pgdata:

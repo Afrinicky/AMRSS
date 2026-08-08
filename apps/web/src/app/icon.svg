@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="AMRSS">
+  <rect width="32" height="32" rx="7" fill="#1F7A4C" />
+  <!-- A falling susceptibility trace: the shape the system exists to surface. -->
+  <path
+    d="M6 11h4l3 8 3-14 3 11 3-5h4"
+    fill="none"
+    stroke="#FFFFFF"
+    stroke-width="2.2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+</svg>
