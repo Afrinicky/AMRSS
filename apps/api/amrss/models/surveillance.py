@@ -195,6 +195,8 @@ class AstResult(Base, TimestampMixin):
     zone_diameter_mm: Mapped[int | None] = mapped_column(Integer)
     test_method: Mapped[str | None] = mapped_column(String(32))
 
+    isolate: Mapped[Isolate] = relationship(back_populates="ast_results")
+
 
 class PhenotypeFlag(Base, TimestampMixin):
     """Screening-level phenotype observation (SDD 5.5).

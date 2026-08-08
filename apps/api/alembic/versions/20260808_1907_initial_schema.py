@@ -1,8 +1,8 @@
 """initial schema
 
-Revision ID: 54db6f35ce91
+Revision ID: 81c454dd741d
 Revises: 
-Create Date: 2026-08-08 18:54:26.243206+00:00
+Create Date: 2026-08-08 19:07:30.297504+00:00
 """
 
 from collections.abc import Sequence
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
-revision: str = '54db6f35ce91'
+revision: str = '81c454dd741d'
 down_revision: str | None = None
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
@@ -357,7 +357,7 @@ def upgrade() -> None:
     sa.Column('id', sa.UUID(), nullable=False),
     sa.Column('isolate_id', sa.UUID(), nullable=False),
     sa.Column('canonical_antibiotic_id', sa.UUID(), nullable=False),
-    sa.Column('result', sa.Enum('S', 'I', 'R', 'SDD', 'NS', name='sir_result'), nullable=False),
+    sa.Column('result', sa.Enum('S', 'I', 'R', 'SDD', 'NS', 'NI', name='sir_result'), nullable=False),
     sa.Column('mic_value', sa.Numeric(precision=10, scale=4), nullable=True),
     sa.Column('mic_operator', sa.String(length=2), nullable=True),
     sa.Column('zone_diameter_mm', sa.Integer(), nullable=True),

@@ -110,9 +110,7 @@ class EmergingSignal(Base, TimestampMixin):
     """
 
     __tablename__ = "emerging_signal"
-    __table_args__ = (
-        Index("ix_signal_scope", "regional_block_id", "detected_on"),
-    )
+    __table_args__ = (Index("ix_signal_scope", "regional_block_id", "detected_on"),)
 
     id: Mapped[uuid.UUID] = pk_column()
     regional_block_id: Mapped[uuid.UUID] = mapped_column(

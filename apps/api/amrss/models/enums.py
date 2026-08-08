@@ -27,21 +27,26 @@ class SirResult(StrEnum):
     RESISTANT = "R"
     SUSCEPTIBLE_DOSE_DEPENDENT = "SDD"
     NON_SUSCEPTIBLE = "NS"
+    #: The agent was set up but produced no usable interpretation — contaminated
+    #: plate, unreadable zone, test not completed. Retained rather than discarded
+    #: so that "tested" and "interpretable" counts can both be reported honestly
+    #: (SDD 4.2). Dropping these at ingestion would make every denominator
+    #: unauditable against the source laboratory's own records.
+    NOT_INTERPRETABLE = "NI"
 
     @property
     def is_interpretable(self) -> bool:
-        """Whether the result contributes to a susceptibility denominator.
-
-        Every recorded member is interpretable; the distinction between "tested"
-        and "interpretable" arises from results that are absent or unreadable and
-        are therefore never persisted as an SirResult at all.
-        """
-        return True
+        """Whether the result belongs in a susceptibility denominator."""
+        return self is not SirResult.NOT_INTERPRETABLE
 
     @property
     def counts_as_susceptible(self) -> bool:
-        """CLSI M39 counts only S toward %S. SDD is dose-dependent, not susceptible
-        at standard dosing, and is excluded from the numerator."""
+        """CLSI M39 counts only S toward %S.
+
+        SDD is susceptible at increased exposure, not at standard dosing, and is
+        excluded from the numerator — reporting it as susceptible would overstate
+        the coverage a clinician can expect from a standard regimen.
+        """
         return self is SirResult.SUSCEPTIBLE
 
 
