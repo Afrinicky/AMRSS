@@ -1,0 +1,236 @@
+/* Same design language as the dashboard: brand green for chrome, semantic
+ * colours reserved for status. See docs/design/DESIGN_LANGUAGE.md. */
+
+:root {
+  --brand-600: #1f7a4c;
+  --brand-700: #186340;
+  --brand-50: #eaf6ef;
+  --surface: #ffffff;
+  --surface-muted: #f6f8f7;
+  --line: #e2e8e5;
+  --ink: #12211a;
+  --ink-muted: #5c6b64;
+  --ok: #1b8a5a;
+  --warn: #c77800;
+  --bad: #c2352b;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--surface-muted);
+  color: var(--ink);
+  font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 24px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+
+.wordmark {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--brand-700);
+  letter-spacing: -0.01em;
+}
+
+.subtitle,
+.muted {
+  color: var(--ink-muted);
+  font-size: 12px;
+}
+
+.subtitle {
+  margin-left: 8px;
+}
+
+.header-status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+main {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.assurance {
+  margin: 0;
+  padding: 12px 16px;
+  background: var(--brand-50);
+  border: 1px solid #cfeadb;
+  border-radius: 12px;
+  font-size: 13px;
+  color: #0d3a26;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 20px;
+}
+
+.card h2 {
+  margin: 0 0 12px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.card p {
+  margin: 0 0 12px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-muted);
+}
+
+input,
+select {
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font: inherit;
+  color: var(--ink);
+  background: var(--surface);
+}
+
+button {
+  padding: 9px 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  min-height: 40px;
+}
+
+button:hover:not(:disabled) {
+  background: var(--surface-muted);
+}
+
+button.primary {
+  background: var(--brand-600);
+  border-color: var(--brand-600);
+  color: #fff;
+}
+
+button.primary:hover:not(:disabled) {
+  background: var(--brand-700);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+:focus-visible {
+  outline: 2px solid var(--brand-600);
+  outline-offset: 2px;
+}
+
+.badge {
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.badge.ok {
+  background: rgb(27 138 90 / 0.1);
+  color: var(--ok);
+}
+
+.badge.warn {
+  background: rgb(199 120 0 / 0.1);
+  color: var(--warn);
+}
+
+.detection,
+.summary {
+  margin-top: 12px;
+  font-size: 13px;
+}
+
+.detection dl,
+.summary dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 16px;
+  margin: 0;
+}
+
+.detection dt,
+.summary dt {
+  color: var(--ink-muted);
+}
+
+.notice {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.notice.ok {
+  background: rgb(27 138 90 / 0.08);
+  color: var(--ok);
+}
+
+.notice.warn {
+  background: rgb(199 120 0 / 0.08);
+  color: var(--warn);
+}
+
+.notice.bad {
+  background: rgb(194 53 43 / 0.08);
+  color: var(--bad);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+th {
+  color: var(--ink-muted);
+  font-weight: 500;
+  font-size: 12px;
+}

@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <!-- No remote origins: the uploader talks only to the configured AMRSS API,
+         and that request is made from the main process, not from this page. -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data:;"
+    />
+    <title>AMRSS Uploader</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="app-header">
+      <div>
+        <span class="wordmark">AMRSS</span>
+        <span class="subtitle">Offline de-identification and upload</span>
+      </div>
+      <div class="header-status">
+        <span id="due-badge" class="badge"></span>
+        <span id="version" class="muted"></span>
+      </div>
+    </header>
+
+    <main>
+      <p class="assurance">
+        Patient identifiers never leave this computer. Records are de-identified here, before
+        anything is transmitted.
+      </p>
+
+      <section class="card" id="setup-card">
+        <h2>1 · Facility setup</h2>
+        <div class="grid">
+          <label>
+            Facility code
+            <input id="facility-code" type="text" placeholder="e.g. AHA-001" />
+          </label>
+          <label>
+            AMRSS server
+            <input id="api-url" type="url" placeholder="https://…" />
+          </label>
+          <label>
+            WHONET configuration version
+            <input id="config-version" type="text" placeholder="e.g. 2026.1" />
+          </label>
+          <label>
+            AST breakpoint standard
+            <input id="breakpoint-standard" type="text" placeholder="e.g. CLSI M100 2026" />
+          </label>
+          <label>
+            Upload schedule
+            <select id="schedule">
+              <option value="weekly">Weekly (recommended)</option>
+              <option value="fortnightly">Fortnightly</option>
+              <option value="monthly">Monthly</option>
+            </select>
+          </label>
+        </div>
+        <button id="save-setup" class="primary">Save setup</button>
+      </section>
+
+      <section class="card">
+        <h2>2 · WHONET data file</h2>
+        <p class="muted">
+          The file is opened read-only. AMRSS never writes to your WHONET database.
+        </p>
+        <button id="choose-file">Choose WHONET file…</button>
+        <div id="detection" class="detection"></div>
+      </section>
+
+      <section class="card">
+        <h2>3 · Sign in</h2>
+        <div class="grid">
+          <label>Email <input id="email" type="email" autocomplete="username" /></label>
+          <label>
+            Password
+            <input id="password" type="password" autocomplete="current-password" />
+          </label>
+        </div>
+        <button id="sign-in">Sign in</button>
+        <span id="auth-status" class="muted"></span>
+      </section>
+
+      <section class="card">
+        <h2>4 · Prepare and review</h2>
+        <p class="muted">
+          Only records not yet accepted are included. Review the summary before sending — this
+          confirmation is the facility's consent to transmit.
+        </p>
+        <button id="prepare" class="primary">Prepare upload</button>
+        <div id="summary" class="summary"></div>
+        <button id="send" class="primary" disabled>Confirm and send</button>
+        <div id="send-result"></div>
+      </section>
+
+      <section class="card">
+        <h2>Upload history</h2>
+        <div id="log-integrity"></div>
+        <table id="history">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Records</th>
+              <th>Period</th>
+              <th>Status</th>
+              <th>Detail</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </section>
+    </main>
+
+    <script src="renderer.js"></script>
+  </body>
+</html>

@@ -44,3 +44,4 @@ uploader-data/
 
 # Next.js build output
 apps/web/.next/
+apps/uploader/dist/
