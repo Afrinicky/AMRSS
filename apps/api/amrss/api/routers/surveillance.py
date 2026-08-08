@@ -14,6 +14,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from amrss.analytics import alerts as alerts_engine
 from amrss.analytics import antibiogram as antibiogram_engine
@@ -102,13 +103,15 @@ class AntibiogramResponse(BaseModel):
 FilterQuery = Annotated[list[uuid.UUID] | None, Query()]
 
 
-def _dictionary_maps(db) -> tuple[dict, dict]:
+def _dictionary_maps(
+    db: Session,
+) -> tuple[dict[uuid.UUID, CanonicalOrganism], dict[uuid.UUID, CanonicalAntibiotic]]:
     organisms = {o.id: o for o in db.scalars(select(CanonicalOrganism))}
     antibiotics = {a.id: a for a in db.scalars(select(CanonicalAntibiotic))}
     return organisms, antibiotics
 
 
-def _ref(entry) -> DictionaryRef:
+def _ref(entry: CanonicalOrganism | CanonicalAntibiotic | CanonicalSpecimenType) -> DictionaryRef:
     return DictionaryRef(id=entry.id, code=entry.code, name=entry.name)
 
 

@@ -1,0 +1,114 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  api:
+    name: API — lint, types, tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: amrss
+          POSTGRES_PASSWORD: amrss_dev
+          POSTGRES_DB: amrss
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U amrss -d amrss"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+
+    env:
+      AMRSS_DATABASE_URL: postgresql+psycopg://amrss:amrss_dev@localhost:5432/amrss
+
+    defaults:
+      run:
+        working-directory: apps/api
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --all-extras
+
+      - name: Lint
+        run: |
+          uv run ruff check .
+          uv run ruff format --check .
+
+      - name: Type-check
+        run: uv run mypy amrss
+
+      - name: Apply migrations
+        run: uv run alembic upgrade head
+
+      # The suite includes two structural guards that must keep passing:
+      # no region name in application source (ADR-0002), and no hardcoded
+      # methodology value in the analytics engine (ADR-0003). Both encode
+      # architectural commitments that are easy to erode by accident.
+      - name: Tests
+        run: uv run pytest -q
+
+      - name: Seed reference data and demo block
+        run: uv run python -m amrss.seed
+
+  uploader:
+    name: Uploader — de-identification tests
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: apps/uploader
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/uploader/package-lock.json
+
+      - run: npm ci
+
+      # This is the component that handles raw patient data. Its tests cover
+      # linkage-key irreversibility and the allow-list output shape.
+      - run: npm test
+
+  web:
+    name: Dashboard — types and build
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: apps/web
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - run: npm ci
+
+      - run: npm run typecheck
+
+      - run: npm run build

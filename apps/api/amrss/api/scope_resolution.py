@@ -138,6 +138,7 @@ def _assert_in_block(
     if block_id is None:
         return
 
+    target: uuid.UUID | None
     if facility_id is not None:
         owner = db.scalar(
             select(District.regional_block_id)
