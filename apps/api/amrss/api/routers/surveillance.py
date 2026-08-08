@@ -222,6 +222,19 @@ def get_antibiogram(
     )
 
 
+def _contributing_facilities(records: list, verified_only: bool) -> set[uuid.UUID]:
+    """Facilities whose data actually reached the figures on this page.
+
+    Must match the population the view computed over. Counting quality-excluded
+    facilities as contributing would show a different coverage fraction on the
+    alerts page than on the antibiogram for the same period — and a user who
+    notices two coverage numbers disagreeing has no way to tell which is wrong.
+    """
+    return {
+        record.facility_id for record in records if record.quality_verified or not verified_only
+    }
+
+
 def _freshness_response(freshness: coverage_engine.DataFreshness) -> FreshnessResponse:
     return FreshnessResponse(
         data_last_updated=(
@@ -310,7 +323,7 @@ def get_trend(
     freshness = coverage_engine.freshness(
         db,
         regional_block_id=scope.regional_block_id,
-        contributing_facility_ids={record.facility_id for record in records},
+        contributing_facility_ids=_contributing_facilities(records, scope.verified_only),
         coverage_start=scope.filters.date_from,
         coverage_end=scope.filters.date_to,
     )
@@ -411,7 +424,7 @@ def get_alerts(
     freshness = coverage_engine.freshness(
         db,
         regional_block_id=scope.regional_block_id,
-        contributing_facility_ids={record.facility_id for record in records},
+        contributing_facility_ids=_contributing_facilities(records, scope.verified_only),
         coverage_start=scope.filters.date_from,
         coverage_end=scope.filters.date_to,
     )

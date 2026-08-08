@@ -41,3 +41,6 @@ uploader-data/
 .idea/
 .vscode/
 *.swp
+
+# Next.js build output
+apps/web/.next/
