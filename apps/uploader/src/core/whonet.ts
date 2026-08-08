@@ -175,7 +175,7 @@ export function detectProfile(databasePath: string): DetectionResult {
         resultLayout: "wide",
         // WHONET encodes agent, method and potency in the column name, e.g.
         // AMP_ND10 (ampicillin, disk, 10µg) or CIP_NM (ciprofloxacin, MIC).
-        antibioticColumnPattern: "^([A-Z]{3})_(N[DME])([0-9.]*)$",
+        antibioticColumnPattern: "^([A-Z]{3})_(N[DME])([0-9._]*)$",
       },
       table,
       availableTables: tables,
@@ -270,6 +270,9 @@ export function readIsolates(
       // with invented values.
       if (!patientIdentifier || !specimenDate || !organismCode || !specimenTypeCode) continue;
 
+      // No organism was isolated, or none judged significant.
+      if (isNoOrganism(organismCode)) continue;
+
       isolates.push({
         patientIdentifier,
         specimenDate,
@@ -281,15 +284,8 @@ export function readIsolates(
         organismCode,
         specimenTypeCode,
         results: antibioticColumns
-          .map((entry) => ({
-            antibioticCode: entry.code,
-            result: asText(row[entry.column]),
-            micValue: entry.method === "NM" ? asNumber(row[entry.column]) : null,
-            micOperator: null,
-            zoneDiameterMm: entry.method === "ND" ? asNumber(row[entry.column]) : null,
-            testMethod: entry.method === "ND" ? "disk_diffusion" : "mic",
-          }))
-          .filter((entry) => entry.result !== null),
+          .map((entry) => readResult(row[entry.column], entry))
+          .filter((entry): entry is NonNullable<typeof entry> => entry !== null),
       });
     }
 
@@ -297,6 +293,130 @@ export function readIsolates(
   } finally {
     db.close();
   }
+}
+
+const CATEGORICAL = new Set(["S", "I", "R", "SDD", "NS"]);
+
+/**
+ * Culture results that name no organism.
+ *
+ * Two distinct laboratory outcomes, both of which must be excluded:
+ *
+ * - **No growth** (`xxx`) — nothing grew at all.
+ * - **No significant growth** (`xsg`) — something grew, but it was normal flora
+ *   or contamination, and the laboratory judged it clinically insignificant.
+ *
+ * Across the two validation exports these accounted for 102 of 183 and 16 of 268
+ * rows. Admitting them would invent organisms called "xxx" and "xsg", inflate
+ * every workload count, and place meaningless rows in the antibiogram.
+ *
+ * They are excluded rather than deleted from the laboratory's own record: a
+ * negative rate is real information about testing, just not about resistance.
+ */
+export const NO_ORGANISM_CODES = new Set([
+  "xxx",
+  "xsg",
+  "nog",
+  "nsg",
+  "none",
+  "no growth",
+  "no significant growth",
+  "nogrowth",
+  "-",
+]);
+
+export function isNoOrganism(organismCode: string): boolean {
+  return NO_ORGANISM_CODES.has(organismCode.trim().toLowerCase());
+}
+
+/**
+ * Read one AST cell.
+ *
+ * WHONET's `_ND` columns hold whatever the laboratory records, and that differs
+ * by site: some enter an interpreted category, others enter the **raw zone
+ * diameter in millimetres**. Validation against a real Ghanaian export found the
+ * latter — 337 of 337 values were millimetre measurements with no interpretation
+ * anywhere in the file.
+ *
+ * Treating a measurement as a category is the dangerous direction: "14" is not a
+ * recognised category, so it would previously have been recorded as *not
+ * interpretable* and silently dropped from every denominator. The antibiogram
+ * would have rendered "insufficient data" everywhere while the upload reported
+ * success — a wrong answer that looks like a working system.
+ *
+ * So the value decides. A measurement is carried as a measurement, and marked
+ * `PI` (pending interpretation): retained, counted, visible, and excluded from
+ * susceptibility rates until breakpoints resolve it. It is deliberately distinct
+ * from `NI`, which means the test itself produced nothing usable.
+ */
+export function readResult(
+  raw: unknown,
+  entry: { code: string; method: string },
+): {
+  antibioticCode: string;
+  result: string | null;
+  micValue: number | null;
+  micOperator: string | null;
+  zoneDiameterMm: number | null;
+  testMethod: string | null;
+} | null {
+  const text = asText(raw);
+  if (text === null) return null; // Agent not set up on this isolate.
+
+  const isDisk = entry.method === "ND";
+  const upper = text.toUpperCase();
+
+  if (CATEGORICAL.has(upper)) {
+    return {
+      antibioticCode: entry.code,
+      result: upper,
+      micValue: null,
+      micOperator: null,
+      zoneDiameterMm: null,
+      testMethod: isDisk ? "disk_diffusion" : "mic",
+    };
+  }
+
+  const operator = /^([<>]=?|=)/.exec(text)?.[1] ?? null;
+  const magnitude = asNumber(text);
+  if (magnitude !== null) {
+    return {
+      antibioticCode: entry.code,
+      result: "PI",
+      micValue: isDisk ? null : magnitude,
+      micOperator: isDisk ? null : operator,
+      zoneDiameterMm: isDisk ? Math.round(magnitude) : null,
+      testMethod: isDisk ? "disk_diffusion" : "mic",
+    };
+  }
+
+  // Recorded, but neither a category nor a measurement — a comment, a flag, or
+  // a typo. Kept as not-interpretable so the tested count still reconciles with
+  // the laboratory's own records.
+  return {
+    antibioticCode: entry.code,
+    result: "NI",
+    micValue: null,
+    micOperator: null,
+    zoneDiameterMm: null,
+    testMethod: isDisk ? "disk_diffusion" : "mic",
+  };
+}
+
+/** Classify how a file records its AST results, for the confirmation screen. */
+export function summariseResultEncoding(
+  databasePath: string,
+  profile: ColumnProfile,
+): { categorical: number; quantitative: number; unreadable: number } {
+  const summary = { categorical: 0, quantitative: 0, unreadable: 0 };
+  for (const isolate of readIsolates(databasePath, profile)) {
+    for (const result of isolate.results) {
+      if (result.result === "PI") summary.quantitative += 1;
+      else if (result.result === "NI") summary.unreadable += 1;
+      else summary.categorical += 1;
+    }
+  }
+  return summary;
 }
 
 export function matchAntibioticColumns(

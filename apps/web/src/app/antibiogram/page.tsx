@@ -5,7 +5,7 @@ import {
   QualityExclusionNotice,
   formatPeriod,
 } from "@/components/context-panels";
-import { PageHeading, Shell } from "@/components/shell";
+import { BannerFigure, PageHeading, Shell } from "@/components/shell";
 import { SirCell } from "@/components/statistic";
 import { api } from "@/lib/api";
 import { requireProfile } from "@/lib/session";
@@ -39,6 +39,20 @@ export default async function AntibiogramPage({
       <PageHeading
         title="Antibiogram"
         description={`Percent susceptible by organism and agent. Combinations with fewer than ${antibiogram.minimum_isolates} antibiogram-eligible isolates are not reported as a percentage.`}
+        aside={
+          <>
+            <BannerFigure
+              label="Organisms"
+              value={antibiogram.rows.length}
+              detail={`${antibiogram.antibiotics.length} agents`}
+            />
+            <BannerFigure
+              label="Eligible isolates"
+              value={antibiogram.antibiogram_eligible_count.toLocaleString()}
+              detail={`of ${antibiogram.raw_isolate_count.toLocaleString()} in period`}
+            />
+          </>
+        }
       />
 
       <div className="space-y-6">

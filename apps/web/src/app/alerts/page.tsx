@@ -1,5 +1,5 @@
 import { ClinicalFraming, FreshnessBanner } from "@/components/context-panels";
-import { PageHeading, Shell } from "@/components/shell";
+import { BannerFigure, PageHeading, Shell } from "@/components/shell";
 import { api } from "@/lib/api";
 import { requireProfile } from "@/lib/session";
 
@@ -22,6 +22,20 @@ export default async function AlertsPage() {
       <PageHeading
         title="Alerts and emerging signals"
         description={alerts.note}
+        aside={
+          <>
+            <BannerFigure
+              label="Emerging signals"
+              value={alerts.emerging_signals.length}
+              detail="Require expert review"
+            />
+            <BannerFigure
+              label="Below threshold"
+              value={alerts.below_threshold_alerts.length}
+              detail="Watched organisms"
+            />
+          </>
+        }
       />
 
       <div className="space-y-6">

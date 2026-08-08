@@ -44,12 +44,17 @@ export function Shell({
         Skip to content
       </a>
 
-      <header className="border-b border-line bg-surface">
+      {/* The header carries the brand green rather than sitting white on white.
+          It is chrome only — no clinical value is ever encoded in it. */}
+      <header className="brand-gradient culture-field">
         <div className="mx-auto flex max-w-[1440px] flex-wrap items-center gap-x-8 gap-y-3 px-6 py-3">
-          <Link href="/" className="flex items-baseline gap-2">
-            <span className="text-lg font-semibold tracking-tight text-brand-700">AMRSS</span>
-            <span className="hidden text-xs text-ink-muted sm:inline">
-              Antimicrobial Resistance Surveillance System
+          <Link href="/" className="flex items-center gap-2.5">
+            <CultureMark />
+            <span className="flex items-baseline gap-2">
+              <span className="text-lg font-semibold tracking-tight text-on-brand">AMRSS</span>
+              <span className="hidden text-xs text-on-brand-muted lg:inline">
+                Antimicrobial Resistance Surveillance
+              </span>
             </span>
           </Link>
 
@@ -63,8 +68,8 @@ export function Shell({
                   aria-current={active ? "page" : undefined}
                   className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                     active
-                      ? "bg-brand-50 text-brand-700"
-                      : "text-ink-muted hover:bg-surface-muted hover:text-ink"
+                      ? "bg-white/15 text-on-brand"
+                      : "text-on-brand-muted hover:bg-white/10 hover:text-on-brand"
                   }`}
                 >
                   {item.label}
@@ -75,15 +80,15 @@ export function Shell({
 
           <div className="flex items-center gap-3 text-right">
             <div className="hidden sm:block">
-              <div className="text-sm font-medium text-ink">{profile.full_name}</div>
-              <div className="text-xs text-ink-muted">
+              <div className="text-sm font-medium text-on-brand">{profile.full_name}</div>
+              <div className="text-xs text-on-brand-muted">
                 {ROLE_LABELS[profile.role] ?? profile.role}
               </div>
             </div>
             <form action="/api/signout" method="post">
               <button
                 type="submit"
-                className="rounded-lg border border-line px-3 py-2 text-sm text-ink-muted hover:bg-surface-muted hover:text-ink"
+                className="rounded-lg border border-white/25 px-3 py-2 text-sm text-on-brand-muted transition-colors hover:bg-white/10 hover:text-on-brand"
               >
                 Sign out
               </button>
@@ -96,25 +101,97 @@ export function Shell({
         {children}
       </main>
 
-      <footer className="mx-auto max-w-[1440px] px-6 pb-10 text-xs text-ink-muted">
-        AMRSS reports surveillance intelligence, not prescribing advice. Figures reflect
-        de-identified data submitted by participating laboratories.
+      <footer className="brand-gradient culture-field mt-4">
+        <div className="mx-auto flex max-w-[1440px] flex-wrap items-center justify-between gap-4 px-6 py-6">
+          <div className="flex items-center gap-2.5">
+            <CultureMark />
+            <div>
+              <div className="text-sm font-semibold text-on-brand">AMRSS</div>
+              <div className="text-xs text-on-brand-muted">
+                Antimicrobial Resistance Surveillance System
+              </div>
+            </div>
+          </div>
+          <p className="max-w-xl text-xs text-on-brand-muted">
+            AMRSS reports surveillance intelligence, not prescribing advice. Figures reflect
+            de-identified data submitted by participating laboratories.
+          </p>
+        </div>
       </footer>
     </div>
   );
 }
 
+/**
+ * The product mark: a culture plate with colonies and an inhibition zone — the
+ * disk-diffusion image this whole system is built around. It gives the interface
+ * a domain identity that a generic chart icon would not, without decorating any
+ * clinical figure.
+ */
+export function CultureMark({ className = "size-7" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 32 32" className={className} role="img" aria-label="AMRSS">
+      <circle cx="16" cy="16" r="14" fill="currentColor" opacity="0.14" />
+      <circle cx="16" cy="16" r="14" fill="none" stroke="currentColor" strokeWidth="1.5" opacity="0.55" />
+      {/* The antimicrobial disk and its zone of inhibition. */}
+      <circle cx="16" cy="16" r="6.5" fill="none" stroke="currentColor" strokeWidth="1" strokeDasharray="2 2" opacity="0.7" />
+      <circle cx="16" cy="16" r="2.6" fill="currentColor" opacity="0.9" />
+      {/* Colonies growing beyond the zone edge. */}
+      <circle cx="8.4" cy="10.5" r="1.5" fill="currentColor" opacity="0.75" />
+      <circle cx="24" cy="11.5" r="1.2" fill="currentColor" opacity="0.6" />
+      <circle cx="9.5" cy="22.5" r="1.3" fill="currentColor" opacity="0.65" />
+      <circle cx="23" cy="22" r="1.6" fill="currentColor" opacity="0.7" />
+    </svg>
+  );
+}
+
+/**
+ * Green page banner, matching the overview hero so every view is framed the same
+ * way. Chrome only: the aside slot takes counts and context, never a
+ * susceptibility figure — those belong in the antibiogram with their n and
+ * period attached.
+ */
 export function PageHeading({
   title,
   description,
+  aside,
 }: {
   title: string;
   description?: string;
+  aside?: React.ReactNode;
 }) {
   return (
-    <div className="mb-6">
-      <h1 className="text-2xl font-semibold tracking-tight text-ink">{title}</h1>
-      {description ? <p className="mt-1 max-w-3xl text-sm text-ink-muted">{description}</p> : null}
+    <section className="brand-gradient culture-field mb-6 overflow-hidden rounded-[--radius-card]">
+      <div className="flex flex-wrap items-center justify-between gap-6 px-6 py-6">
+        <div className="min-w-[16rem] flex-1">
+          <h1 className="text-2xl font-semibold tracking-tight text-on-brand">{title}</h1>
+          {description ? (
+            <p className="mt-1.5 max-w-3xl text-sm text-on-brand-muted">{description}</p>
+          ) : null}
+        </div>
+        {aside ? <div className="flex flex-wrap items-center gap-4">{aside}</div> : null}
+      </div>
+    </section>
+  );
+}
+
+/** A figure on a green banner. */
+export function BannerFigure({
+  label,
+  value,
+  detail,
+}: {
+  label: string;
+  value: string | number;
+  detail?: string;
+}) {
+  return (
+    <div className="rounded-xl border border-white/20 bg-white/10 px-4 py-3">
+      <div className="text-xs font-medium uppercase tracking-wide text-on-brand-muted">
+        {label}
+      </div>
+      <div className="tabular mt-1 text-2xl font-semibold text-on-brand">{value}</div>
+      {detail ? <div className="text-xs text-on-brand-muted">{detail}</div> : null}
     </div>
   );
 }
