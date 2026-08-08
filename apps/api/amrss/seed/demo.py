@@ -83,19 +83,19 @@ FACILITIES = [
 DEMO_PASSWORD = "AmrssDemo!2026"
 
 USERS = [
-    ("clinician@amrss.local", "Demo Clinician", Role.CLINICIAN, None),
+    ("clinician@amrss-demo.org", "Demo Clinician", Role.CLINICIAN, None),
     (
-        "amr.admin@amrss.local",
+        "amr.admin@amrss-demo.org",
         "Demo Regional AMR Administrator",
         Role.REGIONAL_AMR_ADMINISTRATOR,
         None,
     ),
-    ("steward@amrss.local", "Demo Data Steward", Role.DATA_STEWARD, None),
-    ("auditor@amrss.local", "Demo Auditor", Role.AUDITOR, None),
-    ("sysadmin@amrss.local", "Demo System Administrator", Role.SYSTEM_ADMINISTRATOR, None),
-    ("lab@amrss.local", "Demo Laboratory Scientist", Role.LABORATORY_STAFF, "AHA-001"),
+    ("steward@amrss-demo.org", "Demo Data Steward", Role.DATA_STEWARD, None),
+    ("auditor@amrss-demo.org", "Demo Auditor", Role.AUDITOR, None),
+    ("sysadmin@amrss-demo.org", "Demo System Administrator", Role.SYSTEM_ADMINISTRATOR, None),
+    ("lab@amrss-demo.org", "Demo Laboratory Scientist", Role.LABORATORY_STAFF, "AHA-001"),
     (
-        "facility.admin@amrss.local",
+        "facility.admin@amrss-demo.org",
         "Demo Facility Administrator",
         Role.FACILITY_ADMINISTRATOR,
         "AHA-001",
