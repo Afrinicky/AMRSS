@@ -102,6 +102,7 @@ export const api = {
     request<AuditPage>(`/api/v1/admin/audit${queryString(params)}`),
   qualityDashboard: (params?: Record<string, string | undefined>) =>
     request<QualityDashboard>(`/api/v1/quality/dashboard${queryString(params)}`),
+  reports: () => request<ReportSummary[]>("/api/v1/reports"),
   trend: (params: Record<string, string | undefined>) =>
     request<Trend>(`/api/v1/surveillance/trend${queryString(params)}`),
 };
@@ -534,4 +535,21 @@ export interface AntibioticDetail {
   pooling_caveat: string;
   methodology: Record<string, unknown>;
   clinical_framing: string;
+}
+
+// ---- Reports (SDD 9.7) -----------------------------------------------------
+
+export interface ReportSummary {
+  id: string;
+  title: string;
+  period: "monthly" | "quarterly" | "annual" | "ad_hoc";
+  period_start: string;
+  period_end: string;
+  generated_at: string;
+  organism_count: number;
+  isolate_count: number;
+  facilities_contributing: number;
+  facilities_excluded: number;
+  notes: string | null;
+  formats: string[];
 }

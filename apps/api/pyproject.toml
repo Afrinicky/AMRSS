@@ -18,6 +18,8 @@ dependencies = [
     # The CLSI interpretive engine, shared with the laboratory service rather
     # than reimplemented here. See packages/clsi/README.md.
     "amrss-clsi",
+    "openpyxl>=3.1.5",
+    "reportlab>=5.0.0",
 ]
 
 [project.optional-dependencies]

@@ -12,8 +12,9 @@ const NAV = [
   { href: "/antibiotics", label: "Antibiotics", permission: null },
   { href: "/specimens", label: "Specimens", permission: null },
   { href: "/trends", label: "Trends", permission: null },
-  { href: "/alerts", label: "Alerts & signals", permission: null },
+  { href: "/alerts", label: "Alerts", permission: null },
   { href: "/coverage", label: "Coverage", permission: "surveillance:view_regional" },
+  { href: "/reports", label: "Reports", permission: "surveillance:view_regional" },
   { href: "/admin", label: "Administration", permission: "facility:enroll" },
 ];
 
