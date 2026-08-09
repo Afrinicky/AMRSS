@@ -1237,3 +1237,147 @@ def _build_breakdowns(
             )
         )
     return results
+
+
+# ---- Comparison heat map (SDD 11.2) ----------------------------------------
+
+
+class MatrixRowResponse(BaseModel):
+    key: str
+    label: str
+    isolate_count: int
+    cells: list[BreakdownGroupResponse]
+
+
+class ComparisonResponse(BaseModel):
+    dimension: str
+    organism: DictionaryRef | None
+    antibiotics: list[DictionaryRef]
+    rows: list[MatrixRowResponse]
+    minimum_isolates: int
+    small_cell_threshold: int
+    suppression_applied: bool
+    freshness: FreshnessResponse
+    methodology: dict[str, Any]
+    #: Non-negotiable framing for this view specifically. A grid of facilities
+    #: against agents is one design decision away from a league table, and a
+    #: laboratory that fears being ranked reports less.
+    comparison_caveat: str
+    clinical_framing: str = CLINICAL_FRAMING
+
+
+COMPARISON_CAVEAT = (
+    "Differences between geographies reflect the organisms and specimens each one happens to "
+    "submit as much as any difference in resistance, and are not a measure of laboratory "
+    "performance. Read this as a map of where to look, never as a ranking."
+)
+
+#: Geographic rendering — a true choropleth over district boundaries — needs
+#: boundary geometry AMRSS does not hold. The matrix carries the same finding
+#: (which geography differs, and on what) without inventing coordinates, and a
+#: map can be layered on later from the same endpoint.
+GEOGRAPHY_NOTE = (
+    "Shown as a matrix rather than a map: AMRSS holds no district boundary geometry, and "
+    "positioning facilities on an invented map would misrepresent where they are."
+)
+
+
+@router.get("/comparison", response_model=ComparisonResponse)
+def get_comparison(
+    db: DbSession,
+    principal: CurrentPrincipal,
+    dimension: str = "district",
+    organism_id: uuid.UUID | None = None,
+    district_id: uuid.UUID | None = None,
+    care_setting: CareSetting | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+) -> ComparisonResponse:
+    """Susceptibility across districts or facilities, agent by agent.
+
+    An agent that works regionally but has collapsed in one district is
+    invisible in a pooled figure, and finding that is the whole point of the
+    view.
+
+    Facility comparison requires cross-facility permission. Without it the
+    request is refused rather than silently downgraded to districts: a caller
+    who asked for facilities and received districts would misread the result.
+    """
+    if dimension not in ("district", "facility"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="dimension must be 'district' or 'facility'",
+        )
+    if dimension == "facility" and not principal.has(Permission.VIEW_CROSS_FACILITY):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Comparing facilities requires cross-facility permission",
+        )
+
+    scope = resolve(
+        db,
+        principal,
+        district_id=district_id,
+        organism_ids=[organism_id] if organism_id else None,
+        care_setting=care_setting,
+        date_from=date_from,
+        date_to=date_to,
+    )
+    organisms, antibiotics = _dictionary_maps(db)
+    organism = organisms.get(organism_id) if organism_id else None
+    if organism_id and organism is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unknown organism")
+
+    methodology = methodology_engine.resolve(db, regional_block_id=scope.regional_block_id)
+    records = query.load_isolates(db, scope.filters)
+
+    names: dict[Any, str]
+    if dimension == "facility":
+        names = {f.id: f.name for f in db.scalars(select(Facility))}
+        key_of: Any = lambda record: record.facility_id  # noqa: E731
+    else:
+        names = {d.id: d.name for d in db.scalars(select(District))}
+        key_of = lambda record: record.district_id  # noqa: E731
+
+    rows, ordered_agents = breakdowns.matrix(
+        records,
+        methodology,
+        key_of=key_of,
+        organism_id=organism_id,
+        verified_only=scope.verified_only,
+        apply_suppression=scope.apply_suppression,
+    )
+
+    return ComparisonResponse(
+        dimension=dimension,
+        organism=_ref(organism) if organism else None,
+        antibiotics=[_ref(antibiotics[a]) for a in ordered_agents if a in antibiotics],
+        rows=[
+            MatrixRowResponse(
+                key=str(row.key),
+                label=names[row.key],
+                isolate_count=row.isolate_count,
+                cells=[
+                    _group_response(row.cells[a], antibiotics[a].name)
+                    for a in ordered_agents
+                    if a in antibiotics and a in row.cells
+                ],
+            )
+            for row in rows
+            if row.key in names
+        ],
+        minimum_isolates=methodology.minimum_isolates,
+        small_cell_threshold=methodology.small_cell_threshold,
+        suppression_applied=scope.apply_suppression,
+        freshness=_freshness_response(
+            coverage_engine.freshness(
+                db,
+                regional_block_id=scope.regional_block_id,
+                contributing_facility_ids=_contributing_facilities(records, scope.verified_only),
+                coverage_start=scope.filters.date_from,
+                coverage_end=scope.filters.date_to,
+            )
+        ),
+        methodology=provenance.cite(methodology),
+        comparison_caveat=f"{COMPARISON_CAVEAT} {GEOGRAPHY_NOTE}",
+    )

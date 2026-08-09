@@ -13,8 +13,6 @@ const PERIOD_LABEL: Record<ReportSummary["period"], string> = {
   ad_hoc: "Ad hoc",
 };
 
-const API_URL = process.env.AMRSS_API_URL ?? "";
-
 /**
  * Published reports (SDD 9.7).
  *
@@ -123,7 +121,7 @@ export default async function ReportsPage() {
                       {report.formats.map((format) => (
                         <a
                           key={format}
-                          href={`${API_URL}/api/v1/reports/${report.id}/download?file_format=${format}`}
+                          href={`/api/reports/${report.id}/download?file_format=${format}`}
                           className="whitespace-nowrap rounded-lg border border-line px-2.5 py-1 text-xs font-medium text-brand-700 hover:bg-brand-50"
                         >
                           {format.toUpperCase()}

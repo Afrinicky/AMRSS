@@ -8,8 +8,20 @@
 
 import { cookies } from "next/headers";
 
-const API_URL = process.env.AMRSS_API_URL ?? "http://localhost:8000";
 export const SESSION_COOKIE = "amrss_session";
+
+/**
+ * Where the surveillance API lives, read per request rather than at module load.
+ *
+ * Read at call time so a container image built once can be pointed at a
+ * different API by configuration. This is only reliable because `next.config`
+ * declares no `env:` block — that setting inlines values into the bundle during
+ * `next build`, which previously baked the localhost fallback into the image and
+ * made the deployment's own setting inert.
+ */
+export function apiUrl(): string {
+  return process.env.AMRSS_API_URL ?? "http://localhost:8000";
+}
 
 export class ApiError extends Error {
   constructor(
@@ -24,7 +36,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const store = await cookies();
   const token = store.get(SESSION_COOKIE)?.value;
 
-  const response = await fetch(`${API_URL}${path}`, {
+  const response = await fetch(`${apiUrl()}${path}`, {
     ...init,
     headers: {
       "content-type": "application/json",
@@ -54,7 +66,7 @@ export async function login(
   email: string,
   password: string,
 ): Promise<{ access_token: string; refresh_token: string }> {
-  const response = await fetch(`${API_URL}/api/v1/auth/login`, {
+  const response = await fetch(`${apiUrl()}/api/v1/auth/login`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ email, password }),
@@ -103,6 +115,8 @@ export const api = {
   qualityDashboard: (params?: Record<string, string | undefined>) =>
     request<QualityDashboard>(`/api/v1/quality/dashboard${queryString(params)}`),
   reports: () => request<ReportSummary[]>("/api/v1/reports"),
+  comparison: (params?: Record<string, string | undefined>) =>
+    request<Comparison>(`/api/v1/surveillance/comparison${queryString(params)}`),
   trend: (params: Record<string, string | undefined>) =>
     request<Trend>(`/api/v1/surveillance/trend${queryString(params)}`),
 };
@@ -552,4 +566,27 @@ export interface ReportSummary {
   facilities_excluded: number;
   notes: string | null;
   formats: string[];
+}
+
+// ---- Comparison heat map (SDD 11.2) ----------------------------------------
+
+export interface MatrixRow {
+  key: string;
+  label: string;
+  isolate_count: number;
+  cells: BreakdownGroup[];
+}
+
+export interface Comparison {
+  dimension: "district" | "facility";
+  organism: DictionaryRef | null;
+  antibiotics: DictionaryRef[];
+  rows: MatrixRow[];
+  minimum_isolates: number;
+  small_cell_threshold: number;
+  suppression_applied: boolean;
+  freshness: Freshness;
+  methodology: Record<string, unknown>;
+  comparison_caveat: string;
+  clinical_framing: string;
 }

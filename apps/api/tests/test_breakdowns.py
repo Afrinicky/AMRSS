@@ -14,6 +14,7 @@ from amrss.analytics.breakdowns import (
     GroupState,
     agent_profile_for_organism,
     by_dimension,
+    matrix,
     organism_profile_for_agent,
 )
 from amrss.models.enums import SirResult
@@ -320,3 +321,130 @@ def test_no_records_yields_no_groups():
     assert (
         by_dimension([], make_methodology(), antibiotic_id=uuid.uuid4(), key_of=facility_of) == []
     )
+
+
+# ---- The comparison matrix -------------------------------------------------
+
+
+def test_the_matrix_covers_every_geography_against_every_agent():
+    methodology = make_methodology(
+        antibiogram={"minimum_isolates": 5}, suppression={"small_cell_threshold": 1}
+    )
+    records = [
+        *spread(
+            8,
+            facility_id=FACILITY_1,
+            results={DRUG_X: SirResult.SUSCEPTIBLE, DRUG_Y: SirResult.RESISTANT},
+        ),
+        *spread(
+            8,
+            facility_id=FACILITY_2,
+            results={DRUG_X: SirResult.RESISTANT, DRUG_Y: SirResult.SUSCEPTIBLE},
+        ),
+    ]
+
+    rows, agents = matrix(records, methodology, key_of=facility_of)
+
+    assert {row.key for row in rows} == {FACILITY_1, FACILITY_2}
+    assert set(agents) == {DRUG_X, DRUG_Y}
+    by_key = {row.key: row for row in rows}
+    assert by_key[FACILITY_1].cells[DRUG_X].susceptible_percent == 100.0
+    assert by_key[FACILITY_2].cells[DRUG_X].susceptible_percent == 0.0
+
+
+def test_the_matrix_surfaces_a_collapse_a_pooled_figure_would_hide():
+    """The finding this view exists for: an agent that works regionally but has
+    failed in one geography is invisible once the two are added together."""
+    methodology = make_methodology(
+        antibiogram={"minimum_isolates": 5}, suppression={"small_cell_threshold": 1}
+    )
+    records = [
+        *spread(40, facility_id=FACILITY_1, results={DRUG_X: SirResult.SUSCEPTIBLE}),
+        *spread(8, facility_id=FACILITY_2, results={DRUG_X: SirResult.RESISTANT}),
+    ]
+
+    rows, _ = matrix(records, methodology, key_of=facility_of)
+    by_key = {row.key: row for row in rows}
+
+    pooled = by_dimension(records, methodology, antibiotic_id=DRUG_X, key_of=lambda r: "all")
+    assert pooled[0].susceptible_percent == 83.3  # reads as broadly working
+    assert by_key[FACILITY_2].cells[DRUG_X].susceptible_percent == 0.0  # and yet
+
+
+def test_every_matrix_cell_is_gated_independently():
+    """Splitting into a grid makes each cell smaller than the total. A cell that
+    clears neither threshold must carry a state, not a number."""
+    methodology = make_methodology(
+        antibiogram={"minimum_isolates": 30}, suppression={"small_cell_threshold": 5}
+    )
+    records = [
+        *spread(40, facility_id=FACILITY_1, results={DRUG_X: SirResult.SUSCEPTIBLE}),
+        *spread(10, facility_id=FACILITY_2, results={DRUG_X: SirResult.RESISTANT}),
+        *spread(3, facility_id=FACILITY_2, results={DRUG_Y: SirResult.RESISTANT}),
+    ]
+
+    rows, _ = matrix(records, methodology, key_of=facility_of)
+    by_key = {row.key: row for row in rows}
+
+    assert by_key[FACILITY_1].cells[DRUG_X].state is GroupState.REPORTABLE
+    assert by_key[FACILITY_2].cells[DRUG_X].state is GroupState.BELOW_THRESHOLD
+    assert by_key[FACILITY_2].cells[DRUG_X].susceptible_percent is None
+
+
+def test_the_matrix_deduplicates_once_so_columns_cannot_disagree():
+    """A per-agent pass would let two columns disagree about which isolates
+    exist whenever a patient's episode straddled the deduplication window."""
+    methodology = make_methodology(
+        antibiogram={"minimum_isolates": 1},
+        suppression={"small_cell_threshold": 1},
+        deduplication={"window_days": 30, "scope": "facility"},
+    )
+    records = [
+        make_isolate(
+            specimen_date=DAY_ZERO + timedelta(days=day),
+            patient="one-patient",
+            facility_id=FACILITY_1,
+            results={DRUG_X: SirResult.RESISTANT, DRUG_Y: SirResult.SUSCEPTIBLE},
+        )
+        for day in (0, 3, 6)
+    ]
+
+    rows, _ = matrix(records, methodology, key_of=facility_of)
+
+    assert rows[0].isolate_count == 1
+    assert rows[0].cells[DRUG_X].interpretable == rows[0].cells[DRUG_Y].interpretable == 1
+
+
+def test_geographies_are_ordered_by_volume_never_by_susceptibility():
+    """Ordering a comparison by performance turns it into a league table, which
+    is the one thing this view must not become."""
+    methodology = make_methodology(
+        antibiogram={"minimum_isolates": 5}, suppression={"small_cell_threshold": 1}
+    )
+    records = [
+        # The smaller geography performs better; volume must still lead.
+        *spread(6, facility_id=FACILITY_2, results={DRUG_X: SirResult.SUSCEPTIBLE}),
+        *spread(30, facility_id=FACILITY_1, results={DRUG_X: SirResult.RESISTANT}),
+    ]
+
+    rows, _ = matrix(records, methodology, key_of=facility_of)
+
+    assert [row.key for row in rows] == [FACILITY_1, FACILITY_2]
+
+
+def test_the_matrix_can_be_narrowed_to_one_organism():
+    methodology = make_methodology(
+        antibiogram={"minimum_isolates": 5}, suppression={"small_cell_threshold": 1}
+    )
+    records = [
+        *spread(8, organism_id=ORGANISM_A, results={DRUG_X: SirResult.SUSCEPTIBLE}),
+        *spread(8, organism_id=ORGANISM_B, results={DRUG_X: SirResult.RESISTANT}),
+    ]
+
+    rows, _ = matrix(records, methodology, key_of=facility_of, organism_id=ORGANISM_A)
+
+    assert rows[0].cells[DRUG_X].susceptible_percent == 100.0
+
+
+def test_an_empty_population_yields_an_empty_matrix():
+    assert matrix([], make_methodology(), key_of=facility_of) == ([], [])
