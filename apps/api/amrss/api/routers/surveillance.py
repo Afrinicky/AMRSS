@@ -96,6 +96,9 @@ class AntibiogramResponse(BaseModel):
     minimum_isolates: int
     small_cell_threshold: int
     suppression_applied: bool
+    #: Measurements awaiting breakpoint interpretation. A large value alongside
+    #: an empty table means breakpoints are missing, not data.
+    pending_interpretation_count: int
     methodology: dict[str, Any]
     clinical_framing: str = CLINICAL_FRAMING
 
@@ -221,6 +224,7 @@ def get_antibiogram(
         minimum_isolates=result.minimum_isolates,
         small_cell_threshold=result.small_cell_threshold,
         suppression_applied=result.suppression_applied,
+        pending_interpretation_count=result.pending_interpretation_count,
         methodology=provenance.describe(result, methodology, scope.filters),
     )
 

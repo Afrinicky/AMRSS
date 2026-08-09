@@ -113,6 +113,10 @@ class Antibiogram:
     verified_only: bool
     minimum_isolates: int
     small_cell_threshold: int
+    #: Results carrying a measurement but no interpretation. When this is large
+    #: and the table is empty, the cause is missing breakpoints rather than
+    #: missing data — a distinction the interface must be able to draw.
+    pending_interpretation_count: int = 0
 
 
 def compute(
@@ -196,6 +200,13 @@ def compute(
 
     rows.sort(key=lambda row: (row.organism_kingdom.value, -row.isolate_count))
 
+    pending = sum(
+        1
+        for record in retained
+        for result in record.results.values()
+        if result is SirResult.PENDING_INTERPRETATION
+    )
+
     dates = [record.specimen_date for record in retained]
     return Antibiogram(
         level=level,
@@ -209,6 +220,7 @@ def compute(
         period_end=max(dates) if dates else None,
         suppression_applied=apply_suppression,
         verified_only=verified_only,
+        pending_interpretation_count=pending,
         minimum_isolates=minimum_isolates,
         small_cell_threshold=small_cell if apply_suppression else 0,
     )

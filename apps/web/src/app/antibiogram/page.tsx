@@ -115,6 +115,10 @@ export default async function AntibiogramPage({
           </button>
         </form>
 
+        {antibiogram.pending_interpretation_count > 0 ? (
+          <PendingInterpretationNotice count={antibiogram.pending_interpretation_count} />
+        ) : null}
+
         <QualityExclusionNotice
           facilitiesExcluded={antibiogram.quality_exclusion.facilities_excluded}
           isolatesExcluded={antibiogram.quality_exclusion.isolates_excluded}
@@ -150,7 +154,7 @@ export default async function AntibiogramPage({
               {/* The table scrolls inside its own container so the page body
                   never scrolls sideways on a narrow facility screen. */}
               <div className="overflow-x-auto rounded-[--radius-card] border border-line bg-surface">
-                <table className="w-full border-collapse text-sm">
+                <table className="banded w-full border-collapse text-sm">
                   <caption className="sr-only">
                     Percent susceptible by organism and antimicrobial agent, {period}
                   </caption>
@@ -228,6 +232,30 @@ export default async function AntibiogramPage({
         <ClinicalFraming text={antibiogram.clinical_framing} />
       </div>
     </Shell>
+  );
+}
+
+/**
+ * Explains an empty or thin table when the cause is missing breakpoints.
+ *
+ * Real WHONET exports frequently carry only raw zone diameters. Without this,
+ * the table would render "insufficient data" everywhere and give a clinician no
+ * way to tell "we have no isolates" from "we have the isolates but nothing to
+ * interpret them against" — two very different problems with different fixes.
+ */
+function PendingInterpretationNotice({ count }: { count: number }) {
+  return (
+    <div className="rounded-[--radius-card] border border-sir-i/40 bg-sir-i/5 px-4 py-3">
+      <p className="text-sm font-medium text-ink">
+        {count.toLocaleString()} result{count === 1 ? "" : "s"} awaiting breakpoint
+        interpretation
+      </p>
+      <p className="mt-1 text-xs text-ink-muted">
+        These are zone diameters or MIC values recorded without a susceptibility category. They
+        are counted but cannot contribute to a susceptibility rate until an AST breakpoint table
+        is loaded and applied. This is missing interpretation, not missing data.
+      </p>
+    </div>
   );
 }
 

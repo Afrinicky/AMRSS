@@ -159,6 +159,7 @@ export interface Antibiogram {
   minimum_isolates: number;
   small_cell_threshold: number;
   suppression_applied: boolean;
+  pending_interpretation_count: number;
   methodology: Record<string, unknown>;
   clinical_framing: string;
 }

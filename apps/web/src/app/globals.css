@@ -156,6 +156,20 @@ body {
   color: var(--color-accent);
 }
 
+/* Alternate antibiogram rows carry a very faint brand tint.
+ *
+ * Readability first: these tables run to fifteen or more agent columns, and
+ * banding is what lets the eye track one organism across the full width without
+ * losing the row. The tint is kept at a few percent so it sits well below the
+ * S/I/R cell fills — a band that competed with them would turn a legibility aid
+ * into a misreading. */
+.banded tbody tr:nth-child(even) th[scope="row"] {
+  background-color: color-mix(in srgb, var(--color-brand-600) 4%, var(--color-surface));
+}
+.banded tbody tr:nth-child(even) td:not([style*="background"]) {
+  background-color: color-mix(in srgb, var(--color-brand-600) 3%, transparent);
+}
+
 /* Section headings get a short gold rule, which gives the long white stretches
  * a rhythm without adding another filled block. */
 .heading-rule {
