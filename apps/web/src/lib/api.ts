@@ -84,6 +84,18 @@ export const api = {
     request<OrganismExplorer>(`/api/v1/surveillance/organisms${queryString(params)}`),
   specimenExplorer: (params?: Record<string, string | undefined>) =>
     request<SpecimenExplorer>(`/api/v1/surveillance/specimens${queryString(params)}`),
+
+  // Administration. Every one of these is permission-gated at the API; the
+  // console only ever hides links, never enforces (SDD 7).
+  blocks: () => request<Block[]>("/api/v1/admin/blocks"),
+  facilities: (params?: Record<string, string | undefined>) =>
+    request<AdminFacility[]>(`/api/v1/admin/facilities${queryString(params)}`),
+  mappings: (params?: Record<string, string | undefined>) =>
+    request<CodeMapping[]>(`/api/v1/admin/mappings${queryString(params)}`),
+  methodologyVersions: () => request<MethodologyVersionRow[]>("/api/v1/admin/methodology"),
+  dictionarySummary: () => request<DictionarySummary>("/api/v1/admin/dictionary/summary"),
+  auditTrail: (params?: Record<string, string | undefined>) =>
+    request<AuditPage>(`/api/v1/admin/audit${queryString(params)}`),
   trend: (params: Record<string, string | undefined>) =>
     request<Trend>(`/api/v1/surveillance/trend${queryString(params)}`),
 };
@@ -332,4 +344,101 @@ export interface OrganismExplorer {
   infection_sites: string[];
   freshness: Freshness;
   clinical_framing: string;
+}
+
+// ---- Administration --------------------------------------------------------
+
+export type FacilityStatus =
+  | "pending"
+  | "under_verification"
+  | "active"
+  | "suspended"
+  | "inactive"
+  | "retired";
+
+export interface Block {
+  id: string;
+  code: string;
+  name: string;
+  governing_body: string;
+  status: string;
+  activated_on: string | null;
+  whonet_config_standard: string | null;
+  district_count: number;
+  facility_count: number;
+}
+
+export interface AdminFacility {
+  id: string;
+  code: string;
+  name: string;
+  district_id: string;
+  district_name: string;
+  regional_block_id: string;
+  status: FacilityStatus;
+  whonet_config_version: string | null;
+  upload_schedule: string;
+  upload_interval_days: number | null;
+  mou_signed_on: string | null;
+  mou_reference: string | null;
+  enrollment_notes: string | null;
+  last_accepted_upload_at: string | null;
+  qc_status: string;
+  eqa_status: string;
+  available_transitions: FacilityStatus[];
+  blocking_activation: string[];
+}
+
+export interface CodeMapping {
+  id: string;
+  facility_id: string;
+  facility_name: string;
+  entity_type: string;
+  local_code: string;
+  local_label: string | null;
+  canonical_code: string | null;
+  status: string;
+  observed_record_count: number;
+  review_note: string | null;
+}
+
+export interface MethodologyVersionRow {
+  id: string;
+  component: string;
+  version: string;
+  description: string;
+  effective_from: string;
+  is_provisional: boolean;
+  regional_block_id: string | null;
+  parameter_keys: string[];
+  entry_count: number | null;
+}
+
+export interface DictionarySummary {
+  organisms: number;
+  organisms_of_special_importance: number;
+  organisms_without_clsi_groups: number;
+  antibiotics: number;
+  specimen_types: number;
+  pending_mappings: number;
+}
+
+export interface AuditEntry {
+  id: string;
+  occurred_at: string;
+  actor_label: string;
+  actor_role: string | null;
+  action: string;
+  entity: string;
+  entity_id: string | null;
+  before_state: Record<string, unknown> | null;
+  after_state: Record<string, unknown> | null;
+  source_ip: string | null;
+  note: string | null;
+}
+
+export interface AuditPage {
+  entries: AuditEntry[];
+  total: number;
+  actions: string[];
 }
