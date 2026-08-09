@@ -1,5 +1,5 @@
 import { ClinicalFraming, FreshnessBanner } from "@/components/context-panels";
-import { PageHeading, Shell } from "@/components/shell";
+import { BannerFigure, PageHeading, Shell } from "@/components/shell";
 import { api } from "@/lib/api";
 import { requireProfile } from "@/lib/session";
 
@@ -22,13 +22,27 @@ export default async function AlertsPage() {
       <PageHeading
         title="Alerts and emerging signals"
         description={alerts.note}
+        aside={
+          <>
+            <BannerFigure
+              label="Emerging signals"
+              value={alerts.emerging_signals.length}
+              detail="Require expert review"
+            />
+            <BannerFigure
+              label="Below threshold"
+              value={alerts.below_threshold_alerts.length}
+              detail="Watched organisms"
+            />
+          </>
+        }
       />
 
       <div className="space-y-6">
         <FreshnessBanner freshness={alerts.freshness} />
 
         <section aria-labelledby="signals-heading">
-          <h2 id="signals-heading" className="mb-1 text-lg font-semibold text-ink">
+          <h2 id="signals-heading" className="heading-rule mb-1 text-lg font-semibold text-ink">
             Emerging resistance signals
           </h2>
           <p className="mb-4 max-w-3xl text-sm text-ink-muted">
@@ -96,7 +110,7 @@ export default async function AlertsPage() {
         </section>
 
         <section aria-labelledby="below-threshold-heading">
-          <h2 id="below-threshold-heading" className="mb-1 text-lg font-semibold text-ink">
+          <h2 id="below-threshold-heading" className="heading-rule mb-1 text-lg font-semibold text-ink">
             Organisms of special importance below the reporting threshold
           </h2>
           <p className="mb-4 max-w-3xl text-sm text-ink-muted">

@@ -33,11 +33,27 @@ class SirResult(StrEnum):
     #: (SDD 4.2). Dropping these at ingestion would make every denominator
     #: unauditable against the source laboratory's own records.
     NOT_INTERPRETABLE = "NI"
+    #: A quantitative measurement (zone diameter or MIC) recorded without an
+    #: interpretation. Real WHONET exports frequently carry only millimetre
+    #: readings, so this is the common case rather than an edge case. Kept
+    #: distinct from NOT_INTERPRETABLE, which means the test produced nothing
+    #: usable: a pending result is good data awaiting a breakpoint, and lumping
+    #: the two together would hide how much of the panel is recoverable.
+    PENDING_INTERPRETATION = "PI"
 
     @property
     def is_interpretable(self) -> bool:
-        """Whether the result belongs in a susceptibility denominator."""
-        return self is not SirResult.NOT_INTERPRETABLE
+        """Whether the result belongs in a susceptibility denominator.
+
+        A pending measurement is excluded until breakpoints resolve it. Counting
+        it would require guessing a category from a raw millimetre reading, which
+        is precisely the judgement AMRSS refuses to make on a laboratory's behalf.
+        """
+        return self not in (SirResult.NOT_INTERPRETABLE, SirResult.PENDING_INTERPRETATION)
+
+    @property
+    def awaits_interpretation(self) -> bool:
+        return self is SirResult.PENDING_INTERPRETATION
 
     @property
     def counts_as_susceptible(self) -> bool:

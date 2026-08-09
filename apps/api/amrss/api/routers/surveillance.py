@@ -20,6 +20,7 @@ from amrss.analytics import alerts as alerts_engine
 from amrss.analytics import antibiogram as antibiogram_engine
 from amrss.analytics import coverage as coverage_engine
 from amrss.analytics import methodology as methodology_engine
+from amrss.analytics import profiles as profiles_engine
 from amrss.analytics import provenance, query, signals, trends
 from amrss.api.deps import CurrentPrincipal, DbSession
 from amrss.api.scope_resolution import resolve
@@ -96,6 +97,9 @@ class AntibiogramResponse(BaseModel):
     minimum_isolates: int
     small_cell_threshold: int
     suppression_applied: bool
+    #: Measurements awaiting breakpoint interpretation. A large value alongside
+    #: an empty table means breakpoints are missing, not data.
+    pending_interpretation_count: int
     methodology: dict[str, Any]
     clinical_framing: str = CLINICAL_FRAMING
 
@@ -221,6 +225,7 @@ def get_antibiogram(
         minimum_isolates=result.minimum_isolates,
         small_cell_threshold=result.small_cell_threshold,
         suppression_applied=result.suppression_applied,
+        pending_interpretation_count=result.pending_interpretation_count,
         methodology=provenance.describe(result, methodology, scope.filters),
     )
 
@@ -600,4 +605,286 @@ def get_reference(db: DbSession, principal: CurrentPrincipal) -> ReferenceRespon
                 .order_by(CanonicalSpecimenType.name)
             )
         ],
+    )
+
+
+# ---- Antibiotic Explorer ---------------------------------------------------
+
+
+class AntibioticProfileResponse(BaseModel):
+    antibiotic: DictionaryRef
+    susceptible_percent: float
+    intermediate_percent: float
+    resistant_percent: float
+    tested: int
+    interpretable: int
+    #: How pooled this bar is. One organism is a clean statistic; a dozen is a
+    #: mixed population whose shape depends on what happened to be isolated.
+    organism_count: int
+
+
+class AntibioticExplorerResponse(BaseModel):
+    profiles: list[AntibioticProfileResponse]
+    minimum_isolates: int
+    freshness: FreshnessResponse
+    pooling_caveat: str
+    clinical_framing: str = CLINICAL_FRAMING
+
+
+POOLING_CAVEAT = (
+    "Each bar pools one agent across every organism tested against it. Organisms differ "
+    "in intrinsic susceptibility, so a pooled figure is shaped partly by which organisms "
+    "were isolated. Use the antibiogram for the organism-specific answer."
+)
+
+
+@router.get("/antibiotics", response_model=AntibioticExplorerResponse)
+def get_antibiotic_explorer(
+    db: DbSession,
+    principal: CurrentPrincipal,
+    district_id: uuid.UUID | None = None,
+    facility_id: uuid.UUID | None = None,
+    care_setting: CareSetting | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+) -> AntibioticExplorerResponse:
+    """Overall resistance and susceptibility per agent (SDD 11.2, Antibiotic Explorer)."""
+    scope = resolve(
+        db,
+        principal,
+        district_id=district_id,
+        facility_id=facility_id,
+        care_setting=care_setting,
+        date_from=date_from,
+        date_to=date_to,
+    )
+    methodology = methodology_engine.resolve(db, regional_block_id=scope.regional_block_id)
+    records = query.load_isolates(db, scope.filters)
+    profiles = profiles_engine.by_antibiotic(
+        records, methodology, verified_only=scope.verified_only
+    )
+    _, antibiotics = _dictionary_maps(db)
+
+    return AntibioticExplorerResponse(
+        profiles=[
+            AntibioticProfileResponse(
+                antibiotic=_ref(antibiotics[profile.antibiotic_id]),
+                susceptible_percent=profile.susceptible_percent,
+                intermediate_percent=profile.intermediate_percent,
+                resistant_percent=profile.resistant_percent,
+                tested=profile.summary.tested,
+                interpretable=profile.summary.interpretable,
+                organism_count=profile.organism_count,
+            )
+            for profile in profiles
+            if profile.antibiotic_id in antibiotics
+        ],
+        minimum_isolates=methodology.minimum_isolates,
+        freshness=_freshness_response(
+            coverage_engine.freshness(
+                db,
+                regional_block_id=scope.regional_block_id,
+                contributing_facility_ids=_contributing_facilities(records, scope.verified_only),
+                coverage_start=scope.filters.date_from,
+                coverage_end=scope.filters.date_to,
+            )
+        ),
+        pooling_caveat=POOLING_CAVEAT,
+    )
+
+
+# ---- Organism Explorer -----------------------------------------------------
+
+
+class SiteCountResponse(BaseModel):
+    infection_site: str
+    isolate_count: int
+    percent_of_organism: float
+
+
+class OrganismSiteResponse(BaseModel):
+    organism: DictionaryRef
+    organism_kingdom: OrganismKingdom
+    isolate_count: int
+    percent_of_total: float
+    principal_site: str | None
+    sites: list[SiteCountResponse]
+    #: Isolates whose site of infection fell below the suppression threshold and
+    #: is therefore not listed. Published so the listed sites can be seen not to
+    #: add up, rather than leaving the shortfall to look like an error.
+    withheld_isolates: int
+
+
+class OrganismExplorerResponse(BaseModel):
+    organisms: list[OrganismSiteResponse]
+    total_isolates: int
+    #: Every distinct site present, so a client can lay out a consistent axis.
+    infection_sites: list[str]
+    freshness: FreshnessResponse
+    clinical_framing: str = CLINICAL_FRAMING
+
+
+@router.get("/organisms", response_model=OrganismExplorerResponse)
+def get_organism_explorer(
+    db: DbSession,
+    principal: CurrentPrincipal,
+    district_id: uuid.UUID | None = None,
+    facility_id: uuid.UUID | None = None,
+    care_setting: CareSetting | None = None,
+    organism_kingdom: OrganismKingdom | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+) -> OrganismExplorerResponse:
+    """Which organisms were isolated and from which sites of infection
+    (SDD 11.2, Organism Explorer)."""
+    scope = resolve(
+        db,
+        principal,
+        district_id=district_id,
+        facility_id=facility_id,
+        care_setting=care_setting,
+        organism_kingdom=organism_kingdom,
+        date_from=date_from,
+        date_to=date_to,
+    )
+    methodology = methodology_engine.resolve(db, regional_block_id=scope.regional_block_id)
+    records = query.load_isolates(db, scope.filters)
+
+    specimen_types = {s.id: s for s in db.scalars(select(CanonicalSpecimenType))}
+    site_of = {
+        specimen_id: specimen.infection_site for specimen_id, specimen in specimen_types.items()
+    }
+
+    organism_profiles, total = profiles_engine.by_organism_site(
+        records,
+        methodology,
+        site_of,
+        verified_only=scope.verified_only,
+        apply_suppression=scope.apply_suppression,
+    )
+    organisms, _ = _dictionary_maps(db)
+
+    sites: list[str] = []
+    for profile in organism_profiles:
+        for site in profile.sites:
+            if site.infection_site not in sites:
+                sites.append(site.infection_site)
+
+    return OrganismExplorerResponse(
+        organisms=[
+            OrganismSiteResponse(
+                organism=_ref(organisms[profile.organism_id]),
+                organism_kingdom=organisms[profile.organism_id].kingdom,
+                isolate_count=profile.isolate_count,
+                percent_of_total=profile.percent_of_total,
+                principal_site=profile.principal_site,
+                sites=[
+                    SiteCountResponse(
+                        infection_site=site.infection_site,
+                        isolate_count=site.isolate_count,
+                        percent_of_organism=site.percent_of_organism,
+                    )
+                    for site in profile.sites
+                ],
+                withheld_isolates=profile.withheld_count,
+            )
+            for profile in organism_profiles
+            if profile.organism_id in organisms
+        ],
+        total_isolates=total,
+        infection_sites=sites,
+        freshness=_freshness_response(
+            coverage_engine.freshness(
+                db,
+                regional_block_id=scope.regional_block_id,
+                contributing_facility_ids=_contributing_facilities(records, scope.verified_only),
+                coverage_start=scope.filters.date_from,
+                coverage_end=scope.filters.date_to,
+            )
+        ),
+    )
+
+
+# ---- Specimen Explorer -----------------------------------------------------
+
+
+class SpecimenCountResponse(BaseModel):
+    specimen_type: DictionaryRef
+    #: Derived from the specimen type rather than collected separately (SDD 3.1),
+    #: so the two can never disagree.
+    infection_site: str
+    #: Whether the specimen comes from a normally sterile site. A growth from
+    #: blood or CSF means something a growth from a wound swab does not, and the
+    #: distinction is carried in the dictionary rather than inferred from names.
+    sterile_site: bool
+    isolate_count: int
+    percent_of_total: float
+
+
+class SpecimenExplorerResponse(BaseModel):
+    specimens: list[SpecimenCountResponse]
+    #: Counts every isolate, including those in specimen types withheld below the
+    #: suppression threshold — so the listed rows can be seen not to sum to it.
+    total_isolates: int
+    withheld_isolates: int
+    freshness: FreshnessResponse
+    clinical_framing: str = CLINICAL_FRAMING
+
+
+@router.get("/specimens", response_model=SpecimenExplorerResponse)
+def get_specimen_explorer(
+    db: DbSession,
+    principal: CurrentPrincipal,
+    district_id: uuid.UUID | None = None,
+    facility_id: uuid.UUID | None = None,
+    care_setting: CareSetting | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+) -> SpecimenExplorerResponse:
+    """Which specimen types yielded the isolates (SDD 11.2, Specimen Explorer)."""
+    scope = resolve(
+        db,
+        principal,
+        district_id=district_id,
+        facility_id=facility_id,
+        care_setting=care_setting,
+        date_from=date_from,
+        date_to=date_to,
+    )
+    methodology = methodology_engine.resolve(db, regional_block_id=scope.regional_block_id)
+    records = query.load_isolates(db, scope.filters)
+
+    counts, total = profiles_engine.by_specimen(
+        records,
+        methodology,
+        verified_only=scope.verified_only,
+        apply_suppression=scope.apply_suppression,
+    )
+    specimen_types = {s.id: s for s in db.scalars(select(CanonicalSpecimenType))}
+
+    listed = [
+        SpecimenCountResponse(
+            specimen_type=_ref(specimen_types[entry.specimen_type_id]),
+            infection_site=specimen_types[entry.specimen_type_id].infection_site,
+            sterile_site=specimen_types[entry.specimen_type_id].is_sterile_site,
+            isolate_count=entry.isolate_count,
+            percent_of_total=entry.percent_of_total,
+        )
+        for entry in counts
+        if entry.specimen_type_id in specimen_types
+    ]
+
+    return SpecimenExplorerResponse(
+        specimens=listed,
+        total_isolates=total,
+        withheld_isolates=total - sum(entry.isolate_count for entry in listed),
+        freshness=_freshness_response(
+            coverage_engine.freshness(
+                db,
+                regional_block_id=scope.regional_block_id,
+                contributing_facility_ids=_contributing_facilities(records, scope.verified_only),
+                coverage_start=scope.filters.date_from,
+                coverage_end=scope.filters.date_to,
+            )
+        ),
     )

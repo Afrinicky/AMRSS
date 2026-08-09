@@ -17,11 +17,36 @@
   --color-brand-700: #186340;
   --color-brand-900: #0d3a26;
 
+  --color-brand-800: #124a30;
+
   --color-surface: #ffffff;
-  --color-surface-muted: #f6f8f7;
-  --color-line: #e2e8e5;
+  /* The page ground carries a light green cast rather than neutral grey, so
+   * white cards read as raised against it. A pure-white page behind white cards
+   * gives the eye no depth and is what made earlier screens feel washed out. */
+  --color-surface-muted: #eef4f0;
+  /* A second tint for banded sections, so long pages alternate instead of
+   * running as one continuous white field. */
+  --color-surface-tint: #e4efe8;
+  --color-line: #dce7e1;
   --color-ink: #12211a;
   --color-ink-muted: #5c6b64;
+  /* Text on the dark green hero and footer. */
+  --color-on-brand: #eaf6ef;
+  --color-on-brand-muted: #a9cfba;
+
+  /* Golden accent — brand only.
+   *
+   * Deliberately kept apart from --sir-i (#C77800), the clinical amber for
+   * Intermediate. The two are close enough in hue that adjacency would make gold
+   * read as a susceptibility category, so gold is confined to the dark green
+   * chrome and amber to light data surfaces. They never appear on the same
+   * background, which is what keeps them unambiguous.
+   *
+   * This gold is lighter and yellower than the clinical amber, and it is legible
+   * on deep green where amber would muddy. */
+  --color-accent: #edc75a;
+  --color-accent-strong: #d9a92e;
+  --color-accent-soft: #f4dfa3;
 
   /* Clinical semantics — chosen for convention and clarity, not brand harmony. */
   --color-sir-s: #1b8a5a;
@@ -33,6 +58,15 @@
 
   /* Multi-series charts, where a series carries no S/I/R meaning. Deliberately
    * distinct from both families above so a line is never read as a severity. */
+  /* Count bars on the specimen figure.
+   *
+   * A deliberately deeper, bluer crimson than --sir-r (#C2352B), the clinical
+   * red for Resistant. These bars count specimens; they carry no susceptibility
+   * meaning, and the two reds never share a surface. Keeping them visibly
+   * distinct is what stops a tall "Urine" bar from reading as a resistance
+   * finding to someone scanning the page. */
+  --color-count: #a3264a;
+
   --color-series-1: #2e5eaa;
   --color-series-2: #b5651d;
   --color-series-3: #6a4c93;
@@ -52,10 +86,17 @@
     --color-brand-300: #2e6b49;
     --color-brand-600: #39a16c;
     --color-brand-700: #2e8a5b;
+    --color-brand-800: #2b7d55;
     --color-brand-900: #d6f0e1;
     --color-surface: #0f1512;
-    --color-surface-muted: #161d19;
+    --color-surface-muted: #101814;
+    --color-surface-tint: #16211b;
     --color-line: #26312c;
+    --color-on-brand: #eaf6ef;
+    --color-on-brand-muted: #9dc3ae;
+    --color-accent: #f0cf6b;
+    --color-accent-strong: #e3b840;
+    --color-accent-soft: #4a3c14;
     --color-ink: #e8efea;
     --color-ink-muted: #9aaaa2;
     --color-sir-s: #3fb07f;
@@ -64,6 +105,15 @@
     --color-sir-nt: #6e7c77;
     --color-insufficient: #1c2420;
     --color-insufficient-ink: #7c8a84;
+    --color-count: #d4576f;
+    /* Lifted for a dark ground: the light-theme series colours are mid-tone and
+     * sit too close to the surface once the page inverts. */
+    --color-series-1: #6f9fe8;
+    --color-series-2: #e0975a;
+    --color-series-3: #a98fd6;
+    --color-series-4: #4ec2c4;
+    --color-series-5: #dd82ae;
+    --color-series-6: #c3b544;
   }
 }
 
@@ -82,6 +132,152 @@ body {
  * column to column read as unreliable even when they are not. */
 .tabular {
   font-variant-numeric: tabular-nums;
+}
+
+/* --- Brand surfaces -------------------------------------------------------
+ *
+ * Green carries the chrome so the interface reads as one product rather than a
+ * white page with green links. These are all chrome utilities: none of them may
+ * be used to encode a clinical value, which remains the job of the --sir-*
+ * tokens alone. */
+
+/* Lighter and warmer than a flat deep green: the earlier band read as a heavy
+ * slab. The gradient now runs mid-green with a warm gold wash at one corner, so
+ * the mass is broken up and the block recedes behind the content on it. */
+.brand-gradient {
+  background:
+    radial-gradient(
+      90% 120% at 96% 8%,
+      color-mix(in srgb, var(--color-accent-strong) 22%, transparent) 0%,
+      transparent 55%
+    ),
+    radial-gradient(
+      110% 130% at 82% -20%,
+      color-mix(in srgb, var(--color-brand-600) 65%, transparent) 0%,
+      transparent 62%
+    ),
+    linear-gradient(135deg, var(--color-brand-800) 0%, var(--color-brand-700) 60%, var(--color-brand-600) 100%);
+  color: var(--color-on-brand);
+}
+
+/* A gold hairline where a green band meets the page, so the edge is a
+ * deliberate seam rather than an abrupt stop. */
+.brand-edge-bottom {
+  border-bottom: 2px solid color-mix(in srgb, var(--color-accent) 55%, transparent);
+}
+.brand-edge-top {
+  border-top: 2px solid color-mix(in srgb, var(--color-accent) 55%, transparent);
+}
+
+/* Gold, for emphasis on green chrome only. Never inside a data cell. */
+.accent-text {
+  color: var(--color-accent);
+}
+
+/* Alternate antibiogram rows carry a very faint brand tint.
+ *
+ * Readability first: these tables run to fifteen or more agent columns, and
+ * banding is what lets the eye track one organism across the full width without
+ * losing the row. The tint is kept at a few percent so it sits well below the
+ * S/I/R cell fills — a band that competed with them would turn a legibility aid
+ * into a misreading. */
+.banded tbody tr:nth-child(even) th[scope="row"] {
+  background-color: color-mix(in srgb, var(--color-brand-600) 4%, var(--color-surface));
+}
+.banded tbody tr:nth-child(even) td:not([style*="background"]) {
+  background-color: color-mix(in srgb, var(--color-brand-600) 3%, transparent);
+}
+
+/* Section headings get a short gold rule, which gives the long white stretches
+ * a rhythm without adding another filled block. */
+.heading-rule {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+}
+.heading-rule::before {
+  content: "";
+  width: 3px;
+  height: 1.15em;
+  border-radius: 2px;
+  background: linear-gradient(
+    to bottom,
+    var(--color-accent-strong),
+    var(--color-brand-600)
+  );
+}
+
+.brand-soft {
+  background: linear-gradient(160deg, var(--color-brand-50) 0%, var(--color-surface) 70%);
+}
+
+/* A faint culture-plate lattice. Antimicrobial identity without putting
+ * decoration anywhere near a susceptibility figure — it appears only on brand
+ * chrome, never behind data. */
+.culture-field {
+  position: relative;
+  isolation: isolate;
+}
+.culture-field::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.5;
+  background-image:
+    radial-gradient(circle at 12% 30%, rgb(255 255 255 / 0.09) 0 2px, transparent 2.5px),
+    radial-gradient(circle at 32% 72%, rgb(255 255 255 / 0.07) 0 3px, transparent 3.5px),
+    radial-gradient(circle at 58% 22%, rgb(255 255 255 / 0.06) 0 2px, transparent 2.5px),
+    radial-gradient(circle at 76% 62%, rgb(255 255 255 / 0.08) 0 2.5px, transparent 3px),
+    radial-gradient(circle at 91% 38%, rgb(255 255 255 / 0.05) 0 3px, transparent 3.5px);
+  background-size: 220px 180px;
+}
+
+/* --- Susceptibility ring --------------------------------------------------
+ *
+ * The radial gauge from the reference design, reused for coverage and
+ * completeness — both genuine proportions of a whole, which is what a ring
+ * reads as. It is deliberately NOT used for susceptibility percentages: those
+ * belong in the antibiogram with their n and period attached. */
+
+.ring {
+  --ring-size: 84px;
+  --ring-thickness: 9px;
+  width: var(--ring-size);
+  height: var(--ring-size);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background:
+    conic-gradient(
+      var(--ring-colour) calc(var(--ring-value) * 1%),
+      color-mix(in srgb, currentColor 14%, transparent) 0
+    );
+  -webkit-mask: radial-gradient(
+    farthest-side,
+    transparent calc(100% - var(--ring-thickness)),
+    #000 calc(100% - var(--ring-thickness) + 1px)
+  );
+  mask: radial-gradient(
+    farthest-side,
+    transparent calc(100% - var(--ring-thickness)),
+    #000 calc(100% - var(--ring-thickness) + 1px)
+  );
+}
+
+/* Radial tick marks, echoing the striped gauges in the reference. */
+.ring-ticks {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: repeating-conic-gradient(
+    currentColor 0deg 1.2deg,
+    transparent 1.2deg 6deg
+  );
+  opacity: 0.18;
+  -webkit-mask: radial-gradient(farthest-side, transparent 62%, #000 64%);
+  mask: radial-gradient(farthest-side, transparent 62%, #000 64%);
 }
 
 /* The insufficient-data state carries a texture as well as a fill, so it is

@@ -78,6 +78,12 @@ export const api = {
     request<AlertsPayload>(`/api/v1/surveillance/alerts${queryString(params)}`),
   coverage: () => request<Coverage>("/api/v1/surveillance/coverage"),
   reference: () => request<Reference>("/api/v1/surveillance/reference"),
+  antibioticExplorer: (params?: Record<string, string | undefined>) =>
+    request<AntibioticExplorer>(`/api/v1/surveillance/antibiotics${queryString(params)}`),
+  organismExplorer: (params?: Record<string, string | undefined>) =>
+    request<OrganismExplorer>(`/api/v1/surveillance/organisms${queryString(params)}`),
+  specimenExplorer: (params?: Record<string, string | undefined>) =>
+    request<SpecimenExplorer>(`/api/v1/surveillance/specimens${queryString(params)}`),
   trend: (params: Record<string, string | undefined>) =>
     request<Trend>(`/api/v1/surveillance/trend${queryString(params)}`),
 };
@@ -159,6 +165,7 @@ export interface Antibiogram {
   minimum_isolates: number;
   small_cell_threshold: number;
   suppression_applied: boolean;
+  pending_interpretation_count: number;
   methodology: Record<string, unknown>;
   clinical_framing: string;
 }
@@ -265,6 +272,64 @@ export interface Trend {
   bucket: string;
   minimum_isolates: number;
   points: TrendPoint[];
+  freshness: Freshness;
+  clinical_framing: string;
+}
+
+export interface AntibioticProfile {
+  antibiotic: DictionaryRef;
+  susceptible_percent: number;
+  intermediate_percent: number;
+  resistant_percent: number;
+  tested: number;
+  interpretable: number;
+  organism_count: number;
+}
+
+export interface AntibioticExplorer {
+  profiles: AntibioticProfile[];
+  minimum_isolates: number;
+  freshness: Freshness;
+  pooling_caveat: string;
+  clinical_framing: string;
+}
+
+export interface SiteCount {
+  infection_site: string;
+  isolate_count: number;
+  percent_of_organism: number;
+}
+
+export interface OrganismSites {
+  organism: DictionaryRef;
+  organism_kingdom: "bacteria" | "fungi";
+  isolate_count: number;
+  percent_of_total: number;
+  principal_site: string | null;
+  sites: SiteCount[];
+  withheld_isolates: number;
+}
+
+export interface SpecimenCount {
+  specimen_type: DictionaryRef;
+  infection_site: string;
+  sterile_site: boolean;
+  isolate_count: number;
+  percent_of_total: number;
+}
+
+export interface SpecimenExplorer {
+  specimens: SpecimenCount[];
+  total_isolates: number;
+  withheld_isolates: number;
+  freshness: Freshness;
+  clinical_framing: string;
+}
+
+export interface OrganismExplorer {
+  organisms: OrganismSites[];
+  total_isolates: number;
+  infection_sites: string[];
   freshness: Freshness;
   clinical_framing: string;
 }

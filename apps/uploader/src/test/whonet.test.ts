@@ -6,7 +6,12 @@ import { after, test } from "node:test";
 
 import Database from "better-sqlite3";
 
-import { detectProfile, matchAntibioticColumns, readIsolates } from "../core/whonet";
+import {
+  detectProfile,
+  matchAntibioticColumns,
+  readIsolates,
+  summariseResultEncoding,
+} from "../core/whonet";
 
 const workspace = mkdtempSync(join(tmpdir(), "amrss-whonet-"));
 after(() => rmSync(workspace, { recursive: true, force: true }));
@@ -228,4 +233,124 @@ test("the database is opened read-only", () => {
   const count = db.prepare<[], { n: number }>("SELECT COUNT(*) AS n FROM isolates").get();
   db.close();
   assert.equal(count?.n, 2);
+});
+
+// --- Behaviours validated against a real Ghanaian WHONET export -------------
+//
+// That file carried 337 AST values, every one a raw millimetre zone diameter,
+// and 75 of 183 rows were culture-negative. Both cases previously produced
+// silent, wrong results, so both are pinned here.
+
+test("a raw zone diameter is carried as a measurement, not read as a category", () => {
+  const path = makeWhonetFile("zones.sqlite", [
+    {
+      PATIENT_ID: "H-1",
+      SPEC_DATE: "2026-07-15",
+      SPEC_TYPE: "ur",
+      ORGANISM: "eco",
+      CIP_ND5: "14",
+      AMP_ND10: "6",
+    },
+  ]);
+  const profile = detectProfile(path).profile!;
+  const [isolate] = readIsolates(path, profile);
+
+  const cip = isolate!.results.find((r) => r.antibioticCode === "CIP")!;
+  assert.equal(cip.result, "PI", "a measurement awaits interpretation");
+  assert.equal(cip.zoneDiameterMm, 14);
+  assert.equal(cip.testMethod, "disk_diffusion");
+});
+
+test("an interpreted category is still read as a category", () => {
+  const path = makeWhonetFile("cats.sqlite", [
+    { PATIENT_ID: "H-1", SPEC_DATE: "2026-07-15", SPEC_TYPE: "ur", ORGANISM: "eco", CIP_ND5: "R" },
+  ]);
+  const profile = detectProfile(path).profile!;
+  const [isolate] = readIsolates(path, profile);
+
+  assert.equal(isolate!.results[0]!.result, "R");
+  assert.equal(isolate!.results[0]!.zoneDiameterMm, null);
+});
+
+test("pending interpretation is distinct from not interpretable", () => {
+  // "good data awaiting a breakpoint" and "the test produced nothing usable"
+  // must not collapse into one state, or the recoverable panel is hidden.
+  const path = makeWhonetFile("mixed.sqlite", [
+    {
+      PATIENT_ID: "H-1",
+      SPEC_DATE: "2026-07-15",
+      SPEC_TYPE: "ur",
+      ORGANISM: "eco",
+      CIP_ND5: "18",
+      AMP_ND10: "contaminated",
+    },
+  ]);
+  const profile = detectProfile(path).profile!;
+  const results = readIsolates(path, profile)[0]!.results;
+
+  assert.equal(results.find((r) => r.antibioticCode === "CIP")!.result, "PI");
+  assert.equal(results.find((r) => r.antibioticCode === "AMP")!.result, "NI");
+});
+
+test("culture-negative rows never become isolates", () => {
+  const path = makeWhonetFile("nogrowth.sqlite", [
+    ...SAMPLE,
+    { PATIENT_ID: "H-9", SPEC_DATE: "2026-07-15", SPEC_TYPE: "ur", ORGANISM: "xxx" },
+  ]);
+  const profile = detectProfile(path).profile!;
+
+  // Admitting them would invent an organism called "xxx" and inflate workload.
+  assert.equal(readIsolates(path, profile).length, 2);
+});
+
+test("the result encoding of a file can be summarised before uploading", () => {
+  const path = makeWhonetFile("encoding.sqlite", [
+    { PATIENT_ID: "H-1", SPEC_DATE: "2026-07-15", SPEC_TYPE: "ur", ORGANISM: "eco", CIP_ND5: "14" },
+    { PATIENT_ID: "H-2", SPEC_DATE: "2026-07-15", SPEC_TYPE: "ur", ORGANISM: "eco", CIP_ND5: "S" },
+  ]);
+  const profile = detectProfile(path).profile!;
+
+  assert.deepEqual(summariseResultEncoding(path, profile), {
+    categorical: 1,
+    quantitative: 1,
+    unreadable: 0,
+  });
+});
+
+test("no-significant-growth is excluded alongside no-growth", () => {
+  // Both name no organism: xxx grew nothing, xsg grew only flora the laboratory
+  // judged insignificant. Either would invent an organism if admitted.
+  const path = makeWhonetFile("nsg.sqlite", [
+    ...SAMPLE,
+    { PATIENT_ID: "H-8", SPEC_DATE: "2026-07-15", SPEC_TYPE: "ur", ORGANISM: "xsg" },
+    { PATIENT_ID: "H-9", SPEC_DATE: "2026-07-15", SPEC_TYPE: "ur", ORGANISM: "XXX" },
+    { PATIENT_ID: "H-10", SPEC_DATE: "2026-07-15", SPEC_TYPE: "ur", ORGANISM: "No Significant Growth" },
+  ]);
+  const profile = detectProfile(path).profile!;
+
+  assert.equal(readIsolates(path, profile).length, 2);
+});
+
+test("agent codes with compound potencies are captured", () => {
+  // A real export encoded co-trimoxazole as SXT_ND1_2. An earlier pattern
+  // allowed only digits and dots in the potency, so the most-used agent in that
+  // laboratory was silently dropped from every antibiogram.
+  const matched = matchAntibioticColumns(
+    ["SXT_ND1_2", "SXT_ND5_2", "AXS_ND", "CTX_NE", "CRB_ND100", "WARD_TYPE", "SPEC_REAS"],
+    "^([A-Z]{3})_(N[DME])([0-9._]*)$",
+  );
+
+  assert.deepEqual(
+    matched.map((entry) => `${entry.code}:${entry.method}`),
+    ["SXT:ND", "SXT:ND", "AXS:ND", "CTX:NE", "CRB:ND"],
+  );
+});
+
+test("non-agent columns are never mistaken for agents", () => {
+  const matched = matchAntibioticColumns(
+    ["PATIENT_ID", "WARD_TYPE", "SPEC_REAS", "DATE_DATA", "BETA_LACT", "ESBL", "AFRO_GRAM"],
+    "^([A-Z]{3})_(N[DME])([0-9._]*)$",
+  );
+
+  assert.deepEqual(matched, []);
 });

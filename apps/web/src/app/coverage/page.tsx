@@ -1,5 +1,5 @@
 import { PageHeading, Shell } from "@/components/shell";
-import { StatTile } from "@/components/statistic";
+import { Ring, StatTile } from "@/components/statistic";
 import { api } from "@/lib/api";
 import { requireProfile } from "@/lib/session";
 
@@ -21,6 +21,18 @@ export default async function CoveragePage() {
       <PageHeading
         title="Surveillance coverage"
         description="How much of the regional block is represented in current figures, and which laboratories are reporting on schedule."
+        aside={
+          <Ring
+            tone="on-brand"
+            value={
+              coverage.active_facilities
+                ? (100 * coverage.reporting_this_month) / coverage.active_facilities
+                : 0
+            }
+            caption="Reporting this month"
+            sublabel={`${coverage.reporting_this_month} of ${coverage.active_facilities} active facilities`}
+          />
+        }
       />
 
       <div className="space-y-6">
@@ -64,7 +76,7 @@ export default async function CoveragePage() {
 
         {coverage.facilities.length > 0 ? (
           <section aria-labelledby="facilities-heading">
-            <h2 id="facilities-heading" className="mb-3 text-lg font-semibold text-ink">
+            <h2 id="facilities-heading" className="heading-rule mb-3 text-lg font-semibold text-ink">
               Reporting compliance by facility
             </h2>
             <div className="overflow-x-auto rounded-[--radius-card] border border-line bg-surface">

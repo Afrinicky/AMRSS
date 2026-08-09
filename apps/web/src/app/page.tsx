@@ -5,8 +5,8 @@ import {
   FreshnessBanner,
   formatPeriod,
 } from "@/components/context-panels";
-import { PageHeading, Shell } from "@/components/shell";
-import { StatTile } from "@/components/statistic";
+import { Shell } from "@/components/shell";
+import { Ring } from "@/components/statistic";
 import { api } from "@/lib/api";
 import { requireProfile } from "@/lib/session";
 
@@ -28,42 +28,64 @@ export default async function OverviewPage() {
 
   return (
     <Shell profile={profile} current="/">
-      <PageHeading
-        title="Regional resistance overview"
-        description="Current susceptibility patterns across contributing laboratories in this regional block."
-      />
-
       <div className="space-y-6">
-        <FreshnessBanner freshness={antibiogram.freshness} />
+        {/* Green hero: the "what are we seeing now?" answer, with coverage as a
+            ring because it is a true proportion of a whole. */}
+        <section className="brand-gradient brand-edge-bottom culture-field overflow-hidden rounded-[--radius-card]">
+          <div className="flex flex-wrap items-center justify-between gap-8 px-6 py-6">
+            <div className="min-w-[16rem] flex-1">
+              <h1 className="text-2xl font-semibold tracking-tight text-on-brand">
+                Regional resistance overview
+              </h1>
+              <p className="mt-1.5 max-w-2xl text-sm text-on-brand-muted">
+                Current susceptibility patterns across contributing laboratories, updated on
+                every accepted upload.
+              </p>
+              <dl className="mt-5 flex flex-wrap gap-x-8 gap-y-3">
+                <HeroFigure
+                  label="Isolates in period"
+                  value={antibiogram.raw_isolate_count.toLocaleString()}
+                  detail={`${antibiogram.antibiogram_eligible_count.toLocaleString()} antibiogram-eligible`}
+                />
+                <HeroFigure
+                  label="Organisms reported"
+                  value={String(antibiogram.rows.length)}
+                  detail={`${antibiogram.rows.filter((r) => r.organism_kingdom === "fungi").length} fungal`}
+                />
+                <HeroFigure
+                  label="Reporting threshold"
+                  value={`n ≥ ${antibiogram.minimum_isolates}`}
+                  detail="Before a combination is reported"
+                />
+              </dl>
+            </div>
 
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <StatTile
-            label="Isolates in period"
-            value={antibiogram.raw_isolate_count.toLocaleString()}
-            detail={`${antibiogram.antibiogram_eligible_count.toLocaleString()} eligible after first-isolate deduplication`}
-          />
-          <StatTile
-            label="Organisms reported"
-            value={antibiogram.rows.length}
-            detail={`${antibiogram.rows.filter((r) => r.organism_kingdom === "fungi").length} fungal`}
-          />
-          <StatTile
-            label="Emerging signals"
-            value={alerts.emerging_signals.length}
-            detail="Require expert review"
-            tone={alerts.emerging_signals.length > 0 ? "attention" : "neutral"}
-          />
-          <StatTile
-            label="Reporting threshold"
-            value={`n ≥ ${antibiogram.minimum_isolates}`}
-            detail="Minimum isolates before a combination is reported"
-          />
-        </div>
+            <div className="flex flex-wrap items-center gap-6">
+              <Ring
+                tone="on-brand"
+                value={antibiogram.freshness.completeness_percent ?? 0}
+                caption="Regional coverage"
+                sublabel={`${antibiogram.freshness.facilities_contributing} of ${antibiogram.freshness.facilities_expected} facilities reporting`}
+              />
+              <div className="rounded-xl border border-white/20 bg-white/10 px-4 py-3">
+                <div className="accent-text text-xs font-medium uppercase tracking-wide">
+                  Emerging signals
+                </div>
+                <div className="tabular mt-1 text-2xl font-semibold text-on-brand">
+                  {alerts.emerging_signals.length}
+                </div>
+                <div className="text-xs text-on-brand-muted">Require expert review</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <FreshnessBanner freshness={antibiogram.freshness} />
 
         {alerts.emerging_signals.length > 0 ? (
           <section aria-labelledby="signals-heading">
             <div className="mb-3 flex items-baseline justify-between">
-              <h2 id="signals-heading" className="text-lg font-semibold text-ink">
+              <h2 id="signals-heading" className="heading-rule text-lg font-semibold text-ink">
                 Current resistance signals
               </h2>
               <Link href="/alerts" className="text-sm font-medium text-brand-700">
@@ -100,7 +122,7 @@ export default async function OverviewPage() {
 
         <section aria-labelledby="organisms-heading">
           <div className="mb-3 flex items-baseline justify-between">
-            <h2 id="organisms-heading" className="text-lg font-semibold text-ink">
+            <h2 id="organisms-heading" className="heading-rule text-lg font-semibold text-ink">
               Most frequently isolated organisms
             </h2>
             <Link href="/antibiogram" className="text-sm font-medium text-brand-700">
@@ -172,6 +194,16 @@ export default async function OverviewPage() {
         <ClinicalFraming text={antibiogram.clinical_framing} />
       </div>
     </Shell>
+  );
+}
+
+function HeroFigure({ label, value, detail }: { label: string; value: string; detail: string }) {
+  return (
+    <div>
+      <dt className="accent-text text-xs font-medium uppercase tracking-wide">{label}</dt>
+      <dd className="tabular mt-0.5 text-xl font-semibold text-on-brand">{value}</dd>
+      <dd className="text-xs text-on-brand-muted">{detail}</dd>
+    </div>
   );
 }
 

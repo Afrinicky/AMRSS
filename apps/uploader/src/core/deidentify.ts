@@ -21,7 +21,7 @@ import { createHash, scryptSync, timingSafeEqual } from "node:crypto";
 export type AgeBand = "<5" | "5-14" | "15-44" | "45-64" | "65+" | "unknown";
 export type Sex = "male" | "female" | "unknown";
 export type CareSetting = "IPD" | "OPD" | "unknown";
-export type SirResult = "S" | "I" | "R" | "SDD" | "NS" | "NI";
+export type SirResult = "S" | "I" | "R" | "SDD" | "NS" | "NI" | "PI";
 
 /** A row as read from the facility's WHONET database. Contains identifiers. */
 export interface SourceIsolate {
@@ -44,7 +44,24 @@ export interface SourceIsolate {
   }>;
 }
 
-/** What actually leaves the facility. Compare against SDD 3.1. */
+/**
+ * What actually leaves the facility. Compare against SDD 3.1.
+ *
+ * **Surveillance-relevant fields only.** Facilities configure WHONET however
+ * suits them, and real exports carry 55–81 columns: laboratory and institution
+ * codes, requesting department, ward, specimen reason, free-text comments,
+ * data-entry dates, local flags. None of that contributes to a pattern, a trend
+ * or an antibiogram, so none of it is transmitted.
+ *
+ * What survives is exactly what an antibiogram is computed from — the organism,
+ * the site of infection (via specimen type), age band, sex, care setting, and
+ * the susceptibility results — plus the linkage key that makes
+ * first-isolate deduplication possible.
+ *
+ * The filtering is structural rather than a cleanup pass: this interface *is*
+ * the allow-list. A field with no property here has no route out of the
+ * building, whatever a facility's WHONET happens to contain.
+ */
 export interface DeidentifiedIsolate {
   source_record_hash: string;
   patient_linkage_key: string;
@@ -170,6 +187,7 @@ export function normaliseResult(value: string | null): SirResult | null {
   if (token === "R" || token === "RESISTANT") return "R";
   if (token === "SDD") return "SDD";
   if (token === "NS" || token === "NONSUSCEPTIBLE" || token === "NON-SUSCEPTIBLE") return "NS";
+  if (token === "PI") return "PI";
   return "NI";
 }
 

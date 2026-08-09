@@ -124,19 +124,111 @@ export function StatTile({
   label: string;
   value: string | number;
   detail?: string;
-  tone?: "neutral" | "attention";
+  /** `attention` is the only tone that carries meaning; the rest is chrome. */
+  tone?: "neutral" | "brand" | "attention";
 }) {
+  const brand = tone === "brand";
   return (
-    <div className="rounded-[--radius-card] border border-line bg-surface p-4">
-      <div className="text-xs font-medium uppercase tracking-wide text-ink-muted">{label}</div>
+    <div
+      className={`rounded-[--radius-card] border p-4 ${
+        brand ? "border-brand-300/60 brand-soft" : "border-line bg-surface"
+      }`}
+    >
+      <div
+        className={`text-xs font-medium uppercase tracking-wide ${
+          brand ? "text-brand-700" : "text-ink-muted"
+        }`}
+      >
+        {label}
+      </div>
       <div
         className={`tabular mt-1.5 text-2xl font-semibold ${
-          tone === "attention" ? "text-sir-i" : "text-ink"
+          tone === "attention" ? "text-sir-i" : brand ? "text-brand-900" : "text-ink"
         }`}
       >
         {value}
       </div>
-      {detail ? <div className="mt-1 text-xs text-ink-muted">{detail}</div> : null}
+      {detail ? (
+        <div className={`mt-1 text-xs ${brand ? "text-brand-700/80" : "text-ink-muted"}`}>
+          {detail}
+        </div>
+      ) : null}
     </div>
+  );
+}
+
+/**
+ * Radial gauge for a genuine proportion of a whole — coverage, completeness,
+ * reporting compliance.
+ *
+ * Deliberately not used for susceptibility. A ring invites reading as
+ * "how full is this", which is the wrong mental model for a rate that must be
+ * read together with its n and time period. Those stay in the antibiogram.
+ */
+export function Ring({
+  value,
+  caption,
+  sublabel,
+  size = 84,
+  tone = "brand",
+}: {
+  value: number;
+  caption: string;
+  sublabel?: string;
+  size?: number;
+  tone?: "brand" | "on-brand";
+}) {
+  const bounded = Math.max(0, Math.min(100, value));
+  const colour = tone === "on-brand" ? "var(--color-on-brand)" : "var(--color-brand-600)";
+
+  return (
+    <figure className="flex items-center gap-3">
+      <div
+        className="relative shrink-0"
+        style={{ width: size, height: size, color: colour }}
+        role="img"
+        aria-label={`${caption}: ${bounded.toFixed(0)} percent`}
+      >
+        <div className="ring-ticks" aria-hidden />
+        <div
+          className="ring"
+          aria-hidden
+          style={
+            {
+              "--ring-value": bounded,
+              "--ring-colour": colour,
+              "--ring-size": `${size}px`,
+            } as React.CSSProperties
+          }
+        />
+        <div className="absolute inset-0 grid place-items-center">
+          <span
+            className="tabular text-lg font-semibold"
+            style={{ color: tone === "on-brand" ? "var(--color-on-brand)" : "var(--color-brand-900)" }}
+          >
+            {bounded.toFixed(0)}
+            <span className="text-[11px] font-normal">%</span>
+          </span>
+        </div>
+      </div>
+      <figcaption>
+        <div
+          className={`text-sm font-medium ${
+            tone === "on-brand" ? "text-on-brand" : "text-ink"
+          }`}
+        >
+          {caption}
+        </div>
+        {sublabel ? (
+          <div
+            className={`text-xs ${
+              tone === "on-brand" ? "text-on-brand-muted" : "text-ink-muted"
+            }`}
+          >
+            {sublabel}
+          </div>
+        ) : null}
+      </figcaption>
+    </figure>
   );
 }

@@ -34,10 +34,14 @@ class SusceptibilitySummary:
     resistant: int
     susceptible_dose_dependent: int
     non_susceptible: int
+    #: Measurements recorded without an interpretation — zone diameters or MICs
+    #: awaiting breakpoints. Counted separately from not-interpretable, because
+    #: this is recoverable data, not a failed test.
+    pending_interpretation: int = 0
 
     @property
     def not_interpretable(self) -> int:
-        return self.tested - self.interpretable
+        return self.tested - self.interpretable - self.pending_interpretation
 
     @property
     def susceptible_percent(self) -> float | None:
@@ -100,4 +104,5 @@ def summarise(results: list[SirResult]) -> SusceptibilitySummary:
         resistant=counts[SirResult.RESISTANT],
         susceptible_dose_dependent=counts[SirResult.SUSCEPTIBLE_DOSE_DEPENDENT],
         non_susceptible=counts[SirResult.NON_SUSCEPTIBLE],
+        pending_interpretation=counts[SirResult.PENDING_INTERPRETATION],
     )
