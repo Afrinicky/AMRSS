@@ -32,7 +32,7 @@ export default async function OverviewPage() {
         {/* Green hero: the "what are we seeing now?" answer, with coverage as a
             ring because it is a true proportion of a whole. */}
         <section className="brand-gradient brand-edge-bottom culture-field overflow-hidden rounded-[--radius-card]">
-          <div className="flex flex-wrap items-center justify-between gap-8 px-6 py-6">
+          <div className="flex flex-wrap items-center justify-between gap-8 px-4 py-6 sm:px-6">
             <div className="min-w-[16rem] flex-1">
               <h1 className="text-2xl font-semibold tracking-tight text-on-brand">
                 Regional resistance overview
@@ -84,7 +84,7 @@ export default async function OverviewPage() {
 
         {alerts.emerging_signals.length > 0 ? (
           <section aria-labelledby="signals-heading">
-            <div className="mb-3 flex items-baseline justify-between">
+            <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
               <h2 id="signals-heading" className="heading-rule text-lg font-semibold text-ink">
                 Current resistance signals
               </h2>
@@ -121,7 +121,7 @@ export default async function OverviewPage() {
         ) : null}
 
         <section aria-labelledby="organisms-heading">
-          <div className="mb-3 flex items-baseline justify-between">
+          <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
             <h2 id="organisms-heading" className="heading-rule text-lg font-semibold text-ink">
               Most frequently isolated organisms
             </h2>
@@ -143,7 +143,7 @@ export default async function OverviewPage() {
               return (
                 <article
                   key={row.organism.id}
-                  className="rounded-[--radius-card] border border-line bg-surface p-4"
+                  className="min-w-0 rounded-[--radius-card] border border-line bg-surface p-4"
                 >
                   <div className="flex items-baseline justify-between gap-2">
                     <h3 className="font-medium italic text-ink">{row.organism.name}</h3>

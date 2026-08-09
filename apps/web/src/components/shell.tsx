@@ -48,22 +48,35 @@ export function Shell({
       </a>
 
       {/* The header carries the brand green rather than sitting white on white.
-          It is chrome only — no clinical value is ever encoded in it. */}
+          It is chrome only — no clinical value is ever encoded in it.
+
+          Below `lg`, the seven navigation entries would stack into a column
+          taller than the first screenful of content, so the row reorders: brand
+          and account sit on one line and the navigation becomes a single
+          horizontally scrollable row beneath them. `order` does the reordering
+          rather than duplicated markup, so there is one nav in the accessibility
+          tree, not two. */}
       <header className="brand-gradient brand-edge-bottom culture-field">
-        <div className="mx-auto flex max-w-[1440px] flex-wrap items-center gap-x-8 gap-y-3 px-6 py-3">
-          <Link href="/" className="flex items-center gap-2.5">
+        <div className="mx-auto flex max-w-[1440px] flex-wrap items-center gap-x-8 gap-y-3 px-4 py-3 sm:px-6">
+          <Link href="/" className="order-1 flex items-center gap-2.5">
             <CultureMark />
             <span className="flex items-baseline gap-2">
               <span className="text-lg font-semibold tracking-tight text-on-brand">
                 AMR<span className="accent-text">SS</span>
               </span>
-              <span className="hidden text-xs text-on-brand-muted lg:inline">
+              {/* The spelled-out name only appears once there is room for it
+                  beside a full navigation row; below that it pushed "Coverage"
+                  onto a second line on its own. */}
+              <span className="hidden text-xs text-on-brand-muted 2xl:inline">
                 Antimicrobial Resistance Surveillance
               </span>
             </span>
           </Link>
 
-          <nav aria-label="Main" className="flex flex-1 flex-wrap gap-1">
+          <nav
+            aria-label="Main"
+            className="scroll-row order-3 -mx-1 flex w-full gap-1 overflow-x-auto px-1 lg:order-2 lg:mx-0 lg:w-auto lg:flex-1 lg:flex-wrap lg:overflow-visible lg:px-0"
+          >
             {visible.map((item) => {
               const active = item.href === current;
               return (
@@ -71,7 +84,7 @@ export function Shell({
                   key={item.href}
                   href={item.href}
                   aria-current={active ? "page" : undefined}
-                  className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                  className={`shrink-0 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                     active
                       ? "bg-white/15 text-on-brand shadow-[inset_0_-2px_0_0_var(--color-accent)]"
                       : "text-on-brand-muted hover:bg-white/10 hover:text-on-brand"
@@ -83,7 +96,7 @@ export function Shell({
             })}
           </nav>
 
-          <div className="flex items-center gap-3 text-right">
+          <div className="order-2 ml-auto flex items-center gap-3 text-right lg:order-3 lg:ml-0">
             <div className="hidden sm:block">
               <div className="text-sm font-medium text-on-brand">{profile.full_name}</div>
               <div className="text-xs text-on-brand-muted">
@@ -102,12 +115,12 @@ export function Shell({
         </div>
       </header>
 
-      <main id="main" className="mx-auto max-w-[1440px] px-6 py-8">
+      <main id="main" className="mx-auto max-w-[1440px] px-4 py-8 sm:px-6">
         {children}
       </main>
 
       <footer className="brand-gradient brand-edge-top culture-field mt-4">
-        <div className="mx-auto flex max-w-[1440px] flex-wrap items-center justify-between gap-4 px-6 py-5">
+        <div className="mx-auto flex max-w-[1440px] flex-wrap items-center justify-between gap-4 px-4 py-5 sm:px-6">
           <div className="flex items-center gap-2.5">
             <CultureMark />
             <div>
@@ -178,7 +191,7 @@ export function PageHeading({
 }) {
   return (
     <section className="brand-gradient brand-edge-bottom culture-field mb-6 overflow-hidden rounded-[--radius-card]">
-      <div className="flex flex-wrap items-center justify-between gap-6 px-6 py-5">
+      <div className="flex flex-wrap items-center justify-between gap-6 px-4 py-5 sm:px-6">
         <div className="min-w-[16rem] flex-1">
           <h1 className="text-2xl font-semibold tracking-tight text-on-brand">{title}</h1>
           {description ? (
