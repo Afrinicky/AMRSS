@@ -93,16 +93,11 @@ export default async function OrganismsPage({
                 {KINGDOM_HEADING[kingdom]}
               </h2>
               <p className="mb-3 max-w-3xl text-sm text-ink-muted">
-                Bar length is the isolate count; the segments show where in the body each
-                organism was recovered from. Bars are scaled against the most-isolated
-                organism, not each stretched to full width, so a small organism does not read
-                as a common one.
+                Each organism is listed with the sites it was recovered from, one bar per
+                site. Bars share a single scale across the whole figure, so a site with a
+                dozen isolates is never drawn the length of one with three hundred.
               </p>
-              <OrganismSiteChart
-                organisms={rows}
-                sites={explorer.infection_sites}
-                total={explorer.total_isolates}
-              />
+              <OrganismSiteChart organisms={rows} total={explorer.total_isolates} />
             </section>
           );
         })}

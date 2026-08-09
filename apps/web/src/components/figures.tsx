@@ -217,59 +217,62 @@ function Legend() {
   );
 }
 
-/**
- * The site-of-infection palette.
- *
- * The multi-series family, never the clinical one. A site of infection carries
- * no severity, and a blood-culture segment drawn in the Resistant red would be
- * read as a resistance finding by anyone scanning the page. These hues are also
- * mutually distinct rather than a single-hue ramp, because the question the
- * chart answers is "which sites", not "how much" — categories, not magnitude.
- *
- * Colour is never the only encoding: every segment above a readable width
- * carries its count, each bar is annotated with its principal site, and the
- * whole figure is backed by a table.
- */
-const SITE_FILLS = [
-  "var(--color-series-4)",
-  "var(--color-series-1)",
-  "var(--color-series-2)",
-  "var(--color-series-3)",
-  "var(--color-series-5)",
-  "var(--color-series-6)",
-];
-const SITE_OTHER_FILL = "var(--color-sir-nt)";
 
-function siteFill(site: string, order: string[]): string {
-  const index = order.indexOf(site);
-  if (index < 0 || index >= SITE_FILLS.length) return SITE_OTHER_FILL;
-  return SITE_FILLS[index];
-}
+/**
+ * Bar fill for the organism figure.
+ *
+ * Deep blue from the multi-series family, never the clinical palette. These bars
+ * are counts of isolates, not susceptibility categories, and drawing them in the
+ * brand green or in any of the S/I/R hues would invite a reader scanning the
+ * page to see a clinical judgement where none is being made. Blue carries no
+ * severity reading in this system, which is precisely why it is correct here.
+ *
+ * One hue throughout rather than one per site: every bar measures the same
+ * thing, so varying the colour would imply a distinction that does not exist.
+ */
+const COUNT_FILL = "var(--color-series-1)";
 
 function humanise(site: string): string {
   const spaced = site.replace(/[_-]+/g, " ").trim();
   return spaced.charAt(0).toUpperCase() + spaced.slice(1);
 }
 
+const GROUP_HEIGHT = 30;
+const BAR_HEIGHT = 22;
+const BAR_GAP = 5;
+const SITE_INDENT = 14;
+/** Room for "1,308 (30%)" beyond the end of the longest bar. */
+const COUNT_GUTTER = 116;
+
+type Row =
+  | { kind: "organism"; key: string; name: string; count: number; percent: number }
+  | {
+      kind: "site";
+      key: string;
+      label: string;
+      count: number;
+      percent: number;
+      withheld: boolean;
+    };
+
 /**
  * Organisms and the sites of infection they were recovered from.
  *
- * One bar per organism, segmented by site: the length says how many isolates of
- * that organism there were, and the segmentation says where in the body they
- * came from. Both readings matter — *E. coli* recovered almost entirely from
- * urine is a different clinical problem from *E. coli* appearing in blood, even
- * at the same total.
+ * One bar per site, grouped under the organism it belongs to. Bars are measured
+ * against a single scale across the whole figure rather than renormalised within
+ * each organism, so a site with twelve isolates cannot be drawn the same length
+ * as one with three hundred — the comparison a reader makes by eye is the
+ * comparison the data supports.
  *
- * Bars are scaled against the largest organism rather than each normalised to
- * 100%, so a reader cannot mistake a six-isolate organism for a dominant one.
+ * *E. coli* recovered almost entirely from urine is a different clinical problem
+ * from *E. coli* appearing in blood, which is why the sites are listed rather
+ * than collapsed into the organism total.
  */
 export function OrganismSiteChart({
   organisms,
-  sites,
   total,
 }: {
   organisms: OrganismSites[];
-  sites: string[];
   total: number;
 }) {
   if (organisms.length === 0) {
@@ -280,21 +283,51 @@ export function OrganismSiteChart({
     );
   }
 
+  const rows: Row[] = [];
+  for (const organism of organisms) {
+    rows.push({
+      kind: "organism",
+      key: organism.organism.id,
+      name: organism.organism.name,
+      count: organism.isolate_count,
+      percent: organism.percent_of_total,
+    });
+    for (const site of organism.sites) {
+      rows.push({
+        kind: "site",
+        key: `${organism.organism.id}:${site.infection_site}`,
+        label: humanise(site.infection_site),
+        count: site.isolate_count,
+        percent: site.percent_of_organism,
+        withheld: false,
+      });
+    }
+    if (organism.withheld_isolates > 0) {
+      rows.push({
+        kind: "site",
+        key: `${organism.organism.id}:withheld`,
+        label: "Site withheld (too few isolates)",
+        count: organism.withheld_isolates,
+        percent: Math.round((100 * organism.withheld_isolates) / organism.isolate_count),
+        withheld: true,
+      });
+    }
+  }
+
   const plotWidth = 440;
-  const maximum = Math.max(...organisms.map((entry) => entry.isolate_count));
-  const height = organisms.length * (ROW_HEIGHT + ROW_GAP);
-  // Wide enough for the full annotation on a full-width bar — a five-figure
-  // count plus "mostly Gastrointestinal tract", the longest site name in the
-  // dictionary. A tighter gutter clipped it on the largest organism, which is
-  // exactly the row a reader looks at first.
-  const totalWidth = LABEL_WIDTH + plotWidth + 230;
-
-  // Only the sites actually drawn, in the order the API listed them, so the
-  // legend never advertises a category absent from the chart.
-  const drawn = sites.filter((site) =>
-    organisms.some((organism) => organism.sites.some((entry) => entry.infection_site === site)),
+  // One scale for the whole figure. Renormalising per organism would make a
+  // twelve-isolate site look like a three-hundred-isolate one.
+  const maximum = Math.max(
+    ...rows.filter((row) => row.kind === "site").map((row) => row.count),
+    1,
   );
+  const height = rows.reduce(
+    (running, row) => running + (row.kind === "organism" ? GROUP_HEIGHT : BAR_HEIGHT + BAR_GAP),
+    0,
+  );
+  const hasWithheld = organisms.some((organism) => organism.withheld_isolates > 0);
 
+  let y = 0;
   return (
     <figure className="rounded-[--radius-card] border border-line bg-surface p-4">
       <figcaption className="mb-2 text-sm font-medium text-ink">
@@ -304,11 +337,11 @@ export function OrganismSiteChart({
 
       <div className="overflow-x-auto">
         <svg
-          viewBox={`0 0 ${totalWidth} ${height}`}
+          viewBox={`0 0 ${LABEL_WIDTH + plotWidth + COUNT_GUTTER} ${height}`}
           width="100%"
-          style={{ minWidth: 760, maxWidth: "100%" }}
+          style={{ minWidth: 640, maxWidth: "100%" }}
           role="img"
-          aria-label={`Isolate counts for ${organisms.length} organisms, split by site of infection, ${total} isolates in total`}
+          aria-label={`Isolate counts for ${organisms.length} organisms, listed by site of infection, ${total} isolates in total`}
         >
           <defs>
             <pattern
@@ -330,89 +363,75 @@ export function OrganismSiteChart({
             </pattern>
           </defs>
 
-          {organisms.map((organism, index) => {
-            const y = index * (ROW_HEIGHT + ROW_GAP);
-            const barWidth =
-              maximum > 0 ? (organism.isolate_count / maximum) * plotWidth : 0;
+          {rows.map((row) => {
+            const top = y;
+            y += row.kind === "organism" ? GROUP_HEIGHT : BAR_HEIGHT + BAR_GAP;
 
-            let x = LABEL_WIDTH;
+            if (row.kind === "organism") {
+              return (
+                <g key={row.key}>
+                  <text
+                    x={0}
+                    y={top + GROUP_HEIGHT - 9}
+                    fontSize="12.5"
+                    fontStyle="italic"
+                    fontWeight="600"
+                    fill="var(--color-ink)"
+                  >
+                    {row.name}
+                  </text>
+                  <text
+                    x={LABEL_WIDTH + plotWidth + COUNT_GUTTER}
+                    y={top + GROUP_HEIGHT - 9}
+                    textAnchor="end"
+                    fontSize="11"
+                    fill="var(--color-ink-muted)"
+                  >
+                    {row.count.toLocaleString()} isolates ({row.percent.toFixed(0)}%)
+                  </text>
+                  <line
+                    x1={0}
+                    x2={LABEL_WIDTH + plotWidth + COUNT_GUTTER}
+                    y1={top + GROUP_HEIGHT - 4}
+                    y2={top + GROUP_HEIGHT - 4}
+                    stroke="var(--color-line)"
+                    strokeWidth="1"
+                  />
+                </g>
+              );
+            }
+
+            const width = (row.count / maximum) * plotWidth;
             return (
-              <g key={organism.organism.id}>
+              <g key={row.key}>
                 <text
                   x={LABEL_WIDTH - VALUE_GUTTER}
-                  y={y + ROW_HEIGHT / 2}
+                  y={top + BAR_HEIGHT / 2}
                   textAnchor="end"
                   dominantBaseline="central"
-                  fontSize="12"
-                  fontStyle="italic"
-                  fill="var(--color-ink)"
+                  fontSize="11.5"
+                  fill={row.withheld ? "var(--color-insufficient-ink)" : "var(--color-ink)"}
                 >
-                  {organism.organism.name}
+                  {row.label}
                 </text>
-
-                {organism.sites.map((entry) => {
-                  const width =
-                    organism.isolate_count > 0
-                      ? (entry.isolate_count / organism.isolate_count) * barWidth
-                      : 0;
-                  const start = x;
-                  x += width;
-                  return (
-                    <g key={entry.infection_site}>
-                      <rect
-                        x={start}
-                        y={y}
-                        width={Math.max(0, width)}
-                        height={ROW_HEIGHT}
-                        fill={siteFill(entry.infection_site, drawn)}
-                      />
-                      {width >= 24 ? (
-                        <text
-                          x={start + width / 2}
-                          y={y + ROW_HEIGHT / 2}
-                          textAnchor="middle"
-                          dominantBaseline="central"
-                          fontSize="11"
-                          fontWeight="600"
-                          fill="#ffffff"
-                        >
-                          {entry.isolate_count}
-                        </text>
-                      ) : null}
-                    </g>
-                  );
-                })}
-
-                {/* Sites too small to report are drawn, not dropped. Omitting
-                    them would leave a gap that reads as a rendering fault; a
-                    neutral hatched block says the data exists and is withheld. */}
-                {organism.withheld_isolates > 0 ? (
-                  <rect
-                    x={x}
-                    y={y}
-                    width={Math.max(
-                      0,
-                      (organism.withheld_isolates / organism.isolate_count) * barWidth,
-                    )}
-                    height={ROW_HEIGHT}
-                    fill="url(#withheld-hatch)"
-                    stroke="var(--color-line)"
-                    strokeWidth="0.5"
-                  />
-                ) : null}
-
-                {/* Total and principal site outside the bar: the count qualifies
-                    the row, and naming the dominant site means the chart is read
-                    correctly without decoding the legend. */}
+                <rect
+                  x={LABEL_WIDTH + SITE_INDENT}
+                  y={top}
+                  width={Math.max(2, width)}
+                  height={BAR_HEIGHT}
+                  fill={row.withheld ? "url(#withheld-hatch)" : COUNT_FILL}
+                  stroke={row.withheld ? "var(--color-line)" : "none"}
+                  strokeWidth="0.5"
+                  rx="2"
+                />
                 <text
-                  x={LABEL_WIDTH + Math.max(2, barWidth) + VALUE_GUTTER}
-                  y={y + ROW_HEIGHT / 2}
+                  x={LABEL_WIDTH + SITE_INDENT + Math.max(2, width) + VALUE_GUTTER}
+                  y={top + BAR_HEIGHT / 2}
                   dominantBaseline="central"
                   fontSize="11"
-                  fill="var(--color-ink-muted)"
+                  fill="var(--color-ink)"
                 >
-                  {organism.isolate_count.toLocaleString()}
-                  {organism.principal_site ? ` · mostly ${humanise(organism.principal_site)}` : ""}
+                  {row.count.toLocaleString()} ({row.percent.toFixed(0)}%)
                 </text>
               </g>
             );
@@ -420,27 +439,13 @@ export function OrganismSiteChart({
         </svg>
       </div>
 
-      <ul className="mt-3 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs text-ink-muted">
-        {drawn.map((site) => (
-          <li key={site} className="flex items-center gap-1.5">
-            <span
-              aria-hidden
-              className="inline-block size-3 rounded-sm"
-              style={{ backgroundColor: siteFill(site, drawn) }}
-            />
-            {humanise(site)}
-          </li>
-        ))}
-        {organisms.some((organism) => organism.withheld_isolates > 0) ? (
-          <li className="flex items-center gap-1.5">
-            <span
-              aria-hidden
-              className="insufficient-fill inline-block size-3 rounded-sm border border-line"
-            />
-            Site withheld (too few isolates)
-          </li>
-        ) : null}
-      </ul>
+      <p className="mt-3 text-center text-xs text-ink-muted">
+        Percentages are of the organism&rsquo;s own isolates. Bars share one scale across the
+        whole figure.
+        {hasWithheld
+          ? " Hatched bars are isolates whose site fell below the reporting threshold and is withheld."
+          : ""}
+      </p>
 
       <details className="mt-3">
         <summary className="cursor-pointer text-xs font-medium text-brand-700">
@@ -451,47 +456,46 @@ export function OrganismSiteChart({
             <thead>
               <tr className="border-b border-line text-left">
                 <th scope="col" className="px-3 py-2 font-medium">Organism</th>
+                <th scope="col" className="px-3 py-2 font-medium">Site of infection</th>
                 <th scope="col" className="px-3 py-2 text-right font-medium">Isolates</th>
-                <th scope="col" className="px-3 py-2 text-right font-medium">% of total</th>
-                {drawn.map((site) => (
-                  <th key={site} scope="col" className="px-3 py-2 text-right font-medium">
-                    {humanise(site)}
-                  </th>
-                ))}
-                <th scope="col" className="px-3 py-2 text-right font-medium">
-                  Withheld
-                </th>
+                <th scope="col" className="px-3 py-2 text-right font-medium">% of organism</th>
               </tr>
             </thead>
             <tbody className="tabular">
-              {organisms.map((organism) => {
-                const bySite = new Map(
-                  organism.sites.map((entry) => [entry.infection_site, entry.isolate_count]),
-                );
-                return (
-                  <tr key={organism.organism.id} className="border-b border-line last:border-0">
-                    <th scope="row" className="px-3 py-1.5 text-left font-normal italic">
-                      {organism.organism.name}
-                    </th>
-                    <td className="px-3 py-1.5 text-right">
-                      {organism.isolate_count.toLocaleString()}
-                    </td>
-                    <td className="px-3 py-1.5 text-right text-ink-muted">
-                      {organism.percent_of_total.toFixed(0)}%
-                    </td>
-                    {drawn.map((site) => (
-                      <td key={site} className="px-3 py-1.5 text-right">
-                        {bySite.get(site)?.toLocaleString() ?? "—"}
-                      </td>
+              {organisms.map((organism) => (
+                <tr key={organism.organism.id} className="border-b border-line last:border-0">
+                  <th scope="row" className="px-3 py-1.5 text-left align-top font-normal italic">
+                    {organism.organism.name}
+                    <span className="ml-1 not-italic text-ink-muted">
+                      ({organism.isolate_count.toLocaleString()})
+                    </span>
+                  </th>
+                  <td className="px-3 py-1.5">
+                    {organism.sites.map((site) => (
+                      <div key={site.infection_site}>{humanise(site.infection_site)}</div>
                     ))}
-                    <td className="px-3 py-1.5 text-right text-ink-muted">
-                      {organism.withheld_isolates > 0
-                        ? organism.withheld_isolates.toLocaleString()
-                        : "—"}
-                    </td>
-                  </tr>
-                );
-              })}
+                    {organism.withheld_isolates > 0 ? (
+                      <div className="text-ink-muted">Withheld</div>
+                    ) : null}
+                  </td>
+                  <td className="px-3 py-1.5 text-right">
+                    {organism.sites.map((site) => (
+                      <div key={site.infection_site}>{site.isolate_count.toLocaleString()}</div>
+                    ))}
+                    {organism.withheld_isolates > 0 ? (
+                      <div className="text-ink-muted">
+                        {organism.withheld_isolates.toLocaleString()}
+                      </div>
+                    ) : null}
+                  </td>
+                  <td className="px-3 py-1.5 text-right text-ink-muted">
+                    {organism.sites.map((site) => (
+                      <div key={site.infection_site}>{site.percent_of_organism.toFixed(0)}%</div>
+                    ))}
+                    {organism.withheld_isolates > 0 ? <div>&mdash;</div> : null}
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
