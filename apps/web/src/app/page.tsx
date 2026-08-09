@@ -31,8 +31,8 @@ export default async function OverviewPage() {
       <div className="space-y-6">
         {/* Green hero: the "what are we seeing now?" answer, with coverage as a
             ring because it is a true proportion of a whole. */}
-        <section className="brand-gradient culture-field overflow-hidden rounded-[--radius-card]">
-          <div className="flex flex-wrap items-center justify-between gap-8 px-6 py-7">
+        <section className="brand-gradient brand-edge-bottom culture-field overflow-hidden rounded-[--radius-card]">
+          <div className="flex flex-wrap items-center justify-between gap-8 px-6 py-6">
             <div className="min-w-[16rem] flex-1">
               <h1 className="text-2xl font-semibold tracking-tight text-on-brand">
                 Regional resistance overview
@@ -68,7 +68,7 @@ export default async function OverviewPage() {
                 sublabel={`${antibiogram.freshness.facilities_contributing} of ${antibiogram.freshness.facilities_expected} facilities reporting`}
               />
               <div className="rounded-xl border border-white/20 bg-white/10 px-4 py-3">
-                <div className="text-xs font-medium uppercase tracking-wide text-on-brand-muted">
+                <div className="accent-text text-xs font-medium uppercase tracking-wide">
                   Emerging signals
                 </div>
                 <div className="tabular mt-1 text-2xl font-semibold text-on-brand">
@@ -85,7 +85,7 @@ export default async function OverviewPage() {
         {alerts.emerging_signals.length > 0 ? (
           <section aria-labelledby="signals-heading">
             <div className="mb-3 flex items-baseline justify-between">
-              <h2 id="signals-heading" className="text-lg font-semibold text-ink">
+              <h2 id="signals-heading" className="heading-rule text-lg font-semibold text-ink">
                 Current resistance signals
               </h2>
               <Link href="/alerts" className="text-sm font-medium text-brand-700">
@@ -122,7 +122,7 @@ export default async function OverviewPage() {
 
         <section aria-labelledby="organisms-heading">
           <div className="mb-3 flex items-baseline justify-between">
-            <h2 id="organisms-heading" className="text-lg font-semibold text-ink">
+            <h2 id="organisms-heading" className="heading-rule text-lg font-semibold text-ink">
               Most frequently isolated organisms
             </h2>
             <Link href="/antibiogram" className="text-sm font-medium text-brand-700">
@@ -200,7 +200,7 @@ export default async function OverviewPage() {
 function HeroFigure({ label, value, detail }: { label: string; value: string; detail: string }) {
   return (
     <div>
-      <dt className="text-xs font-medium uppercase tracking-wide text-on-brand-muted">{label}</dt>
+      <dt className="accent-text text-xs font-medium uppercase tracking-wide">{label}</dt>
       <dd className="tabular mt-0.5 text-xl font-semibold text-on-brand">{value}</dd>
       <dd className="text-xs text-on-brand-muted">{detail}</dd>
     </div>

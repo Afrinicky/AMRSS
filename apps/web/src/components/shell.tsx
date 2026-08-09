@@ -46,12 +46,14 @@ export function Shell({
 
       {/* The header carries the brand green rather than sitting white on white.
           It is chrome only — no clinical value is ever encoded in it. */}
-      <header className="brand-gradient culture-field">
+      <header className="brand-gradient brand-edge-bottom culture-field">
         <div className="mx-auto flex max-w-[1440px] flex-wrap items-center gap-x-8 gap-y-3 px-6 py-3">
           <Link href="/" className="flex items-center gap-2.5">
             <CultureMark />
             <span className="flex items-baseline gap-2">
-              <span className="text-lg font-semibold tracking-tight text-on-brand">AMRSS</span>
+              <span className="text-lg font-semibold tracking-tight text-on-brand">
+                AMR<span className="accent-text">SS</span>
+              </span>
               <span className="hidden text-xs text-on-brand-muted lg:inline">
                 Antimicrobial Resistance Surveillance
               </span>
@@ -68,7 +70,7 @@ export function Shell({
                   aria-current={active ? "page" : undefined}
                   className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                     active
-                      ? "bg-white/15 text-on-brand"
+                      ? "bg-white/15 text-on-brand shadow-[inset_0_-2px_0_0_var(--color-accent)]"
                       : "text-on-brand-muted hover:bg-white/10 hover:text-on-brand"
                   }`}
                 >
@@ -101,12 +103,14 @@ export function Shell({
         {children}
       </main>
 
-      <footer className="brand-gradient culture-field mt-4">
-        <div className="mx-auto flex max-w-[1440px] flex-wrap items-center justify-between gap-4 px-6 py-6">
+      <footer className="brand-gradient brand-edge-top culture-field mt-4">
+        <div className="mx-auto flex max-w-[1440px] flex-wrap items-center justify-between gap-4 px-6 py-5">
           <div className="flex items-center gap-2.5">
             <CultureMark />
             <div>
-              <div className="text-sm font-semibold text-on-brand">AMRSS</div>
+              <div className="text-sm font-semibold text-on-brand">
+                AMR<span className="accent-text">SS</span>
+              </div>
               <div className="text-xs text-on-brand-muted">
                 Antimicrobial Resistance Surveillance System
               </div>
@@ -134,8 +138,17 @@ export function CultureMark({ className = "size-7" }: { className?: string }) {
       <circle cx="16" cy="16" r="14" fill="currentColor" opacity="0.14" />
       <circle cx="16" cy="16" r="14" fill="none" stroke="currentColor" strokeWidth="1.5" opacity="0.55" />
       {/* The antimicrobial disk and its zone of inhibition. */}
-      <circle cx="16" cy="16" r="6.5" fill="none" stroke="currentColor" strokeWidth="1" strokeDasharray="2 2" opacity="0.7" />
-      <circle cx="16" cy="16" r="2.6" fill="currentColor" opacity="0.9" />
+      <circle
+        cx="16"
+        cy="16"
+        r="6.5"
+        fill="none"
+        stroke="var(--color-accent)"
+        strokeWidth="1"
+        strokeDasharray="2 2"
+        opacity="0.85"
+      />
+      <circle cx="16" cy="16" r="2.6" fill="var(--color-accent)" />
       {/* Colonies growing beyond the zone edge. */}
       <circle cx="8.4" cy="10.5" r="1.5" fill="currentColor" opacity="0.75" />
       <circle cx="24" cy="11.5" r="1.2" fill="currentColor" opacity="0.6" />
@@ -161,8 +174,8 @@ export function PageHeading({
   aside?: React.ReactNode;
 }) {
   return (
-    <section className="brand-gradient culture-field mb-6 overflow-hidden rounded-[--radius-card]">
-      <div className="flex flex-wrap items-center justify-between gap-6 px-6 py-6">
+    <section className="brand-gradient brand-edge-bottom culture-field mb-6 overflow-hidden rounded-[--radius-card]">
+      <div className="flex flex-wrap items-center justify-between gap-6 px-6 py-5">
         <div className="min-w-[16rem] flex-1">
           <h1 className="text-2xl font-semibold tracking-tight text-on-brand">{title}</h1>
           {description ? (
@@ -187,9 +200,7 @@ export function BannerFigure({
 }) {
   return (
     <div className="rounded-xl border border-white/20 bg-white/10 px-4 py-3">
-      <div className="text-xs font-medium uppercase tracking-wide text-on-brand-muted">
-        {label}
-      </div>
+      <div className="accent-text text-xs font-medium uppercase tracking-wide">{label}</div>
       <div className="tabular mt-1 text-2xl font-semibold text-on-brand">{value}</div>
       {detail ? <div className="text-xs text-on-brand-muted">{detail}</div> : null}
     </div>

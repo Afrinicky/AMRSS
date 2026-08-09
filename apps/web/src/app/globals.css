@@ -34,6 +34,20 @@
   --color-on-brand: #eaf6ef;
   --color-on-brand-muted: #a9cfba;
 
+  /* Golden accent — brand only.
+   *
+   * Deliberately kept apart from --sir-i (#C77800), the clinical amber for
+   * Intermediate. The two are close enough in hue that adjacency would make gold
+   * read as a susceptibility category, so gold is confined to the dark green
+   * chrome and amber to light data surfaces. They never appear on the same
+   * background, which is what keeps them unambiguous.
+   *
+   * This gold is lighter and yellower than the clinical amber, and it is legible
+   * on deep green where amber would muddy. */
+  --color-accent: #edc75a;
+  --color-accent-strong: #d9a92e;
+  --color-accent-soft: #f4dfa3;
+
   /* Clinical semantics — chosen for convention and clarity, not brand harmony. */
   --color-sir-s: #1b8a5a;
   --color-sir-i: #c77800;
@@ -71,6 +85,9 @@
     --color-line: #26312c;
     --color-on-brand: #eaf6ef;
     --color-on-brand-muted: #9dc3ae;
+    --color-accent: #f0cf6b;
+    --color-accent-strong: #e3b840;
+    --color-accent-soft: #4a3c14;
     --color-ink: #e8efea;
     --color-ink-muted: #9aaaa2;
     --color-sir-s: #3fb07f;
@@ -106,15 +123,56 @@ body {
  * be used to encode a clinical value, which remains the job of the --sir-*
  * tokens alone. */
 
+/* Lighter and warmer than a flat deep green: the earlier band read as a heavy
+ * slab. The gradient now runs mid-green with a warm gold wash at one corner, so
+ * the mass is broken up and the block recedes behind the content on it. */
 .brand-gradient {
   background:
     radial-gradient(
-      120% 140% at 88% -10%,
-      color-mix(in srgb, var(--color-brand-600) 55%, transparent) 0%,
-      transparent 60%
+      90% 120% at 96% 8%,
+      color-mix(in srgb, var(--color-accent-strong) 22%, transparent) 0%,
+      transparent 55%
     ),
-    linear-gradient(135deg, var(--color-brand-900) 0%, var(--color-brand-800) 55%, var(--color-brand-700) 100%);
+    radial-gradient(
+      110% 130% at 82% -20%,
+      color-mix(in srgb, var(--color-brand-600) 65%, transparent) 0%,
+      transparent 62%
+    ),
+    linear-gradient(135deg, var(--color-brand-800) 0%, var(--color-brand-700) 60%, var(--color-brand-600) 100%);
   color: var(--color-on-brand);
+}
+
+/* A gold hairline where a green band meets the page, so the edge is a
+ * deliberate seam rather than an abrupt stop. */
+.brand-edge-bottom {
+  border-bottom: 2px solid color-mix(in srgb, var(--color-accent) 55%, transparent);
+}
+.brand-edge-top {
+  border-top: 2px solid color-mix(in srgb, var(--color-accent) 55%, transparent);
+}
+
+/* Gold, for emphasis on green chrome only. Never inside a data cell. */
+.accent-text {
+  color: var(--color-accent);
+}
+
+/* Section headings get a short gold rule, which gives the long white stretches
+ * a rhythm without adding another filled block. */
+.heading-rule {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+}
+.heading-rule::before {
+  content: "";
+  width: 3px;
+  height: 1.15em;
+  border-radius: 2px;
+  background: linear-gradient(
+    to bottom,
+    var(--color-accent-strong),
+    var(--color-brand-600)
+  );
 }
 
 .brand-soft {

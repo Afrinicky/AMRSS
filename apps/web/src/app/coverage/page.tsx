@@ -76,7 +76,7 @@ export default async function CoveragePage() {
 
         {coverage.facilities.length > 0 ? (
           <section aria-labelledby="facilities-heading">
-            <h2 id="facilities-heading" className="mb-3 text-lg font-semibold text-ink">
+            <h2 id="facilities-heading" className="heading-rule mb-3 text-lg font-semibold text-ink">
               Reporting compliance by facility
             </h2>
             <div className="overflow-x-auto rounded-[--radius-card] border border-line bg-surface">

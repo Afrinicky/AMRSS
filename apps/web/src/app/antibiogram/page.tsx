@@ -143,7 +143,7 @@ export default async function AntibiogramPage({
 
           return (
             <section key={kingdom} aria-labelledby={`${kingdom}-heading`}>
-              <h2 id={`${kingdom}-heading`} className="mb-3 text-lg font-semibold text-ink">
+              <h2 id={`${kingdom}-heading`} className="heading-rule mb-3 text-lg font-semibold text-ink">
                 {KINGDOM_HEADING[kingdom]}
               </h2>
 
