@@ -116,6 +116,12 @@ export default async function AdminPage() {
               available={profile.permissions.includes("block:manage")}
             />
             <ConsoleCard
+              href="/admin/quality"
+              title="QC and EQA compliance"
+              body="Which laboratories pass the quality gate, which are excluded from the verified antibiogram, and why."
+              available={profile.permissions.includes("qc:manage_gating")}
+            />
+            <ConsoleCard
               href="/admin/mappings"
               title="Dictionary stewardship"
               body="Review the local WHONET codes facilities have submitted and map them onto the canonical dictionary."

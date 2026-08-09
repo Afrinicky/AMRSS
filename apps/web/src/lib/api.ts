@@ -96,6 +96,8 @@ export const api = {
   dictionarySummary: () => request<DictionarySummary>("/api/v1/admin/dictionary/summary"),
   auditTrail: (params?: Record<string, string | undefined>) =>
     request<AuditPage>(`/api/v1/admin/audit${queryString(params)}`),
+  qualityDashboard: (params?: Record<string, string | undefined>) =>
+    request<QualityDashboard>(`/api/v1/quality/dashboard${queryString(params)}`),
   trend: (params: Record<string, string | undefined>) =>
     request<Trend>(`/api/v1/surveillance/trend${queryString(params)}`),
 };
@@ -441,4 +443,39 @@ export interface AuditPage {
   entries: AuditEntry[];
   total: number;
   actions: string[];
+}
+
+// ---- Quality (SDD 6.5) -----------------------------------------------------
+
+export interface TierState {
+  status: string;
+  valid_until: string | null;
+  days_remaining: number | null;
+  source_date: string | null;
+}
+
+export interface QualityProfile {
+  facility_id: string;
+  facility_code: string;
+  facility_name: string;
+  district_name: string;
+  enrollment_status: string;
+  whonet_config_version: string | null;
+  qc: TierState;
+  eqa: TierState;
+  contributes_to_verified_aggregate: boolean;
+  exclusion_reasons: string[];
+  last_accepted_upload_at: string | null;
+  expires_within_days: number | null;
+}
+
+export interface QualityDashboard {
+  facilities: QualityProfile[];
+  contributing: number;
+  excluded: number;
+  expiring_soon: number;
+  expiry_warning_days: number;
+  qc_validity_days: number;
+  eqa_validity_days: number;
+  gating_note: string;
 }
