@@ -36,7 +36,12 @@ dev = [
 ]
 
 [tool.setuptools.packages.find]
-where = ["src"]
+# Two roots, not one. The CLSI interpretation engine lives in packages/clsi so
+# that both this service and the surveillance API import the same
+# implementation (ADR-0005), and it has to be installed alongside `amrss` or the
+# application cannot boot — `pytest`'s pythonpath makes the tests pass while
+# `import amrss.main` fails, which is the worst possible combination.
+where = ["src", "packages/clsi/src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

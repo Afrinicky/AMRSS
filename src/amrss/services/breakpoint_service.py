@@ -12,6 +12,9 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from amrss.core.audit import AuditAction
+from amrss.db.models.reference import BreakpointRecord, BreakpointSetRecord
+from amrss.services import audit_service
 from amrss_clsi.breakpoints import (
     Breakpoint,
     BreakpointSet,
@@ -20,9 +23,6 @@ from amrss_clsi.breakpoints import (
     ValidationIssue,
     validate_breakpoints,
 )
-from amrss.core.audit import AuditAction
-from amrss.db.models.reference import BreakpointRecord, BreakpointSetRecord
-from amrss.services import audit_service
 
 
 class BreakpointImportError(Exception):

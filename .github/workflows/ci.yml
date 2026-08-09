@@ -52,10 +52,13 @@ jobs:
           } >> "$GITHUB_ENV"
 
       - name: Lint
-        run: ruff check src tests
+        # packages/clsi is installed as part of this distribution (ADR-0005) and
+        # is linted with it — a shared clinical engine excluded from CI is a
+        # component nothing checks.
+        run: ruff check src packages/clsi/src tests
 
       - name: Format check
-        run: ruff format --check src tests
+        run: ruff format --check src packages/clsi/src tests
 
       - name: Type check
         run: mypy || true  # advisory until annotations are complete
@@ -87,7 +90,7 @@ jobs:
 
       # Static analysis for common insecure patterns.
       - name: Bandit
-        run: bandit -r src -c pyproject.toml
+        run: bandit -r src packages/clsi/src -c pyproject.toml
 
       # Fails the build on dependencies with known CVEs. A surveillance system
       # holding patient data should not ship a vulnerable transitive package.
