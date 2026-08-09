@@ -4,7 +4,7 @@ from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 
 from amrss import __version__
-from amrss.api.routers import auth, ingestion, surveillance
+from amrss.api.routers import auth, breakpoints, ingestion, surveillance
 from amrss.config import get_settings
 
 DESCRIPTION = """
@@ -49,6 +49,7 @@ def create_app() -> FastAPI:
     app.include_router(auth.router, prefix="/api/v1")
     app.include_router(ingestion.router, prefix="/api/v1")
     app.include_router(surveillance.router, prefix="/api/v1")
+    app.include_router(breakpoints.router, prefix="/api/v1")
 
     @app.get("/health", tags=["operations"])
     def health() -> dict[str, str]:

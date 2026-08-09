@@ -47,6 +47,12 @@ class AuditAction(StrEnum):
     DICTIONARY_UPDATED = "dictionary.updated"
     MAPPING_REVIEWED = "mapping.reviewed"
     METHODOLOGY_VERSION_CREATED = "methodology.version_created"
+    #: A breakpoint table was loaded, or stored measurements were interpreted
+    #: against one. Both change what published antibiograms say — the first for
+    #: everything computed afterwards, the second by rewriting stored results —
+    #: so both need a name and a timestamp against them.
+    BREAKPOINTS_IMPORTED = "breakpoints.imported"
+    RESULTS_INTERPRETED = "results.interpreted"
     ALERT_LIST_CONFIGURED = "alert.list_configured"
 
     SIGNAL_ACKNOWLEDGED = "signal.acknowledged"

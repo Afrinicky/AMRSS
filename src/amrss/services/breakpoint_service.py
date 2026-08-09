@@ -12,7 +12,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from amrss.clsi.breakpoints import (
+from amrss_clsi.breakpoints import (
     Breakpoint,
     BreakpointSet,
     Method,

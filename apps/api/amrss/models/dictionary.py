@@ -7,7 +7,7 @@ antibiogram would silently combine incompatible local codes.
 
 import uuid
 
-from sqlalchemy import Boolean, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy import JSON, Boolean, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from amrss.models.base import Base, TimestampMixin, pg_enum, pk_column
@@ -33,6 +33,16 @@ class CanonicalOrganism(Base, TimestampMixin):
     gram_stain: Mapped[str | None] = mapped_column(String(16))
     #: Enterobacterales membership drives several screening phenotype flags.
     is_enterobacterales: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    #: CLSI organism-group names this organism belongs to, most specific first —
+    #: e.g. ["Escherichia coli", "Enterobacterales"]. M100 nests species inside
+    #: broader groups and a breakpoint may be defined at either level, so the
+    #: lookup walks the list in order.
+    #:
+    #: Data, not code (ADR-0002). Mapping species to CLSI groups in Python would
+    #: force a deployment every time a laboratory adds an organism or CLSI
+    #: reorganises a table, and would bake one region's dictionary into the
+    #: engine. It is seeded, and editable by the regional AMR team.
+    clsi_organism_groups: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
     #: Whether this organism is under below-threshold alert surveillance (SDD 5.2).
     #: Configurable by the regional AMR team, never hardcoded.
     is_organism_of_special_importance: Mapped[bool] = mapped_column(
@@ -59,6 +69,10 @@ class CanonicalAntibiotic(Base, TimestampMixin):
     )
     who_aware_category: Mapped[str | None] = mapped_column(String(16))
     atc_code: Mapped[str | None] = mapped_column(String(16))
+    #: Agent code as it appears in the laboratory's loaded CLSI breakpoint table.
+    #: Defaults to `code` when unset; carried separately because a facility's
+    #: dictionary code and CLSI's agent abbreviation need not agree.
+    clsi_agent_code: Mapped[str | None] = mapped_column(String(32))
     display_order: Mapped[int] = mapped_column(nullable=False, default=1000)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 

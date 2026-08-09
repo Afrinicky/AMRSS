@@ -16,9 +16,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 
-from amrss.clsi.breakpoints import Category, Method, Tier
-from amrss.clsi.qc import QCFrequency, QCResult, qc_status
-from amrss.clsi.rules import ResultEntry
+from amrss_clsi.breakpoints import Category, Method, Tier
+from amrss_clsi.qc import QCFrequency, QCResult, qc_status
+from amrss_clsi.rules import ResultEntry
 
 # Categories that mean "this agent is an option for the patient".
 _EFFECTIVE = frozenset({Category.S, Category.SDD})

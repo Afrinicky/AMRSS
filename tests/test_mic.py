@@ -4,7 +4,7 @@ from decimal import Decimal
 
 import pytest
 
-from amrss.clsi.mic import MICOperator, MICValue, doubling_series, is_on_doubling_series
+from amrss_clsi.mic import MICOperator, MICValue, doubling_series, is_on_doubling_series
 
 
 class TestParsing:

@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=83"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "amrss-clsi"
+version = "0.1.0"
+description = "CLSI breakpoint interpretation for AMRSS — MIC and disk diffusion to S/I/SDD/R"
+requires-python = ">=3.11"
+# Deliberately no runtime dependencies. This package converts a measurement and
+# a breakpoint criterion into a category; it touches no database, no framework
+# and no network, which is what lets both the surveillance API and the
+# laboratory service import the same interpretation rather than each carrying
+# its own copy. Two implementations of "is this isolate resistant" is not a
+# duplication problem, it is a patient-safety problem.
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=8.2", "ruff>=0.5", "mypy>=1.10"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+src = ["src"]
+target-version = "py311"

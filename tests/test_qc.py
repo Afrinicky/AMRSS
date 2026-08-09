@@ -5,9 +5,9 @@ from decimal import Decimal
 
 import pytest
 
-from amrss.clsi.breakpoints import Method
-from amrss.clsi.mic import MICValue
-from amrss.clsi.qc import (
+from amrss_clsi.breakpoints import Method
+from amrss_clsi.mic import MICValue
+from amrss_clsi.qc import (
     QCFrequency,
     QCOutcome,
     QCRange,

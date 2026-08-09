@@ -5,9 +5,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from amrss.api.deps import CurrentUser, require
-from amrss.clsi.breakpoints import Method
-from amrss.clsi.interpretation import interpret
-from amrss.clsi.mic import MICValue
+from amrss_clsi.breakpoints import Method
+from amrss_clsi.interpretation import interpret
+from amrss_clsi.mic import MICValue
 from amrss.core.permissions import Permission
 from amrss.db.models.reference import BreakpointSetRecord, Organism
 from amrss.db.session import get_db

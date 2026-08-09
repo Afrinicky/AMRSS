@@ -17,7 +17,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from decimal import Decimal
 
-from amrss.clsi.breakpoints import (
+from amrss_clsi.breakpoints import (
     MAX_PLAUSIBLE_ZONE_MM,
     NO_ZONE_MM,
     Breakpoint,
@@ -26,7 +26,7 @@ from amrss.clsi.breakpoints import (
     Method,
     Tier,
 )
-from amrss.clsi.mic import MICValue
+from amrss_clsi.mic import MICValue
 
 
 class NoInterpretationReason:

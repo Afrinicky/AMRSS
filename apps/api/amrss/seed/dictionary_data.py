@@ -7,7 +7,7 @@ Codes follow WHONET conventions where they exist, so that mapping an incoming
 WHONET configuration is usually a confirmation rather than a translation.
 """
 
-from typing import TypedDict
+from typing import NotRequired, TypedDict
 
 from amrss.models.enums import AntimicrobialClass, OrganismKingdom
 
@@ -21,6 +21,9 @@ class OrganismSeed(TypedDict):
     gram_stain: str | None
     is_enterobacterales: bool
     special_importance: bool
+    #: Optional explicit CLSI organism groups, most specific first. Omitted for
+    #: most organisms, where GENUS_CLSI_GROUPS derives them.
+    clsi_groups: NotRequired[list[str]]
 
 
 class AntibioticSeed(TypedDict):
@@ -30,6 +33,36 @@ class AntibioticSeed(TypedDict):
     target_kingdom: OrganismKingdom
     who_aware_category: str | None
     display_order: int
+    #: Optional agent code as it appears in the laboratory's CLSI table, where it
+    #: differs from the dictionary code.
+    clsi_agent_code: NotRequired[str]
+
+
+#: Genus to CLSI organism group. CLSI M100 scopes its criteria by these group
+#: names, and the mapping is data because it belongs to the dictionary, not to
+#: the interpretation engine: a laboratory adding an organism, or CLSI
+#: reorganising a table, must not require a code change (ADR-0002). The seeded
+#: values are a starting point and are editable thereafter.
+GENUS_CLSI_GROUPS: dict[str, list[str]] = {
+    "Staphylococcus": ["Staphylococcus spp."],
+    "Enterococcus": ["Enterococcus spp."],
+    "Streptococcus": ["Streptococcus spp."],
+    "Pseudomonas": ["Pseudomonas aeruginosa"],
+    "Acinetobacter": ["Acinetobacter spp."],
+    "Haemophilus": ["Haemophilus influenzae and Haemophilus parainfluenzae"],
+    "Neisseria": ["Neisseria spp."],
+    "Stenotrophomonas": ["Stenotrophomonas maltophilia"],
+    "Burkholderia": ["Burkholderia cepacia complex"],
+    "Campylobacter": ["Campylobacter jejuni/coli"],
+    "Vibrio": ["Vibrio spp."],
+    "Candida": ["Candida spp."],
+    "Cryptococcus": ["Cryptococcus spp."],
+    "Aspergillus": ["Aspergillus spp."],
+}
+
+#: Applied to every organism flagged is_enterobacterales, after its own species
+#: and genus groups. M100 defines most Gram-negative criteria at this level.
+ENTEROBACTERALES_GROUP = "Enterobacterales"
 
 
 class SpecimenSeed(TypedDict):

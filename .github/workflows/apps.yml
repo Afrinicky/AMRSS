@@ -14,10 +14,18 @@ on:
     branches: ["**"]
     paths:
       - "apps/**"
+      # apps/api depends on the shared CLSI engine, so a change there must
+      # re-run this suite. Without it, breaking the interpretation engine would
+      # show green on the API that imports it.
+      - "packages/**"
       - ".github/workflows/apps.yml"
   pull_request:
     paths:
       - "apps/**"
+      # apps/api depends on the shared CLSI engine, so a change there must
+      # re-run this suite. Without it, breaking the interpretation engine would
+      # show green on the API that imports it.
+      - "packages/**"
       - ".github/workflows/apps.yml"
 
 permissions:

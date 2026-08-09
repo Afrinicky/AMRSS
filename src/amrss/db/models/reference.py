@@ -88,7 +88,7 @@ class BreakpointSetRecord(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
 
 class BreakpointRecord(UUIDPrimaryKeyMixin, TimestampMixin, Base):
-    """One interpretive criterion. Mirrors amrss.clsi.breakpoints.Breakpoint."""
+    """One interpretive criterion. Mirrors amrss_clsi.breakpoints.Breakpoint."""
 
     __tablename__ = "breakpoints"
 

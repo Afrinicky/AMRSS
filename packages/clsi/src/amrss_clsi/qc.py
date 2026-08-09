@@ -17,8 +17,8 @@ from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from enum import StrEnum
 
-from amrss.clsi.breakpoints import Method
-from amrss.clsi.mic import MICValue
+from amrss_clsi.breakpoints import Method
+from amrss_clsi.mic import MICValue
 
 
 class QCFrequency(StrEnum):
