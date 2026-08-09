@@ -9,6 +9,10 @@ answer to different readers:
 - **By organism and site** (:func:`by_organism_site`) — which organisms were
   recovered and from where in the body. A provenance question: whether a pattern
   is a urinary-tract picture or a bloodstream one.
+- **By specimen type** (:func:`by_specimen`) — what the laboratories actually
+  processed, in their own specimen vocabulary. A workload and sampling question,
+  and the one that shows whether a surveillance picture is built on blood
+  cultures or on urines.
 
 The first carries a caveat in its response rather than leaving it to the reader:
 pooling one agent across every organism mixes populations with genuinely
@@ -57,6 +61,13 @@ class AntibioticProfile:
         return round(100.0 * resistant / self.summary.interpretable, 0)
 
 
+@dataclass(frozen=True)
+class SpecimenCount:
+    specimen_type_id: uuid.UUID
+    isolate_count: int
+    percent_of_total: float
+
+
 def by_antibiotic(
     records: list[IsolateRecord],
     methodology: MethodologySet,
@@ -103,6 +114,48 @@ def by_antibiotic(
 
     profiles.sort(key=lambda profile: (profile.susceptible_percent, -profile.summary.interpretable))
     return profiles
+
+
+def by_specimen(
+    records: list[IsolateRecord],
+    methodology: MethodologySet,
+    *,
+    verified_only: bool = True,
+    apply_suppression: bool = True,
+) -> tuple[list[SpecimenCount], int]:
+    """Isolate counts per specimen type, with the total.
+
+    Counts isolates rather than patients: this describes the laboratory's
+    workload and the provenance of the pattern, not a rate, so deduplication
+    would understate what was actually processed.
+
+    Specimen types below the suppression threshold are withheld rather than
+    listed. A specimen type with two isolates in a named district is a
+    re-identification route, and it is also noise on a chart. The total still
+    counts them, so the listed rows can be seen not to sum to it.
+    """
+    population = [r for r in records if r.quality_verified or not verified_only]
+    threshold = methodology.small_cell_threshold if apply_suppression else 0
+
+    counts: dict[uuid.UUID, int] = {}
+    for record in population:
+        counts[record.specimen_type_id] = counts.get(record.specimen_type_id, 0) + 1
+
+    total = sum(counts.values())
+    if total == 0:
+        return [], 0
+
+    listed = [
+        SpecimenCount(
+            specimen_type_id=specimen_id,
+            isolate_count=count,
+            percent_of_total=round(100.0 * count / total, 0),
+        )
+        for specimen_id, count in counts.items()
+        if count >= threshold
+    ]
+    listed.sort(key=lambda entry: -entry.isolate_count)
+    return listed, total
 
 
 @dataclass(frozen=True)

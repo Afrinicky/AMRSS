@@ -12,7 +12,7 @@
  * exposed to assistive technology.
  */
 
-import type { AntibioticProfile, OrganismSites } from "@/lib/api";
+import type { AntibioticProfile, OrganismSites, SpecimenCount } from "@/lib/api";
 
 const ROW_HEIGHT = 26;
 const ROW_GAP = 6;
@@ -500,6 +500,91 @@ export function OrganismSiteChart({
           </table>
         </div>
       </details>
+    </figure>
+  );
+}
+
+/**
+ * Where the isolates came from.
+ *
+ * Single-hue bars: these are counts of one thing, not categories being compared,
+ * so varying the colour would imply a distinction that does not exist.
+ *
+ * The hue is --color-count, a deeper and bluer crimson than the clinical red for
+ * Resistant. Nothing clinical is encoded here, and keeping the two reds visibly
+ * apart is what stops a tall bar from reading as a resistance finding.
+ */
+export function SpecimenDistributionChart({
+  specimens,
+  total,
+}: {
+  specimens: SpecimenCount[];
+  total: number;
+}) {
+  if (specimens.length === 0) {
+    return (
+      <p className="rounded-[--radius-card] border border-line bg-surface px-4 py-6 text-center text-sm text-ink-muted">
+        No specimen type reaches the reporting threshold in this period.
+      </p>
+    );
+  }
+
+  const plotWidth = 420;
+  const maximum = Math.max(...specimens.map((entry) => entry.isolate_count));
+  const height = specimens.length * (ROW_HEIGHT + ROW_GAP);
+
+  return (
+    <figure className="rounded-[--radius-card] border border-line bg-surface p-4">
+      <figcaption className="mb-2 text-sm font-medium text-ink">
+        Specimen types yielding isolates{" "}
+        <span className="tabular font-normal text-ink-muted">(n = {total.toLocaleString()})</span>
+      </figcaption>
+
+      <div className="overflow-x-auto">
+        <svg
+          viewBox={`0 0 ${LABEL_WIDTH + plotWidth + 110} ${height}`}
+          width="100%"
+          style={{ minWidth: 520, maxWidth: "100%" }}
+          role="img"
+          aria-label={`Isolate counts across ${specimens.length} specimen types, ${total} isolates in total`}
+        >
+          {specimens.map((entry, index) => {
+            const y = index * (ROW_HEIGHT + ROW_GAP);
+            const width = maximum > 0 ? (entry.isolate_count / maximum) * plotWidth : 0;
+            return (
+              <g key={entry.specimen_type.id}>
+                <text
+                  x={LABEL_WIDTH - VALUE_GUTTER}
+                  y={y + ROW_HEIGHT / 2}
+                  textAnchor="end"
+                  dominantBaseline="central"
+                  fontSize="12"
+                  fill="var(--color-ink)"
+                >
+                  {entry.specimen_type.name}
+                </text>
+                <rect
+                  x={LABEL_WIDTH}
+                  y={y}
+                  width={Math.max(2, width)}
+                  height={ROW_HEIGHT}
+                  fill="var(--color-count)"
+                  rx="2"
+                />
+                <text
+                  x={LABEL_WIDTH + Math.max(2, width) + VALUE_GUTTER}
+                  y={y + ROW_HEIGHT / 2}
+                  dominantBaseline="central"
+                  fontSize="11"
+                  fill="var(--color-ink)"
+                >
+                  {entry.isolate_count.toLocaleString()} ({entry.percent_of_total.toFixed(0)}%)
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+      </div>
     </figure>
   );
 }

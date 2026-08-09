@@ -803,3 +803,88 @@ def get_organism_explorer(
             )
         ),
     )
+
+
+# ---- Specimen Explorer -----------------------------------------------------
+
+
+class SpecimenCountResponse(BaseModel):
+    specimen_type: DictionaryRef
+    #: Derived from the specimen type rather than collected separately (SDD 3.1),
+    #: so the two can never disagree.
+    infection_site: str
+    #: Whether the specimen comes from a normally sterile site. A growth from
+    #: blood or CSF means something a growth from a wound swab does not, and the
+    #: distinction is carried in the dictionary rather than inferred from names.
+    sterile_site: bool
+    isolate_count: int
+    percent_of_total: float
+
+
+class SpecimenExplorerResponse(BaseModel):
+    specimens: list[SpecimenCountResponse]
+    #: Counts every isolate, including those in specimen types withheld below the
+    #: suppression threshold — so the listed rows can be seen not to sum to it.
+    total_isolates: int
+    withheld_isolates: int
+    freshness: FreshnessResponse
+    clinical_framing: str = CLINICAL_FRAMING
+
+
+@router.get("/specimens", response_model=SpecimenExplorerResponse)
+def get_specimen_explorer(
+    db: DbSession,
+    principal: CurrentPrincipal,
+    district_id: uuid.UUID | None = None,
+    facility_id: uuid.UUID | None = None,
+    care_setting: CareSetting | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+) -> SpecimenExplorerResponse:
+    """Which specimen types yielded the isolates (SDD 11.2, Specimen Explorer)."""
+    scope = resolve(
+        db,
+        principal,
+        district_id=district_id,
+        facility_id=facility_id,
+        care_setting=care_setting,
+        date_from=date_from,
+        date_to=date_to,
+    )
+    methodology = methodology_engine.resolve(db, regional_block_id=scope.regional_block_id)
+    records = query.load_isolates(db, scope.filters)
+
+    counts, total = profiles_engine.by_specimen(
+        records,
+        methodology,
+        verified_only=scope.verified_only,
+        apply_suppression=scope.apply_suppression,
+    )
+    specimen_types = {s.id: s for s in db.scalars(select(CanonicalSpecimenType))}
+
+    listed = [
+        SpecimenCountResponse(
+            specimen_type=_ref(specimen_types[entry.specimen_type_id]),
+            infection_site=specimen_types[entry.specimen_type_id].infection_site,
+            sterile_site=specimen_types[entry.specimen_type_id].is_sterile_site,
+            isolate_count=entry.isolate_count,
+            percent_of_total=entry.percent_of_total,
+        )
+        for entry in counts
+        if entry.specimen_type_id in specimen_types
+    ]
+
+    return SpecimenExplorerResponse(
+        specimens=listed,
+        total_isolates=total,
+        withheld_isolates=total - sum(entry.isolate_count for entry in listed),
+        freshness=_freshness_response(
+            coverage_engine.freshness(
+                db,
+                regional_block_id=scope.regional_block_id,
+                contributing_facility_ids=_contributing_facilities(records, scope.verified_only),
+                coverage_start=scope.filters.date_from,
+                coverage_end=scope.filters.date_to,
+            )
+        ),
+    )

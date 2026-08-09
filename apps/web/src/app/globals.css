@@ -58,6 +58,15 @@
 
   /* Multi-series charts, where a series carries no S/I/R meaning. Deliberately
    * distinct from both families above so a line is never read as a severity. */
+  /* Count bars on the specimen figure.
+   *
+   * A deliberately deeper, bluer crimson than --sir-r (#C2352B), the clinical
+   * red for Resistant. These bars count specimens; they carry no susceptibility
+   * meaning, and the two reds never share a surface. Keeping them visibly
+   * distinct is what stops a tall "Urine" bar from reading as a resistance
+   * finding to someone scanning the page. */
+  --color-count: #a3264a;
+
   --color-series-1: #2e5eaa;
   --color-series-2: #b5651d;
   --color-series-3: #6a4c93;
@@ -96,6 +105,7 @@
     --color-sir-nt: #6e7c77;
     --color-insufficient: #1c2420;
     --color-insufficient-ink: #7c8a84;
+    --color-count: #d4576f;
     /* Lifted for a dark ground: the light-theme series colours are mid-tone and
      * sit too close to the surface once the page inverts. */
     --color-series-1: #6f9fe8;

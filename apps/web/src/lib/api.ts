@@ -82,6 +82,8 @@ export const api = {
     request<AntibioticExplorer>(`/api/v1/surveillance/antibiotics${queryString(params)}`),
   organismExplorer: (params?: Record<string, string | undefined>) =>
     request<OrganismExplorer>(`/api/v1/surveillance/organisms${queryString(params)}`),
+  specimenExplorer: (params?: Record<string, string | undefined>) =>
+    request<SpecimenExplorer>(`/api/v1/surveillance/specimens${queryString(params)}`),
   trend: (params: Record<string, string | undefined>) =>
     request<Trend>(`/api/v1/surveillance/trend${queryString(params)}`),
 };
@@ -306,6 +308,22 @@ export interface OrganismSites {
   principal_site: string | null;
   sites: SiteCount[];
   withheld_isolates: number;
+}
+
+export interface SpecimenCount {
+  specimen_type: DictionaryRef;
+  infection_site: string;
+  sterile_site: boolean;
+  isolate_count: number;
+  percent_of_total: number;
+}
+
+export interface SpecimenExplorer {
+  specimens: SpecimenCount[];
+  total_isolates: number;
+  withheld_isolates: number;
+  freshness: Freshness;
+  clinical_framing: string;
 }
 
 export interface OrganismExplorer {

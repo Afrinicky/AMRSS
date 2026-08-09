@@ -1,15 +1,15 @@
-"""The two report aggregations: agent S/I/R patterns, and organisms by site.
+"""The three report aggregations behind the explorer pages.
 
-These back the Antibiotic Explorer and Organism Explorer pages. Both publish
-counts that a reader will treat as fact, so the properties tested here are the
-ones that would make a published figure wrong rather than merely ugly:
-thresholds actually applied, withheld data accounted for, and no deduplication
-where a provenance count is being reported.
+Agent S/I/R patterns, organisms by site of infection, and specimen types. All
+three publish counts a reader will treat as fact, so the properties tested here
+are the ones that would make a published figure wrong rather than merely ugly:
+thresholds actually applied, withheld data accounted for in the denominator, and
+no deduplication where a provenance count is being reported.
 """
 
 from datetime import date, timedelta
 
-from amrss.analytics.profiles import by_antibiotic, by_organism_site
+from amrss.analytics.profiles import by_antibiotic, by_organism_site, by_specimen
 from amrss.models.enums import SirResult
 from tests.conftest import (
     DRUG_X,
@@ -226,3 +226,78 @@ def test_no_records_yields_no_figure():
     methodology = make_methodology()
 
     assert by_organism_site([], methodology, SITE_OF) == ([], 0)
+
+
+# ---- by_specimen -----------------------------------------------------------
+
+
+def test_specimen_types_are_counted_and_ordered_by_volume():
+    methodology = make_methodology(suppression={"small_cell_threshold": 1})
+    records = [
+        *spread(30, specimen_type_id=SPECIMEN_URINE, results={}),
+        *spread(20, specimen_type_id=SPECIMEN_BLOOD, results={}),
+    ]
+
+    counts, total = by_specimen(records, methodology)
+
+    assert total == 50
+    assert [c.specimen_type_id for c in counts] == [SPECIMEN_URINE, SPECIMEN_BLOOD]
+    assert [c.isolate_count for c in counts] == [30, 20]
+    assert [c.percent_of_total for c in counts] == [60, 40]
+
+
+def test_specimen_counts_are_not_deduplicated():
+    """Laboratory workload, not a rate: every specimen processed counts."""
+    methodology = make_methodology(suppression={"small_cell_threshold": 1})
+    records = [
+        make_isolate(
+            specimen_date=DAY_ZERO + timedelta(days=day),
+            patient="patient-1",
+            specimen_type_id=SPECIMEN_URINE,
+            results={},
+        )
+        for day in (0, 1, 2)
+    ]
+
+    assert by_specimen(records, methodology)[1] == 3
+
+
+def test_a_small_specimen_type_is_withheld_but_still_counted_in_the_total():
+    """Two isolates of one specimen type in a named district is a
+    re-identification route, so the row is withheld. It stays in the total, so
+    the listed rows can be seen not to sum to it rather than the denominator
+    quietly shrinking and inflating every published percentage."""
+    methodology = make_methodology(suppression={"small_cell_threshold": 5})
+    records = [
+        *spread(20, specimen_type_id=SPECIMEN_URINE, results={}),
+        *spread(2, specimen_type_id=SPECIMEN_CSF, results={}),
+    ]
+
+    counts, total = by_specimen(records, methodology)
+
+    assert [c.specimen_type_id for c in counts] == [SPECIMEN_URINE]
+    assert total == 22
+    assert counts[0].percent_of_total == 91
+
+
+def test_specimen_suppression_can_be_lifted_for_privileged_scopes():
+    methodology = make_methodology(suppression={"small_cell_threshold": 5})
+    records = spread(2, specimen_type_id=SPECIMEN_CSF, results={})
+
+    assert by_specimen(records, methodology)[0] == []
+    assert by_specimen(records, methodology, apply_suppression=False)[0][0].isolate_count == 2
+
+
+def test_unverified_facilities_are_excluded_from_specimen_counts_by_default():
+    methodology = make_methodology(suppression={"small_cell_threshold": 1})
+    records = [
+        *spread(5, specimen_type_id=SPECIMEN_URINE, results={}),
+        *spread(5, specimen_type_id=SPECIMEN_BLOOD, results={}, quality_verified=False),
+    ]
+
+    assert by_specimen(records, methodology)[1] == 5
+    assert by_specimen(records, methodology, verified_only=False)[1] == 10
+
+
+def test_no_records_yields_no_specimen_figure():
+    assert by_specimen([], make_methodology()) == ([], 0)
