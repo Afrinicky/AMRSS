@@ -271,9 +271,17 @@ type Row =
 export function OrganismSiteChart({
   organisms,
   total,
+  scaleMax,
 }: {
   organisms: OrganismSites[];
   total: number;
+  /** Largest site count the scale must accommodate.
+   *
+   * Supplied by the caller when the figure is split across several charts —
+   * bacteria and fungi, say. Without it each chart would renormalise to its own
+   * largest bar and a 38-isolate fungal site would be drawn the same length as a
+   * 318-isolate bacterial one, directly contradicting the caption. */
+  scaleMax?: number;
 }) {
   if (organisms.length === 0) {
     return (
@@ -318,6 +326,7 @@ export function OrganismSiteChart({
   // One scale for the whole figure. Renormalising per organism would make a
   // twelve-isolate site look like a three-hundred-isolate one.
   const maximum = Math.max(
+    scaleMax ?? 0,
     ...rows.filter((row) => row.kind === "site").map((row) => row.count),
     1,
   );

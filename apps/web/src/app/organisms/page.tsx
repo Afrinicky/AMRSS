@@ -40,6 +40,15 @@ export default async function OrganismsPage({
     date_to: params.date_to,
   });
 
+  // One scale across both kingdom charts. Left to renormalise per chart, a
+  // 38-isolate Candida bar would be drawn the length of a 318-isolate E. coli
+  // one, which is exactly the misreading the shared scale exists to prevent.
+  const scaleMax = Math.max(
+    1,
+    ...explorer.organisms.flatMap((organism) =>
+      organism.sites.map((site) => site.isolate_count),
+    ),
+  );
   const kingdoms = ["bacteria", "fungi"] as const;
   const KINGDOM_HEADING = {
     bacteria: "Bacterial isolates",
@@ -97,7 +106,11 @@ export default async function OrganismsPage({
                 site. Bars share a single scale across the whole figure, so a site with a
                 dozen isolates is never drawn the length of one with three hundred.
               </p>
-              <OrganismSiteChart organisms={rows} total={explorer.total_isolates} />
+              <OrganismSiteChart
+                organisms={rows}
+                total={explorer.total_isolates}
+                scaleMax={scaleMax}
+              />
             </section>
           );
         })}

@@ -56,8 +56,6 @@
   --color-insufficient: #edefee;
   --color-insufficient-ink: #6b7873;
 
-  /* Multi-series charts, where a series carries no S/I/R meaning. Deliberately
-   * distinct from both families above so a line is never read as a severity. */
   /* Count bars on the specimen figure.
    *
    * A deliberately deeper, bluer crimson than --sir-r (#C2352B), the clinical
@@ -67,6 +65,8 @@
    * finding to someone scanning the page. */
   --color-count: #a3264a;
 
+  /* Multi-series charts, where a series carries no S/I/R meaning. Deliberately
+   * distinct from both families above so a line is never read as a severity. */
   --color-series-1: #2e5eaa;
   --color-series-2: #b5651d;
   --color-series-3: #6a4c93;
@@ -306,4 +306,31 @@ body {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* A row that scrolls sideways when its contents outgrow it — the navigation
+ * below `lg`, where seven entries do not fit a phone.
+ *
+ * The scrollbar is kept, only thinned: hiding it entirely would leave no cue
+ * that entries exist past the right edge, and a clinician on a shared facility
+ * phone would never find "Coverage". Momentum scrolling and scroll-snap keep it
+ * feeling deliberate rather than accidental. */
+.scroll-row {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--color-accent) 45%, transparent) transparent;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+}
+
+.scroll-row::-webkit-scrollbar {
+  height: 4px;
+}
+
+.scroll-row::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--color-accent) 45%, transparent);
+  border-radius: 2px;
+}
+
+.scroll-row::-webkit-scrollbar-track {
+  background: transparent;
 }
