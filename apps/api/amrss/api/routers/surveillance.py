@@ -18,14 +18,20 @@ from sqlalchemy.orm import Session
 
 from amrss.analytics import alerts as alerts_engine
 from amrss.analytics import antibiogram as antibiogram_engine
+from amrss.analytics import breakdowns, provenance, query, signals, trends
 from amrss.analytics import coverage as coverage_engine
 from amrss.analytics import methodology as methodology_engine
 from amrss.analytics import profiles as profiles_engine
-from amrss.analytics import provenance, query, signals, trends
 from amrss.api.deps import CurrentPrincipal, DbSession
 from amrss.api.scope_resolution import resolve
-from amrss.models import CanonicalAntibiotic, CanonicalOrganism, CanonicalSpecimenType
-from amrss.models.enums import CareSetting, OrganismKingdom
+from amrss.models import (
+    CanonicalAntibiotic,
+    CanonicalOrganism,
+    CanonicalSpecimenType,
+    District,
+    Facility,
+)
+from amrss.models.enums import AgeBand, CareSetting, OrganismKingdom
 from amrss.security.permissions import Permission
 from amrss.security.scope import resolve_block_id
 
@@ -888,3 +894,346 @@ def get_specimen_explorer(
             )
         ),
     )
+
+
+# ---- Drill-downs (SDD 11.2) ------------------------------------------------
+
+
+class BreakdownGroupResponse(BaseModel):
+    """One stratum. Mirrors the antibiogram cell states, deliberately: a reader
+    who has learned what "below threshold" means in the table should not have to
+    learn a second vocabulary in the breakdown beside it."""
+
+    key: str
+    label: str
+    state: str
+    susceptible_percent: float | None = None
+    resistant_percent: float | None = None
+    interpretable: int | None = None
+    confidence_lower: float | None = None
+    confidence_upper: float | None = None
+    #: Always present. How many isolates fell here is not a susceptibility rate,
+    #: and hiding it would leave a reader unable to tell an empty stratum from a
+    #: withheld one.
+    isolate_count: int
+
+
+class BreakdownResponse(BaseModel):
+    dimension: str
+    description: str
+    groups: list[BreakdownGroupResponse]
+
+
+class OrganismDetailResponse(BaseModel):
+    organism: DictionaryRef
+    organism_kingdom: OrganismKingdom
+    isolate_count: int
+    antibiogram_eligible_count: int
+    #: The organism's own row of the antibiogram, computed on the same rules so
+    #: the drill-down cannot drift from the table it came from.
+    agents: list[BreakdownGroupResponse]
+    #: Breakdowns are per-agent because a susceptibility rate is meaningless
+    #: without one. The agent chosen is named in the response.
+    breakdown_antibiotic: DictionaryRef | None
+    breakdowns: list[BreakdownResponse]
+    minimum_isolates: int
+    small_cell_threshold: int
+    suppression_applied: bool
+    freshness: FreshnessResponse
+    methodology: dict[str, Any]
+    clinical_framing: str = CLINICAL_FRAMING
+
+
+class AntibioticDetailResponse(BaseModel):
+    antibiotic: DictionaryRef
+    #: Every organism tested against this agent. The view that makes a pooled
+    #: figure interpretable: 30% susceptible means something quite different
+    #: once it is clear which organisms make up the 30%.
+    organisms: list[BreakdownGroupResponse]
+    breakdowns: list[BreakdownResponse]
+    minimum_isolates: int
+    small_cell_threshold: int
+    suppression_applied: bool
+    freshness: FreshnessResponse
+    pooling_caveat: str = POOLING_CAVEAT
+    methodology: dict[str, Any]
+    clinical_framing: str = CLINICAL_FRAMING
+
+
+def _group_response(group: breakdowns.Group, label: str) -> BreakdownGroupResponse:
+    summary = group.summary
+    return BreakdownGroupResponse(
+        key=str(group.key),
+        label=label,
+        state=group.state.value,
+        susceptible_percent=summary.susceptible_percent if summary else None,
+        resistant_percent=summary.resistant_percent if summary else None,
+        interpretable=summary.interpretable if summary else None,
+        confidence_lower=group.confidence_lower,
+        confidence_upper=group.confidence_upper,
+        isolate_count=group.isolate_count,
+    )
+
+
+def _labelled(
+    groups: list[breakdowns.Group], names: dict[Any, str]
+) -> list[BreakdownGroupResponse]:
+    """Attach display names, dropping strata whose key is not in the dictionary.
+
+    A stratum the dictionary cannot name is a data problem for the steward, not
+    something to surface as "unknown" beside real figures.
+    """
+    return [_group_response(g, names[g.key]) for g in groups if g.key in names]
+
+
+@router.get("/organisms/{organism_id}", response_model=OrganismDetailResponse)
+def get_organism_detail(
+    db: DbSession,
+    principal: CurrentPrincipal,
+    organism_id: uuid.UUID,
+    antibiotic_id: uuid.UUID | None = None,
+    district_id: uuid.UUID | None = None,
+    facility_id: uuid.UUID | None = None,
+    care_setting: CareSetting | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+) -> OrganismDetailResponse:
+    """One organism in depth: its agents, and where its isolates came from.
+
+    The breakdowns are computed for a single agent because a susceptibility rate
+    without one is not a statistic. Where the caller names no agent, the one
+    with the most interpretable results is used and named in the response, so
+    the figures are never attributed to the wrong agent by omission.
+    """
+    scope = resolve(
+        db,
+        principal,
+        district_id=district_id,
+        facility_id=facility_id,
+        organism_ids=[organism_id],
+        care_setting=care_setting,
+        date_from=date_from,
+        date_to=date_to,
+    )
+    organisms, antibiotics = _dictionary_maps(db)
+    organism = organisms.get(organism_id)
+    if organism is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unknown organism")
+
+    methodology = methodology_engine.resolve(db, regional_block_id=scope.regional_block_id)
+    records = query.load_isolates(db, scope.filters)
+
+    agents = breakdowns.agent_profile_for_organism(
+        records, methodology, organism_id=organism_id, verified_only=scope.verified_only
+    )
+
+    chosen = antibiotic_id or next(
+        (g.key for g in agents if g.state is breakdowns.GroupState.REPORTABLE), None
+    )
+    chosen_ref = antibiotics.get(chosen) if isinstance(chosen, uuid.UUID) else None
+
+    breakdown_list: list[BreakdownResponse] = []
+    if chosen_ref is not None and isinstance(chosen, uuid.UUID):
+        breakdown_list = _build_breakdowns(
+            db,
+            records,
+            methodology,
+            scope,
+            antibiotic_id=chosen,
+            organism_id=organism_id,
+            include_facility=principal.has(Permission.VIEW_CROSS_FACILITY),
+        )
+
+    eligible = [
+        r
+        for r in records
+        if r.organism_id == organism_id and (r.quality_verified or not scope.verified_only)
+    ]
+    return OrganismDetailResponse(
+        organism=_ref(organism),
+        organism_kingdom=organism.kingdom,
+        isolate_count=sum(1 for r in records if r.organism_id == organism_id),
+        antibiogram_eligible_count=len(eligible),
+        agents=_labelled(agents, {a.id: a.name for a in antibiotics.values()}),
+        breakdown_antibiotic=_ref(chosen_ref) if chosen_ref else None,
+        breakdowns=breakdown_list,
+        minimum_isolates=methodology.minimum_isolates,
+        small_cell_threshold=methodology.small_cell_threshold,
+        suppression_applied=scope.apply_suppression,
+        freshness=_freshness_response(
+            coverage_engine.freshness(
+                db,
+                regional_block_id=scope.regional_block_id,
+                contributing_facility_ids=_contributing_facilities(records, scope.verified_only),
+                coverage_start=scope.filters.date_from,
+                coverage_end=scope.filters.date_to,
+            )
+        ),
+        methodology=provenance.cite(methodology),
+    )
+
+
+@router.get("/antibiotics/{antibiotic_id}", response_model=AntibioticDetailResponse)
+def get_antibiotic_detail(
+    db: DbSession,
+    principal: CurrentPrincipal,
+    antibiotic_id: uuid.UUID,
+    district_id: uuid.UUID | None = None,
+    facility_id: uuid.UUID | None = None,
+    care_setting: CareSetting | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+) -> AntibioticDetailResponse:
+    """One agent in depth: which organisms it still works against, and where."""
+    scope = resolve(
+        db,
+        principal,
+        district_id=district_id,
+        facility_id=facility_id,
+        care_setting=care_setting,
+        date_from=date_from,
+        date_to=date_to,
+    )
+    organisms, antibiotics = _dictionary_maps(db)
+    antibiotic = antibiotics.get(antibiotic_id)
+    if antibiotic is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unknown antibiotic")
+
+    methodology = methodology_engine.resolve(db, regional_block_id=scope.regional_block_id)
+    records = query.load_isolates(db, scope.filters)
+
+    organism_groups = breakdowns.organism_profile_for_agent(
+        records, methodology, antibiotic_id=antibiotic_id, verified_only=scope.verified_only
+    )
+
+    return AntibioticDetailResponse(
+        antibiotic=_ref(antibiotic),
+        organisms=_labelled(organism_groups, {o.id: o.name for o in organisms.values()}),
+        breakdowns=_build_breakdowns(
+            db,
+            records,
+            methodology,
+            scope,
+            antibiotic_id=antibiotic_id,
+            organism_id=None,
+            include_facility=principal.has(Permission.VIEW_CROSS_FACILITY),
+        ),
+        minimum_isolates=methodology.minimum_isolates,
+        small_cell_threshold=methodology.small_cell_threshold,
+        suppression_applied=scope.apply_suppression,
+        freshness=_freshness_response(
+            coverage_engine.freshness(
+                db,
+                regional_block_id=scope.regional_block_id,
+                contributing_facility_ids=_contributing_facilities(records, scope.verified_only),
+                coverage_start=scope.filters.date_from,
+                coverage_end=scope.filters.date_to,
+            )
+        ),
+        methodology=provenance.cite(methodology),
+    )
+
+
+def _build_breakdowns(
+    db: Session,
+    records: list[Any],
+    methodology: Any,
+    scope: Any,
+    *,
+    antibiotic_id: uuid.UUID,
+    organism_id: uuid.UUID | None,
+    include_facility: bool,
+) -> list[BreakdownResponse]:
+    """The four dimensions SDD 11.2 asks for, each gated the same way.
+
+    The facility breakdown is omitted entirely for anyone without cross-facility
+    permission rather than returned suppressed. A clinician has no business
+    seeing which laboratory contributed what, and returning a list of withheld
+    facility names still discloses the roster.
+    """
+    specimens = {s.id: s.name for s in db.scalars(select(CanonicalSpecimenType))}
+    districts = {d.id: d.name for d in db.scalars(select(District))}
+    facilities = {f.id: f.name for f in db.scalars(select(Facility))}
+
+    def build(
+        dimension: str,
+        description: str,
+        key_of: Any,
+        names: dict[Any, str],
+        *,
+        natural_order: list[Any] | None = None,
+    ) -> BreakdownResponse:
+        """One dimension, optionally in its own natural order.
+
+        Most breakdowns are best read largest-first, which is what the engine
+        returns. Age bands and care settings are not: an age breakdown listed by
+        isolate count puts 45-64 above 15-44 for no reason a reader can infer,
+        and scanning it becomes an exercise in re-sorting by eye.
+        """
+        groups = breakdowns.by_dimension(
+            records,
+            methodology,
+            antibiotic_id=antibiotic_id,
+            key_of=key_of,
+            organism_id=organism_id,
+            verified_only=scope.verified_only,
+            apply_suppression=scope.apply_suppression,
+        )
+        if natural_order is not None:
+            position = {key: index for index, key in enumerate(natural_order)}
+            groups = sorted(groups, key=lambda g: position.get(g.key, len(position)))
+        return BreakdownResponse(
+            dimension=dimension, description=description, groups=_labelled(groups, names)
+        )
+
+    results = [
+        build(
+            "specimen_type",
+            "Where the isolates were taken from. A urinary picture and a bloodstream "
+            "picture can differ sharply for the same organism and agent.",
+            lambda r: r.specimen_type_id,
+            specimens,
+        ),
+        build(
+            "care_setting",
+            "Inpatient against outpatient. Hospital-acquired isolates are routinely "
+            "less susceptible, and a pooled figure hides which population it describes.",
+            lambda r: r.care_setting.value,
+            {
+                CareSetting.INPATIENT.value: "Inpatient",
+                CareSetting.OUTPATIENT.value: "Outpatient",
+                CareSetting.UNKNOWN.value: "Setting not recorded",
+            },
+            natural_order=[s.value for s in CareSetting],
+        ),
+        build(
+            "age_band",
+            "Age band at collection, as banded on submission — never an exact age.",
+            lambda r: r.age_band.value,
+            # The enum values are already the printed labels ("<5", "15-44",
+            # "65+"); the declaration order is age order, so it doubles as the
+            # display order.
+            {
+                band.value: ("Age not recorded" if band is AgeBand.UNKNOWN else band.value)
+                for band in AgeBand
+            },
+            natural_order=[band.value for band in AgeBand],
+        ),
+        build(
+            "district",
+            "Which districts contributed the isolates behind this figure.",
+            lambda r: r.district_id,
+            districts,
+        ),
+    ]
+    if include_facility:
+        results.append(
+            build(
+                "facility",
+                "Contributing laboratories. Visible only with cross-facility permission, "
+                "and never used to rank one laboratory against another.",
+                lambda r: r.facility_id,
+                facilities,
+            )
+        )
+    return results

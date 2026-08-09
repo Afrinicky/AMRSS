@@ -82,6 +82,10 @@ export const api = {
     request<AntibioticExplorer>(`/api/v1/surveillance/antibiotics${queryString(params)}`),
   organismExplorer: (params?: Record<string, string | undefined>) =>
     request<OrganismExplorer>(`/api/v1/surveillance/organisms${queryString(params)}`),
+  organismDetail: (id: string, params?: Record<string, string | undefined>) =>
+    request<OrganismDetail>(`/api/v1/surveillance/organisms/${id}${queryString(params)}`),
+  antibioticDetail: (id: string, params?: Record<string, string | undefined>) =>
+    request<AntibioticDetail>(`/api/v1/surveillance/antibiotics/${id}${queryString(params)}`),
   specimenExplorer: (params?: Record<string, string | undefined>) =>
     request<SpecimenExplorer>(`/api/v1/surveillance/specimens${queryString(params)}`),
 
@@ -478,4 +482,56 @@ export interface QualityDashboard {
   qc_validity_days: number;
   eqa_validity_days: number;
   gating_note: string;
+}
+
+// ---- Drill-downs (SDD 11.2) ------------------------------------------------
+
+/** Mirrors the antibiogram cell states on purpose: one vocabulary, learned once. */
+export type GroupState = "reportable" | "below_threshold" | "suppressed";
+
+export interface BreakdownGroup {
+  key: string;
+  label: string;
+  state: GroupState;
+  susceptible_percent: number | null;
+  resistant_percent: number | null;
+  interpretable: number | null;
+  confidence_lower: number | null;
+  confidence_upper: number | null;
+  isolate_count: number;
+}
+
+export interface Breakdown {
+  dimension: string;
+  description: string;
+  groups: BreakdownGroup[];
+}
+
+export interface OrganismDetail {
+  organism: DictionaryRef;
+  organism_kingdom: "bacteria" | "fungi";
+  isolate_count: number;
+  antibiogram_eligible_count: number;
+  agents: BreakdownGroup[];
+  breakdown_antibiotic: DictionaryRef | null;
+  breakdowns: Breakdown[];
+  minimum_isolates: number;
+  small_cell_threshold: number;
+  suppression_applied: boolean;
+  freshness: Freshness;
+  methodology: Record<string, unknown>;
+  clinical_framing: string;
+}
+
+export interface AntibioticDetail {
+  antibiotic: DictionaryRef;
+  organisms: BreakdownGroup[];
+  breakdowns: Breakdown[];
+  minimum_isolates: number;
+  small_cell_threshold: number;
+  suppression_applied: boolean;
+  freshness: Freshness;
+  pooling_caveat: string;
+  methodology: Record<string, unknown>;
+  clinical_framing: string;
 }

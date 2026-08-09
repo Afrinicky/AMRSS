@@ -78,16 +78,19 @@ export function AntibioticProfileChart({
             let x = LABEL_WIDTH;
             return (
               <g key={profile.antibiotic.id}>
-                <text
-                  x={LABEL_WIDTH - VALUE_GUTTER}
-                  y={y + ROW_HEIGHT / 2}
-                  textAnchor="end"
-                  dominantBaseline="central"
-                  fontSize="12"
-                  fill="var(--color-ink)"
-                >
-                  {profile.antibiotic.name}
-                </text>
+                <a href={`/antibiotics/${profile.antibiotic.id}`}>
+                  <text
+                    x={LABEL_WIDTH - VALUE_GUTTER}
+                    y={y + ROW_HEIGHT / 2}
+                    textAnchor="end"
+                    dominantBaseline="central"
+                    fontSize="12"
+                    fill="var(--color-brand-700)"
+                    style={{ textDecoration: "underline" }}
+                  >
+                    {profile.antibiotic.name}
+                  </text>
+                </a>
 
                 {segments.map((segment, position) => {
                   const start = x;
@@ -379,16 +382,22 @@ export function OrganismSiteChart({
             if (row.kind === "organism") {
               return (
                 <g key={row.key}>
-                  <text
-                    x={0}
-                    y={top + GROUP_HEIGHT - 9}
-                    fontSize="12.5"
-                    fontStyle="italic"
-                    fontWeight="600"
-                    fill="var(--color-ink)"
-                  >
-                    {row.name}
-                  </text>
+                  {/* Linked inside the SVG so the organism name is the
+                      affordance a reader already looks at, rather than a
+                      separate "details" column they have to find. */}
+                  <a href={`/organisms/${row.key}`}>
+                    <text
+                      x={0}
+                      y={top + GROUP_HEIGHT - 9}
+                      fontSize="12.5"
+                      fontStyle="italic"
+                      fontWeight="600"
+                      fill="var(--color-brand-700)"
+                      style={{ textDecoration: "underline" }}
+                    >
+                      {row.name}
+                    </text>
+                  </a>
                   <text
                     x={LABEL_WIDTH + plotWidth + COUNT_GUTTER}
                     y={top + GROUP_HEIGHT - 9}
