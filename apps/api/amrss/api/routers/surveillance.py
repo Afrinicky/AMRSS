@@ -20,6 +20,7 @@ from amrss.analytics import alerts as alerts_engine
 from amrss.analytics import antibiogram as antibiogram_engine
 from amrss.analytics import coverage as coverage_engine
 from amrss.analytics import methodology as methodology_engine
+from amrss.analytics import profiles as profiles_engine
 from amrss.analytics import provenance, query, signals, trends
 from amrss.api.deps import CurrentPrincipal, DbSession
 from amrss.api.scope_resolution import resolve
@@ -604,4 +605,119 @@ def get_reference(db: DbSession, principal: CurrentPrincipal) -> ReferenceRespon
                 .order_by(CanonicalSpecimenType.name)
             )
         ],
+    )
+
+
+class AntibioticProfileResponse(BaseModel):
+    antibiotic: DictionaryRef
+    susceptible_percent: float
+    intermediate_percent: float
+    resistant_percent: float
+    tested: int
+    interpretable: int
+    #: How pooled this bar is. One organism is a clean statistic; a dozen is a
+    #: mixed population whose shape depends on what happened to be isolated.
+    organism_count: int
+
+
+class SpecimenCountResponse(BaseModel):
+    specimen_type: DictionaryRef
+    infection_site: str
+    isolate_count: int
+    percent_of_total: float
+
+
+class FiguresResponse(BaseModel):
+    """Summary figures for a report front page."""
+
+    antibiotic_profiles: list[AntibioticProfileResponse]
+    specimen_distribution: list[SpecimenCountResponse]
+    total_isolates: int
+    minimum_isolates: int
+    freshness: FreshnessResponse
+    pooling_caveat: str
+    clinical_framing: str = CLINICAL_FRAMING
+
+
+POOLING_CAVEAT = (
+    "Each bar pools one agent across every organism tested against it. Organisms differ "
+    "in intrinsic susceptibility, so a pooled figure is shaped partly by which organisms "
+    "were isolated. Use the antibiogram for the organism-specific answer."
+)
+
+
+@router.get("/figures", response_model=FiguresResponse)
+def get_figures(
+    db: DbSession,
+    principal: CurrentPrincipal,
+    district_id: uuid.UUID | None = None,
+    facility_id: uuid.UUID | None = None,
+    care_setting: CareSetting | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+) -> FiguresResponse:
+    """Whole-panel summary figures: the S/I/R split per agent, and where the
+    isolates came from."""
+    scope = resolve(
+        db,
+        principal,
+        district_id=district_id,
+        facility_id=facility_id,
+        care_setting=care_setting,
+        date_from=date_from,
+        date_to=date_to,
+    )
+
+    methodology = methodology_engine.resolve(db, regional_block_id=scope.regional_block_id)
+    records = query.load_isolates(db, scope.filters)
+
+    antibiotic_profiles = profiles_engine.by_antibiotic(
+        records, methodology, verified_only=scope.verified_only
+    )
+    specimens, total = profiles_engine.by_specimen(
+        records,
+        methodology,
+        verified_only=scope.verified_only,
+        small_cell_threshold=0 if not scope.apply_suppression else None,
+    )
+
+    _, antibiotics = _dictionary_maps(db)
+    specimen_types = {s.id: s for s in db.scalars(select(CanonicalSpecimenType))}
+
+    freshness = coverage_engine.freshness(
+        db,
+        regional_block_id=scope.regional_block_id,
+        contributing_facility_ids=_contributing_facilities(records, scope.verified_only),
+        coverage_start=scope.filters.date_from,
+        coverage_end=scope.filters.date_to,
+    )
+
+    return FiguresResponse(
+        antibiotic_profiles=[
+            AntibioticProfileResponse(
+                antibiotic=_ref(antibiotics[profile.antibiotic_id]),
+                susceptible_percent=profile.susceptible_percent,
+                intermediate_percent=profile.intermediate_percent,
+                resistant_percent=profile.resistant_percent,
+                tested=profile.summary.tested,
+                interpretable=profile.summary.interpretable,
+                organism_count=profile.organism_count,
+            )
+            for profile in antibiotic_profiles
+            if profile.antibiotic_id in antibiotics
+        ],
+        specimen_distribution=[
+            SpecimenCountResponse(
+                specimen_type=_ref(specimen_types[entry.specimen_type_id]),
+                infection_site=specimen_types[entry.specimen_type_id].infection_site,
+                isolate_count=entry.isolate_count,
+                percent_of_total=entry.percent_of_total,
+            )
+            for entry in specimens
+            if entry.specimen_type_id in specimen_types
+        ],
+        total_isolates=total,
+        minimum_isolates=methodology.minimum_isolates,
+        freshness=_freshness_response(freshness),
+        pooling_caveat=POOLING_CAVEAT,
     )

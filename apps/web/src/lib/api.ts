@@ -78,6 +78,8 @@ export const api = {
     request<AlertsPayload>(`/api/v1/surveillance/alerts${queryString(params)}`),
   coverage: () => request<Coverage>("/api/v1/surveillance/coverage"),
   reference: () => request<Reference>("/api/v1/surveillance/reference"),
+  figures: (params?: Record<string, string | undefined>) =>
+    request<Figures>(`/api/v1/surveillance/figures${queryString(params)}`),
   trend: (params: Record<string, string | undefined>) =>
     request<Trend>(`/api/v1/surveillance/trend${queryString(params)}`),
 };
@@ -267,5 +269,32 @@ export interface Trend {
   minimum_isolates: number;
   points: TrendPoint[];
   freshness: Freshness;
+  clinical_framing: string;
+}
+
+export interface AntibioticProfile {
+  antibiotic: DictionaryRef;
+  susceptible_percent: number;
+  intermediate_percent: number;
+  resistant_percent: number;
+  tested: number;
+  interpretable: number;
+  organism_count: number;
+}
+
+export interface SpecimenCount {
+  specimen_type: DictionaryRef;
+  infection_site: string;
+  isolate_count: number;
+  percent_of_total: number;
+}
+
+export interface Figures {
+  antibiotic_profiles: AntibioticProfile[];
+  specimen_distribution: SpecimenCount[];
+  total_isolates: number;
+  minimum_isolates: number;
+  freshness: Freshness;
+  pooling_caveat: string;
   clinical_framing: string;
 }
