@@ -608,6 +608,9 @@ def get_reference(db: DbSession, principal: CurrentPrincipal) -> ReferenceRespon
     )
 
 
+# ---- Antibiotic Explorer ---------------------------------------------------
+
+
 class AntibioticProfileResponse(BaseModel):
     antibiotic: DictionaryRef
     susceptible_percent: float
@@ -620,19 +623,8 @@ class AntibioticProfileResponse(BaseModel):
     organism_count: int
 
 
-class SpecimenCountResponse(BaseModel):
-    specimen_type: DictionaryRef
-    infection_site: str
-    isolate_count: int
-    percent_of_total: float
-
-
-class FiguresResponse(BaseModel):
-    """Summary figures for a report front page."""
-
-    antibiotic_profiles: list[AntibioticProfileResponse]
-    specimen_distribution: list[SpecimenCountResponse]
-    total_isolates: int
+class AntibioticExplorerResponse(BaseModel):
+    profiles: list[AntibioticProfileResponse]
     minimum_isolates: int
     freshness: FreshnessResponse
     pooling_caveat: str
@@ -646,8 +638,8 @@ POOLING_CAVEAT = (
 )
 
 
-@router.get("/figures", response_model=FiguresResponse)
-def get_figures(
+@router.get("/antibiotics", response_model=AntibioticExplorerResponse)
+def get_antibiotic_explorer(
     db: DbSession,
     principal: CurrentPrincipal,
     district_id: uuid.UUID | None = None,
@@ -655,9 +647,8 @@ def get_figures(
     care_setting: CareSetting | None = None,
     date_from: date | None = None,
     date_to: date | None = None,
-) -> FiguresResponse:
-    """Whole-panel summary figures: the S/I/R split per agent, and where the
-    isolates came from."""
+) -> AntibioticExplorerResponse:
+    """Overall resistance and susceptibility per agent (SDD 11.2, Antibiotic Explorer)."""
     scope = resolve(
         db,
         principal,
@@ -667,33 +658,15 @@ def get_figures(
         date_from=date_from,
         date_to=date_to,
     )
-
     methodology = methodology_engine.resolve(db, regional_block_id=scope.regional_block_id)
     records = query.load_isolates(db, scope.filters)
-
-    antibiotic_profiles = profiles_engine.by_antibiotic(
+    profiles = profiles_engine.by_antibiotic(
         records, methodology, verified_only=scope.verified_only
     )
-    specimens, total = profiles_engine.by_specimen(
-        records,
-        methodology,
-        verified_only=scope.verified_only,
-        small_cell_threshold=0 if not scope.apply_suppression else None,
-    )
-
     _, antibiotics = _dictionary_maps(db)
-    specimen_types = {s.id: s for s in db.scalars(select(CanonicalSpecimenType))}
 
-    freshness = coverage_engine.freshness(
-        db,
-        regional_block_id=scope.regional_block_id,
-        contributing_facility_ids=_contributing_facilities(records, scope.verified_only),
-        coverage_start=scope.filters.date_from,
-        coverage_end=scope.filters.date_to,
-    )
-
-    return FiguresResponse(
-        antibiotic_profiles=[
+    return AntibioticExplorerResponse(
+        profiles=[
             AntibioticProfileResponse(
                 antibiotic=_ref(antibiotics[profile.antibiotic_id]),
                 susceptible_percent=profile.susceptible_percent,
@@ -703,21 +676,130 @@ def get_figures(
                 interpretable=profile.summary.interpretable,
                 organism_count=profile.organism_count,
             )
-            for profile in antibiotic_profiles
+            for profile in profiles
             if profile.antibiotic_id in antibiotics
         ],
-        specimen_distribution=[
-            SpecimenCountResponse(
-                specimen_type=_ref(specimen_types[entry.specimen_type_id]),
-                infection_site=specimen_types[entry.specimen_type_id].infection_site,
-                isolate_count=entry.isolate_count,
-                percent_of_total=entry.percent_of_total,
+        minimum_isolates=methodology.minimum_isolates,
+        freshness=_freshness_response(
+            coverage_engine.freshness(
+                db,
+                regional_block_id=scope.regional_block_id,
+                contributing_facility_ids=_contributing_facilities(records, scope.verified_only),
+                coverage_start=scope.filters.date_from,
+                coverage_end=scope.filters.date_to,
             )
-            for entry in specimens
-            if entry.specimen_type_id in specimen_types
+        ),
+        pooling_caveat=POOLING_CAVEAT,
+    )
+
+
+# ---- Organism Explorer -----------------------------------------------------
+
+
+class SiteCountResponse(BaseModel):
+    infection_site: str
+    isolate_count: int
+    percent_of_organism: float
+
+
+class OrganismSiteResponse(BaseModel):
+    organism: DictionaryRef
+    organism_kingdom: OrganismKingdom
+    isolate_count: int
+    percent_of_total: float
+    principal_site: str | None
+    sites: list[SiteCountResponse]
+    #: Isolates whose site of infection fell below the suppression threshold and
+    #: is therefore not listed. Published so the listed sites can be seen not to
+    #: add up, rather than leaving the shortfall to look like an error.
+    withheld_isolates: int
+
+
+class OrganismExplorerResponse(BaseModel):
+    organisms: list[OrganismSiteResponse]
+    total_isolates: int
+    #: Every distinct site present, so a client can lay out a consistent axis.
+    infection_sites: list[str]
+    freshness: FreshnessResponse
+    clinical_framing: str = CLINICAL_FRAMING
+
+
+@router.get("/organisms", response_model=OrganismExplorerResponse)
+def get_organism_explorer(
+    db: DbSession,
+    principal: CurrentPrincipal,
+    district_id: uuid.UUID | None = None,
+    facility_id: uuid.UUID | None = None,
+    care_setting: CareSetting | None = None,
+    organism_kingdom: OrganismKingdom | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+) -> OrganismExplorerResponse:
+    """Which organisms were isolated and from which sites of infection
+    (SDD 11.2, Organism Explorer)."""
+    scope = resolve(
+        db,
+        principal,
+        district_id=district_id,
+        facility_id=facility_id,
+        care_setting=care_setting,
+        organism_kingdom=organism_kingdom,
+        date_from=date_from,
+        date_to=date_to,
+    )
+    methodology = methodology_engine.resolve(db, regional_block_id=scope.regional_block_id)
+    records = query.load_isolates(db, scope.filters)
+
+    specimen_types = {s.id: s for s in db.scalars(select(CanonicalSpecimenType))}
+    site_of = {
+        specimen_id: specimen.infection_site for specimen_id, specimen in specimen_types.items()
+    }
+
+    organism_profiles, total = profiles_engine.by_organism_site(
+        records,
+        methodology,
+        site_of,
+        verified_only=scope.verified_only,
+        apply_suppression=scope.apply_suppression,
+    )
+    organisms, _ = _dictionary_maps(db)
+
+    sites: list[str] = []
+    for profile in organism_profiles:
+        for site in profile.sites:
+            if site.infection_site not in sites:
+                sites.append(site.infection_site)
+
+    return OrganismExplorerResponse(
+        organisms=[
+            OrganismSiteResponse(
+                organism=_ref(organisms[profile.organism_id]),
+                organism_kingdom=organisms[profile.organism_id].kingdom,
+                isolate_count=profile.isolate_count,
+                percent_of_total=profile.percent_of_total,
+                principal_site=profile.principal_site,
+                sites=[
+                    SiteCountResponse(
+                        infection_site=site.infection_site,
+                        isolate_count=site.isolate_count,
+                        percent_of_organism=site.percent_of_organism,
+                    )
+                    for site in profile.sites
+                ],
+                withheld_isolates=profile.withheld_count,
+            )
+            for profile in organism_profiles
+            if profile.organism_id in organisms
         ],
         total_isolates=total,
-        minimum_isolates=methodology.minimum_isolates,
-        freshness=_freshness_response(freshness),
-        pooling_caveat=POOLING_CAVEAT,
+        infection_sites=sites,
+        freshness=_freshness_response(
+            coverage_engine.freshness(
+                db,
+                regional_block_id=scope.regional_block_id,
+                contributing_facility_ids=_contributing_facilities(records, scope.verified_only),
+                coverage_start=scope.filters.date_from,
+                coverage_end=scope.filters.date_to,
+            )
+        ),
     )

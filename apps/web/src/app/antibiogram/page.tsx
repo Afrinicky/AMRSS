@@ -5,6 +5,7 @@ import {
   QualityExclusionNotice,
   formatPeriod,
 } from "@/components/context-panels";
+import { PeriodFilter } from "@/components/period-filter";
 import { BannerFigure, PageHeading, Shell } from "@/components/shell";
 import { SirCell } from "@/components/statistic";
 import { api } from "@/lib/api";
@@ -58,62 +59,11 @@ export default async function AntibiogramPage({
       <div className="space-y-6">
         <FreshnessBanner freshness={antibiogram.freshness} />
 
-        <form className="flex flex-wrap items-end gap-3 rounded-[--radius-card] border border-line bg-surface p-4">
-          <div>
-            <label
-              htmlFor="care_setting"
-              className="block text-xs font-medium uppercase tracking-wide text-ink-muted"
-            >
-              Care setting
-            </label>
-            <select
-              id="care_setting"
-              name="care_setting"
-              defaultValue={params.care_setting ?? ""}
-              className="mt-1 rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink"
-            >
-              <option value="">All settings</option>
-              <option value="IPD">Inpatient</option>
-              <option value="OPD">Outpatient</option>
-            </select>
-          </div>
-          <div>
-            <label
-              htmlFor="date_from"
-              className="block text-xs font-medium uppercase tracking-wide text-ink-muted"
-            >
-              From
-            </label>
-            <input
-              id="date_from"
-              name="date_from"
-              type="date"
-              defaultValue={params.date_from ?? ""}
-              className="mt-1 rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink"
-            />
-          </div>
-          <div>
-            <label
-              htmlFor="date_to"
-              className="block text-xs font-medium uppercase tracking-wide text-ink-muted"
-            >
-              To
-            </label>
-            <input
-              id="date_to"
-              name="date_to"
-              type="date"
-              defaultValue={params.date_to ?? ""}
-              className="mt-1 rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink"
-            />
-          </div>
-          <button
-            type="submit"
-            className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
-          >
-            Apply
-          </button>
-        </form>
+        <PeriodFilter
+          careSetting={params.care_setting}
+          dateFrom={params.date_from}
+          dateTo={params.date_to}
+        />
 
         {antibiogram.pending_interpretation_count > 0 ? (
           <PendingInterpretationNotice count={antibiogram.pending_interpretation_count} />

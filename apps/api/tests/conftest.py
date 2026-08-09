@@ -22,6 +22,9 @@ DRUG_Y = uuid.UUID("00000000-0000-0000-0000-0000000000b2")
 FACILITY_1 = uuid.UUID("00000000-0000-0000-0000-0000000000c1")
 FACILITY_2 = uuid.UUID("00000000-0000-0000-0000-0000000000c2")
 DISTRICT_1 = uuid.UUID("00000000-0000-0000-0000-0000000000d1")
+SPECIMEN_URINE = uuid.UUID("00000000-0000-0000-0000-0000000000e1")
+SPECIMEN_BLOOD = uuid.UUID("00000000-0000-0000-0000-0000000000e2")
+SPECIMEN_CSF = uuid.UUID("00000000-0000-0000-0000-0000000000e3")
 
 
 def make_methodology(**overrides: object) -> MethodologySet:
@@ -74,6 +77,7 @@ def make_isolate(
     patient: str = "patient-1",
     quality_verified: bool = True,
     kingdom: OrganismKingdom = OrganismKingdom.BACTERIA,
+    specimen_type_id: uuid.UUID = SPECIMEN_URINE,
     isolate_id: uuid.UUID | None = None,
 ) -> IsolateRecord:
     return IsolateRecord(
@@ -83,7 +87,7 @@ def make_isolate(
         specimen_date=specimen_date,
         organism_id=organism_id,
         organism_kingdom=kingdom,
-        specimen_type_id=uuid.UUID("00000000-0000-0000-0000-0000000000e1"),
+        specimen_type_id=specimen_type_id,
         care_setting=CareSetting.INPATIENT,
         age_band=AgeBand.FROM_15_TO_44,
         sex=Sex.FEMALE,

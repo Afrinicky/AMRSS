@@ -1,20 +1,26 @@
-"""Summary figures for reports: the whole-panel views an AMR report opens with.
+"""Summary aggregations that answer different questions from the antibiogram.
 
-Two aggregations that answer different questions from the antibiogram:
+Two views, deliberately kept apart because they belong on different pages and
+answer to different readers:
 
-- **By antibiotic** — the S/I/R split for each agent across the isolates tested
-  against it, which is how a stewardship committee sees which agents still work
-  at all.
-- **By specimen type** — where the isolates came from, which is how a reader
-  judges whether a pattern is a urinary-tract picture or a bloodstream one.
+- **By antibiotic** (:func:`by_antibiotic`) — the S/I/R split for each agent
+  across every isolate tested against it. A stewardship and formulary question:
+  which agents still work at all.
+- **By organism and site** (:func:`by_organism_site`) — which organisms were
+  recovered and from where in the body. A provenance question: whether a pattern
+  is a urinary-tract picture or a bloodstream one.
 
-A caveat carried in the response rather than left to the reader: pooling one
-agent across every organism mixes populations with genuinely different intrinsic
-susceptibility. Ampicillin against *E. coli* and against *S. aureus* are not the
-same question, and a pooled figure is shaped partly by which organisms happened
-to be isolated. It is a legitimate and widely-published summary, but it is a
-summary — the antibiogram remains the organism-specific answer, and these
-figures say so.
+The first carries a caveat in its response rather than leaving it to the reader:
+pooling one agent across every organism mixes populations with genuinely
+different intrinsic susceptibility. Ampicillin against *E. coli* and against
+*S. aureus* are not the same question, and a pooled figure is shaped partly by
+which organisms happened to be isolated. It is a legitimate and widely-published
+summary, but it is a summary — the antibiogram remains the organism-specific
+answer.
+
+The second carries no susceptibility figure at all. It describes the specimen
+mix behind every other number in the system, and mixing a rate into it would
+invite the two to be read as one statement.
 """
 
 import uuid
@@ -49,13 +55,6 @@ class AntibioticProfile:
     def resistant_percent(self) -> float:
         resistant = self.summary.resistant + self.summary.non_susceptible
         return round(100.0 * resistant / self.summary.interpretable, 0)
-
-
-@dataclass(frozen=True)
-class SpecimenCount:
-    specimen_type_id: uuid.UUID
-    isolate_count: int
-    percent_of_total: float
 
 
 def by_antibiotic(
@@ -106,46 +105,104 @@ def by_antibiotic(
     return profiles
 
 
-def by_specimen(
+@dataclass(frozen=True)
+class SiteCount:
+    """Isolates of one organism recovered from one site of infection."""
+
+    infection_site: str
+    isolate_count: int
+    percent_of_organism: float
+
+
+@dataclass(frozen=True)
+class OrganismSiteProfile:
+    """One organism and where in the body it was recovered from."""
+
+    organism_id: uuid.UUID
+    isolate_count: int
+    percent_of_total: float
+    sites: list[SiteCount]
+
+    @property
+    def principal_site(self) -> str | None:
+        """The site contributing most of this organism's isolates.
+
+        Useful as a one-line summary, but never as the whole story: an organism
+        found overwhelmingly in urine and occasionally in blood is a different
+        clinical problem from one evenly split, and the full breakdown says so.
+        """
+        return self.sites[0].infection_site if self.sites else None
+
+    @property
+    def withheld_count(self) -> int:
+        """Isolates of this organism whose site fell below the suppression threshold.
+
+        Reported rather than absorbed silently. Without it the listed sites would
+        not add up to the organism's total, and a reader would have no way to
+        tell a rounding artefact from data deliberately withheld — nor would a
+        chart be able to draw the difference honestly.
+        """
+        return self.isolate_count - sum(site.isolate_count for site in self.sites)
+
+
+def by_organism_site(
     records: list[IsolateRecord],
     methodology: MethodologySet,
+    site_of: dict[uuid.UUID, str],
     *,
     verified_only: bool = True,
-    small_cell_threshold: int | None = None,
-) -> tuple[list[SpecimenCount], int]:
-    """Isolate counts per specimen type, with the total.
+    apply_suppression: bool = True,
+) -> tuple[list[OrganismSiteProfile], int]:
+    """Which organisms were isolated, and from where.
 
-    Counts isolates rather than patients: this describes the laboratory's
-    workload and the provenance of the pattern, not a rate, so deduplication
-    would understate what was actually processed.
+    Site of infection is derived from specimen type rather than collected
+    separately (SDD 3.1), so the two can never disagree.
 
-    Specimen types below the suppression threshold are folded into a single
-    "other" bucket rather than listed. A specimen type with two isolates in a
-    named district is a re-identification route, and it is also noise on a chart.
+    Counts isolates rather than deduplicating to patients: this describes what
+    the laboratories recovered and from which sites, which is a statement about
+    the specimen mix behind the antibiogram, not a rate. Deduplicating would
+    understate the workload actually processed.
+
+    Small sites are withheld under the suppression threshold. "One isolate of
+    this organism from cerebrospinal fluid in this district" is close to naming
+    a patient.
     """
     population = [r for r in records if r.quality_verified or not verified_only]
-    threshold = (
-        small_cell_threshold
-        if small_cell_threshold is not None
-        else methodology.small_cell_threshold
-    )
+    threshold = methodology.small_cell_threshold if apply_suppression else 0
 
-    counts: dict[uuid.UUID, int] = {}
+    by_organism: dict[uuid.UUID, dict[str, int]] = {}
     for record in population:
-        counts[record.specimen_type_id] = counts.get(record.specimen_type_id, 0) + 1
+        site = site_of.get(record.specimen_type_id, "unspecified")
+        by_organism.setdefault(record.organism_id, {})
+        by_organism[record.organism_id][site] = by_organism[record.organism_id].get(site, 0) + 1
 
-    total = sum(counts.values())
+    total = sum(sum(sites.values()) for sites in by_organism.values())
     if total == 0:
         return [], 0
 
-    listed = [
-        SpecimenCount(
-            specimen_type_id=specimen_id,
-            isolate_count=count,
-            percent_of_total=round(100.0 * count / total, 0),
+    profiles: list[OrganismSiteProfile] = []
+    for organism_id, sites in by_organism.items():
+        organism_total = sum(sites.values())
+        if organism_total < threshold:
+            continue
+        listed = [
+            SiteCount(
+                infection_site=site,
+                isolate_count=count,
+                percent_of_organism=round(100.0 * count / organism_total, 0),
+            )
+            for site, count in sites.items()
+            if count >= threshold
+        ]
+        listed.sort(key=lambda entry: -entry.isolate_count)
+        profiles.append(
+            OrganismSiteProfile(
+                organism_id=organism_id,
+                isolate_count=organism_total,
+                percent_of_total=round(100.0 * organism_total / total, 0),
+                sites=listed,
+            )
         )
-        for specimen_id, count in counts.items()
-        if count >= threshold
-    ]
-    listed.sort(key=lambda entry: -entry.isolate_count)
-    return listed, total
+
+    profiles.sort(key=lambda profile: -profile.isolate_count)
+    return profiles, total

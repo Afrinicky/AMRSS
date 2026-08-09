@@ -8,7 +8,8 @@ import type { Profile } from "@/lib/api";
 const NAV = [
   { href: "/", label: "Overview", permission: null },
   { href: "/antibiogram", label: "Antibiogram", permission: null },
-  { href: "/figures", label: "Figures", permission: null },
+  { href: "/organisms", label: "Organisms", permission: null },
+  { href: "/antibiotics", label: "Antibiotics", permission: null },
   { href: "/alerts", label: "Alerts & signals", permission: null },
   { href: "/coverage", label: "Coverage", permission: "surveillance:view_regional" },
 ];

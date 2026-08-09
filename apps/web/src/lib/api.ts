@@ -78,8 +78,10 @@ export const api = {
     request<AlertsPayload>(`/api/v1/surveillance/alerts${queryString(params)}`),
   coverage: () => request<Coverage>("/api/v1/surveillance/coverage"),
   reference: () => request<Reference>("/api/v1/surveillance/reference"),
-  figures: (params?: Record<string, string | undefined>) =>
-    request<Figures>(`/api/v1/surveillance/figures${queryString(params)}`),
+  antibioticExplorer: (params?: Record<string, string | undefined>) =>
+    request<AntibioticExplorer>(`/api/v1/surveillance/antibiotics${queryString(params)}`),
+  organismExplorer: (params?: Record<string, string | undefined>) =>
+    request<OrganismExplorer>(`/api/v1/surveillance/organisms${queryString(params)}`),
   trend: (params: Record<string, string | undefined>) =>
     request<Trend>(`/api/v1/surveillance/trend${queryString(params)}`),
 };
@@ -282,19 +284,34 @@ export interface AntibioticProfile {
   organism_count: number;
 }
 
-export interface SpecimenCount {
-  specimen_type: DictionaryRef;
-  infection_site: string;
-  isolate_count: number;
-  percent_of_total: number;
-}
-
-export interface Figures {
-  antibiotic_profiles: AntibioticProfile[];
-  specimen_distribution: SpecimenCount[];
-  total_isolates: number;
+export interface AntibioticExplorer {
+  profiles: AntibioticProfile[];
   minimum_isolates: number;
   freshness: Freshness;
   pooling_caveat: string;
+  clinical_framing: string;
+}
+
+export interface SiteCount {
+  infection_site: string;
+  isolate_count: number;
+  percent_of_organism: number;
+}
+
+export interface OrganismSites {
+  organism: DictionaryRef;
+  organism_kingdom: "bacteria" | "fungi";
+  isolate_count: number;
+  percent_of_total: number;
+  principal_site: string | null;
+  sites: SiteCount[];
+  withheld_isolates: number;
+}
+
+export interface OrganismExplorer {
+  organisms: OrganismSites[];
+  total_isolates: number;
+  infection_sites: string[];
+  freshness: Freshness;
   clinical_framing: string;
 }
