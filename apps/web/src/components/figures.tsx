@@ -12,7 +12,7 @@
  * exposed to assistive technology.
  */
 
-import type { AntibioticProfile, OrganismSites, SpecimenCount } from "@/lib/api";
+import type { AntibioticProfile, OrganismSites, SpecimenCount, TrendPoint } from "@/lib/api";
 
 const ROW_HEIGHT = 26;
 const ROW_GAP = 6;
@@ -78,16 +78,19 @@ export function AntibioticProfileChart({
             let x = LABEL_WIDTH;
             return (
               <g key={profile.antibiotic.id}>
-                <text
-                  x={LABEL_WIDTH - VALUE_GUTTER}
-                  y={y + ROW_HEIGHT / 2}
-                  textAnchor="end"
-                  dominantBaseline="central"
-                  fontSize="12"
-                  fill="var(--color-ink)"
-                >
-                  {profile.antibiotic.name}
-                </text>
+                <a href={`/antibiotics/${profile.antibiotic.id}`}>
+                  <text
+                    x={LABEL_WIDTH - VALUE_GUTTER}
+                    y={y + ROW_HEIGHT / 2}
+                    textAnchor="end"
+                    dominantBaseline="central"
+                    fontSize="12"
+                    fill="var(--color-brand-700)"
+                    style={{ textDecoration: "underline" }}
+                  >
+                    {profile.antibiotic.name}
+                  </text>
+                </a>
 
                 {segments.map((segment, position) => {
                   const start = x;
@@ -379,16 +382,22 @@ export function OrganismSiteChart({
             if (row.kind === "organism") {
               return (
                 <g key={row.key}>
-                  <text
-                    x={0}
-                    y={top + GROUP_HEIGHT - 9}
-                    fontSize="12.5"
-                    fontStyle="italic"
-                    fontWeight="600"
-                    fill="var(--color-ink)"
-                  >
-                    {row.name}
-                  </text>
+                  {/* Linked inside the SVG so the organism name is the
+                      affordance a reader already looks at, rather than a
+                      separate "details" column they have to find. */}
+                  <a href={`/organisms/${row.key}`}>
+                    <text
+                      x={0}
+                      y={top + GROUP_HEIGHT - 9}
+                      fontSize="12.5"
+                      fontStyle="italic"
+                      fontWeight="600"
+                      fill="var(--color-brand-700)"
+                      style={{ textDecoration: "underline" }}
+                    >
+                      {row.name}
+                    </text>
+                  </a>
                   <text
                     x={LABEL_WIDTH + plotWidth + COUNT_GUTTER}
                     y={top + GROUP_HEIGHT - 9}
@@ -594,6 +603,275 @@ export function SpecimenDistributionChart({
           })}
         </svg>
       </div>
+    </figure>
+  );
+}
+
+/**
+ * Susceptibility over time, as a step-and-point series.
+ *
+ * Steps rather than a smooth line, and points rather than a continuous stroke,
+ * because each value is a discrete bucket aggregate — not a sampled signal. A
+ * curve drawn between two quarterly figures implies the intervening weeks were
+ * measured, and they were not.
+ *
+ * Buckets below the reporting threshold are drawn as a visible gap with the
+ * isolate count shown beneath. A line that closes over an insufficient bucket
+ * would assert continuity the data does not support, which is the single
+ * easiest way to make a trend chart lie.
+ */
+export function TrendChart({
+  points,
+  minimumIsolates,
+  organism,
+  antibiotic,
+}: {
+  points: TrendPoint[];
+  minimumIsolates: number;
+  organism: string;
+  antibiotic: string;
+}) {
+  const reportable = points.filter((point) => point.sufficient);
+  if (reportable.length === 0) {
+    return (
+      <p className="rounded-[--radius-card] border border-line bg-surface px-4 py-6 text-center text-sm text-ink-muted">
+        No period in this range reaches {minimumIsolates} interpretable isolates, so no
+        susceptibility rate can be reported for {organism} and {antibiotic}.
+      </p>
+    );
+  }
+
+  const plotWidth = 760;
+  const plotHeight = 190;
+  const left = 46;
+  const top = 12;
+  const bottom = top + plotHeight;
+  const step = points.length > 1 ? plotWidth / (points.length - 1) : 0;
+  const x = (index: number) => left + (points.length > 1 ? index * step : plotWidth / 2);
+  const y = (percent: number) => bottom - (percent / 100) * plotHeight;
+
+  // Segments break wherever a bucket is insufficient, so the stroke is not one
+  // path with a hole in it but several paths with real gaps between them.
+  const segments: { index: number; point: TrendPoint }[][] = [];
+  let run: { index: number; point: TrendPoint }[] = [];
+  points.forEach((point, index) => {
+    if (point.sufficient && point.susceptible_percent !== null) {
+      run.push({ index, point });
+    } else if (run.length > 0) {
+      segments.push(run);
+      run = [];
+    }
+  });
+  if (run.length > 0) segments.push(run);
+
+  // The final period's label is centred on the last point, so the box needs
+  // half a label's width beyond the plot or it is clipped at the right edge.
+  const totalWidth = left + plotWidth + 44;
+  const totalHeight = bottom + 46;
+
+  return (
+    <figure className="rounded-[--radius-card] border border-line bg-surface p-4">
+      <figcaption className="mb-2 text-sm font-medium text-ink">
+        Percent susceptible over time — <em>{organism}</em> against {antibiotic}
+      </figcaption>
+
+      <div className="overflow-x-auto">
+        <svg
+          viewBox={`0 0 ${totalWidth} ${totalHeight}`}
+          width="100%"
+          style={{ minWidth: 620, maxWidth: "100%" }}
+          role="img"
+          aria-label={`Percent susceptible for ${organism} against ${antibiotic} across ${points.length} periods`}
+        >
+          {[0, 25, 50, 75, 100].map((tick) => (
+            <g key={tick}>
+              <line
+                x1={left}
+                x2={left + plotWidth}
+                y1={y(tick)}
+                y2={y(tick)}
+                stroke="var(--color-line)"
+                strokeWidth="1"
+              />
+              <text
+                x={left - 8}
+                y={y(tick)}
+                textAnchor="end"
+                dominantBaseline="central"
+                fontSize="10"
+                fill="var(--color-ink-muted)"
+              >
+                {tick}%
+              </text>
+            </g>
+          ))}
+
+          {/* Confidence intervals as a band, drawn beneath the series. The
+              interval is the honest width of each estimate; a bare point implies
+              a precision that a 40-isolate bucket does not have. */}
+          {segments.map((segment, s) => {
+            const upper = segment
+              .filter(({ point }) => point.confidence_upper !== null)
+              .map(({ index, point }) => `${x(index)},${y(point.confidence_upper as number)}`);
+            const lower = segment
+              .filter(({ point }) => point.confidence_lower !== null)
+              .map(({ index, point }) => `${x(index)},${y(point.confidence_lower as number)}`)
+              .reverse();
+            if (upper.length === 0 || lower.length === 0) return null;
+            return (
+              <polygon
+                key={`band-${s}`}
+                points={[...upper, ...lower].join(" ")}
+                fill="var(--color-series-1)"
+                opacity="0.14"
+              />
+            );
+          })}
+
+          {segments.map((segment, s) => (
+            <polyline
+              key={`line-${s}`}
+              points={segment
+                .map(({ index, point }) => `${x(index)},${y(point.susceptible_percent as number)}`)
+                .join(" ")}
+              fill="none"
+              stroke="var(--color-series-1)"
+              strokeWidth="2"
+              strokeLinejoin="round"
+            />
+          ))}
+
+          {points.map((point, index) => {
+            if (!point.sufficient || point.susceptible_percent === null) {
+              // The gap is annotated, not hidden: a reader must be able to tell
+              // "no isolates" from "too few to report".
+              return (
+                <g key={point.label}>
+                  <line
+                    x1={x(index)}
+                    x2={x(index)}
+                    y1={top}
+                    y2={bottom}
+                    stroke="var(--color-insufficient-ink)"
+                    strokeWidth="1"
+                    strokeDasharray="2 3"
+                    opacity="0.5"
+                  />
+                  <text
+                    x={x(index)}
+                    y={bottom + 26}
+                    textAnchor="middle"
+                    fontSize="9"
+                    fill="var(--color-insufficient-ink)"
+                  >
+                    n={point.isolate_count}
+                  </text>
+                </g>
+              );
+            }
+            return (
+              <g key={point.label}>
+                <circle
+                  cx={x(index)}
+                  cy={y(point.susceptible_percent)}
+                  r="3.5"
+                  fill="var(--color-surface)"
+                  stroke="var(--color-series-1)"
+                  strokeWidth="2"
+                />
+                {/* n travels with every point. A percentage without it is not a
+                    statistic (SDD 11.3). */}
+                <text
+                  x={x(index)}
+                  y={bottom + 26}
+                  textAnchor="middle"
+                  fontSize="9"
+                  fill="var(--color-ink-muted)"
+                >
+                  n={point.isolate_count}
+                </text>
+              </g>
+            );
+          })}
+
+          {points.map((point, index) => (
+            <text
+              key={`label-${point.label}`}
+              x={x(index)}
+              y={bottom + 14}
+              textAnchor="middle"
+              fontSize="10"
+              fill="var(--color-ink)"
+            >
+              {point.label}
+            </text>
+          ))}
+        </svg>
+      </div>
+
+      <ul className="mt-3 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs text-ink-muted">
+        <li className="flex items-center gap-1.5">
+          <span
+            aria-hidden
+            className="inline-block h-0.5 w-4 rounded-full"
+            style={{ backgroundColor: "var(--color-series-1)" }}
+          />
+          Percent susceptible
+        </li>
+        <li className="flex items-center gap-1.5">
+          <span
+            aria-hidden
+            className="inline-block size-3 rounded-sm"
+            style={{ backgroundColor: "var(--color-series-1)", opacity: 0.14 }}
+          />
+          95% confidence interval
+        </li>
+        <li className="flex items-center gap-1.5">
+          <span
+            aria-hidden
+            className="inline-block h-3 w-0 border-l border-dashed border-insufficient-ink"
+          />
+          Below {minimumIsolates} isolates — not reported
+        </li>
+      </ul>
+
+      <details className="mt-3">
+        <summary className="cursor-pointer text-xs font-medium text-brand-700">
+          View as table
+        </summary>
+        <div className="mt-2 overflow-x-auto">
+          <table className="banded w-full text-sm">
+            <thead>
+              <tr className="border-b border-line text-left">
+                <th scope="col" className="px-3 py-2 font-medium">Period</th>
+                <th scope="col" className="px-3 py-2 text-right font-medium">%S</th>
+                <th scope="col" className="px-3 py-2 text-right font-medium">95% CI</th>
+                <th scope="col" className="px-3 py-2 text-right font-medium">n</th>
+              </tr>
+            </thead>
+            <tbody className="tabular">
+              {points.map((point) => (
+                <tr key={point.label} className="border-b border-line last:border-0">
+                  <th scope="row" className="px-3 py-1.5 text-left font-normal">
+                    {point.label}
+                  </th>
+                  <td className="px-3 py-1.5 text-right">
+                    {point.sufficient && point.susceptible_percent !== null
+                      ? `${point.susceptible_percent.toFixed(0)}%`
+                      : "—"}
+                  </td>
+                  <td className="px-3 py-1.5 text-right text-ink-muted">
+                    {point.confidence_lower !== null && point.confidence_upper !== null
+                      ? `${point.confidence_lower.toFixed(0)}–${point.confidence_upper.toFixed(0)}`
+                      : "—"}
+                  </td>
+                  <td className="px-3 py-1.5 text-right">{point.isolate_count}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </details>
     </figure>
   );
 }

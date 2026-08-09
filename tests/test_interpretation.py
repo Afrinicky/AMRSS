@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import pytest
 
-from amrss.clsi.breakpoints import Category, Method
-from amrss.clsi.interpretation import NoInterpretationReason, interpret
-from amrss.clsi.mic import MICValue
+from amrss_clsi.breakpoints import Category, Method
+from amrss_clsi.interpretation import NoInterpretationReason, interpret
+from amrss_clsi.mic import MICValue
 
 ENTERO = ("Escherichia coli", "Enterobacterales")
 
@@ -127,7 +127,7 @@ class TestDiskDiffusion:
         assert result.category is expected
 
     def test_implausible_zone_is_rejected_not_interpreted(self, breakpoint_set):
-        from amrss.clsi.interpretation import interpret_disk
+        from amrss_clsi.interpretation import interpret_disk
 
         bp = breakpoint_set.lookup(
             organism_groups=("Enterobacterales",), agent_code="CIP", method=Method.DISK

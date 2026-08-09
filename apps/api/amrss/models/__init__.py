@@ -14,6 +14,7 @@ from amrss.models.governance import (
 from amrss.models.identity import AppUser
 from amrss.models.quality import EqaRecord, QcAttestation
 from amrss.models.region import District, Facility, RegionalBlock
+from amrss.models.reports import GeneratedReport
 from amrss.models.surveillance import (
     AstResult,
     Isolate,
@@ -36,6 +37,7 @@ __all__ = [
     "EqaRecord",
     "Facility",
     "FacilityCodeMapping",
+    "GeneratedReport",
     "Isolate",
     "MethodologyVersion",
     "PhenotypeFlag",

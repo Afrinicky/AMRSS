@@ -39,6 +39,31 @@ def _inclusion_criteria(antibiogram: Antibiogram) -> list[str]:
     return criteria
 
 
+def cite(methodology: MethodologySet) -> dict[str, Any]:
+    """Just the rule-set citations, for views that are not a full antibiogram.
+
+    The drill-downs compute strata rather than a table, so they have no
+    Antibiogram to describe — but they publish percentages, and SDD 5.9 requires
+    every published percentage to be traceable to the versions that produced it.
+    Omitting the citation because the shape was inconvenient would make a figure
+    on a drill-down page less explicable than the same figure in the table.
+    """
+    return {
+        "methodology_versions": [
+            {
+                "component": component.value,
+                "version": resolved.version,
+                "description": resolved.description,
+                "is_provisional": resolved.is_provisional,
+            }
+            for component, resolved in sorted(
+                methodology.components.items(), key=lambda item: item[0].value
+            )
+        ],
+        "as_of": methodology.as_of.isoformat(),
+    }
+
+
 def describe(
     antibiogram: Antibiogram,
     methodology: MethodologySet,

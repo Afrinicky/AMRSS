@@ -15,7 +15,7 @@ os.environ.setdefault("AMRSS_JWT_SECRET", generate_key())
 os.environ.setdefault("AMRSS_FIELD_ENCRYPTION_KEY", generate_key())
 os.environ.setdefault("AMRSS_PSEUDONYM_HMAC_KEY", generate_key())
 
-from amrss.clsi.breakpoints import Breakpoint, BreakpointSet, Method, Tier  # noqa: E402
+from amrss_clsi.breakpoints import Breakpoint, BreakpointSet, Method, Tier  # noqa: E402
 
 TEST_SET_VERSION = "TEST-SET-v1"
 

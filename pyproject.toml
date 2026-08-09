@@ -40,12 +40,12 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src"]
+pythonpath = ["src", "packages/clsi/src"]
 filterwarnings = ["error::DeprecationWarning:amrss.*"]
 
 [tool.ruff]
 line-length = 100
-src = ["src", "tests"]
+src = ["src", "packages/clsi/src", "tests"]
 target-version = "py311"
 
 [tool.ruff.lint]

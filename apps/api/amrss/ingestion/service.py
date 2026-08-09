@@ -25,6 +25,7 @@ from sqlalchemy.orm import Session
 
 from amrss import audit
 from amrss.analytics import methodology
+from amrss.analytics import methodology as methodology_engine
 from amrss.audit import AuditAction
 from amrss.ingestion import qc
 from amrss.ingestion.payload import UploadPayload
@@ -49,6 +50,7 @@ from amrss.models.enums import (
     MethodologyComponent,
     QcFindingSeverity,
 )
+from amrss.quality import gating
 from amrss.security.scope import Principal
 
 
@@ -458,6 +460,17 @@ def _record_attestation(
         entity_id=batch.id,
         principal=principal,
         after={"status": attestation.status.value},
+    )
+
+    # An attestation arriving with an upload changes whether this facility's data
+    # enters the verified aggregate, and it changes it *for this batch*. Deferring
+    # the recomputation to a later job would leave the antibiogram and the quality
+    # dashboard disagreeing about the same facility in the interval.
+    db.flush()
+    gating.refresh(
+        db,
+        facility,
+        methodology_engine.resolve(db, regional_block_id=facility.district.regional_block_id),
     )
 
 

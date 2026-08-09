@@ -25,7 +25,14 @@ from amrss.models import (
     CanonicalSpecimenType,
     MethodologyVersion,
 )
-from amrss.seed.dictionary_data import ANTIBIOTICS, ORGANISMS, SPECIMEN_TYPES
+from amrss.seed.dictionary_data import (
+    ANTIBIOTICS,
+    ENTEROBACTERALES_GROUP,
+    GENUS_CLSI_GROUPS,
+    ORGANISMS,
+    SPECIMEN_TYPES,
+    OrganismSeed,
+)
 from amrss.seed.methodology_defaults import DEFAULTS, PROVISIONAL_FROM
 
 
@@ -57,6 +64,10 @@ def seed_reference_data(db: Session) -> dict[str, int]:
         # must not silently revert it.
         if is_new:
             organism.is_organism_of_special_importance = entry["special_importance"]
+            # Same rule as the alert list: seeded once, then owned by the
+            # administrator. Re-seeding must not overwrite a group mapping a
+            # laboratory corrected to match its own loaded CLSI edition.
+            organism.clsi_organism_groups = clsi_groups_for(entry)
 
     for antibiotic_entry in ANTIBIOTICS:
         antibiotic = db.scalar(
@@ -67,6 +78,7 @@ def seed_reference_data(db: Session) -> dict[str, int]:
             db.add(antibiotic)
             counts["antibiotics"] += 1
         antibiotic.name = antibiotic_entry["name"]
+        antibiotic.clsi_agent_code = antibiotic_entry.get("clsi_agent_code")
         antibiotic.antimicrobial_class = antibiotic_entry["antimicrobial_class"]
         antibiotic.target_kingdom = antibiotic_entry["target_kingdom"]
         antibiotic.who_aware_category = antibiotic_entry["who_aware_category"]
@@ -147,3 +159,26 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
+def clsi_groups_for(entry: OrganismSeed) -> list[str]:
+    """CLSI organism groups for one seeded organism, most specific first.
+
+    The species name leads, then its genus-level group, then Enterobacterales
+    where applicable — mirroring how M100 nests species inside broader groups, so
+    a species-specific criterion wins over the general one when both exist.
+
+    Derived here at seed time rather than in the interpretation engine. The
+    result is stored on the row and edited by administrators from then on; the
+    engine only ever reads what the dictionary says (ADR-0002).
+    """
+    if entry.get("clsi_groups"):
+        return list(entry["clsi_groups"])
+
+    groups = [entry["name"]]
+    for group in GENUS_CLSI_GROUPS.get(entry["genus"] or "", []):
+        if group not in groups:
+            groups.append(group)
+    if entry["is_enterobacterales"] and ENTEROBACTERALES_GROUP not in groups:
+        groups.append(ENTEROBACTERALES_GROUP)
+    return groups

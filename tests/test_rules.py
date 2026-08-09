@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from amrss.clsi.breakpoints import Category, Method
-from amrss.clsi.rules import (
+from amrss_clsi.breakpoints import Category, Method
+from amrss_clsi.rules import (
     IntrinsicResistance,
     IsolateResults,
     ResultEntry,

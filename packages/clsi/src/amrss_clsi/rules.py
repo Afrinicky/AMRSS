@@ -21,8 +21,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import StrEnum
 
-from amrss.clsi.breakpoints import Category, Method
-from amrss.clsi.mic import MICValue
+from amrss_clsi.breakpoints import Category, Method
+from amrss_clsi.mic import MICValue
 
 
 class RuleAction(StrEnum):

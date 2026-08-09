@@ -132,6 +132,26 @@ class MethodologySet:
         return int(self[MethodologyComponent.SUPPRESSION].require("small_cell_threshold"))
 
     @property
+    def qc_attestation_validity_days(self) -> int:
+        """``qc_rules.qc_attestation_validity_days`` — how long a Tier-1 QC
+        attestation stays current (SDD 6.2).
+
+        An expiry period rather than an open-ended statement: an attestation
+        made two years ago says nothing about whether the laboratory's AST QC is
+        satisfactory today, and treating it as though it did would let a facility
+        contribute to the verified aggregate indefinitely on the strength of one
+        submission.
+        """
+        return int(self[MethodologyComponent.QC_RULES].require("qc_attestation_validity_days"))
+
+    @property
+    def eqa_validity_days(self) -> int:
+        """``qc_rules.eqa_validity_days`` — how long an EQA result stays current
+        (SDD 6.3). Longer than the QC period because proficiency panels run on a
+        far slower cycle than internal QC."""
+        return int(self[MethodologyComponent.QC_RULES].require("eqa_validity_days"))
+
+    @property
     def signal_baseline_days(self) -> int:
         return int(
             self[MethodologyComponent.EMERGING_SIGNAL_TRIGGER].require("baseline_window_days")

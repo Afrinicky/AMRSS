@@ -477,9 +477,9 @@ class TestBreakpointImport:
         assert AuditAction.BREAKPOINT_SET_ACTIVATED in actions
 
     def test_loaded_set_interprets_correctly(self, db):
-        from amrss.clsi.breakpoints import Category, Method
-        from amrss.clsi.interpretation import interpret
-        from amrss.clsi.mic import MICValue
+        from amrss_clsi.breakpoints import Category, Method
+        from amrss_clsi.interpretation import interpret
+        from amrss_clsi.mic import MICValue
 
         breakpoint_service.import_set(
             db, version="TEST-v1", source_edition="Ed1", rows=self.ROWS, actor_id=None

@@ -126,6 +126,18 @@ class EqaStatus(StrEnum):
     EXPIRED = "expired"
 
 
+class ReportPeriod(StrEnum):
+    """Reporting cadences AMRSS publishes on (SDD 9.7)."""
+
+    MONTHLY = "monthly"
+    QUARTERLY = "quarterly"
+    ANNUAL = "annual"
+    #: An arbitrary range someone asked for. Kept distinct from the scheduled
+    #: cadences so a listing can show which reports are the official series and
+    #: which are one-off extracts.
+    AD_HOC = "ad_hoc"
+
+
 class UploadSchedule(StrEnum):
     """Facility-configurable reporting cadence (SDD 4.4)."""
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from amrss.clsi.breakpoints import MAX_PLAUSIBLE_ZONE_MM, NO_ZONE_MM, Method
+from amrss_clsi.breakpoints import MAX_PLAUSIBLE_ZONE_MM, NO_ZONE_MM, Method
 
 
 class InterpretRequest(BaseModel):
@@ -12,7 +12,7 @@ class InterpretRequest(BaseModel):
     agent_code: str = Field(min_length=1, max_length=10)
     method: Method
     # Free text because "<=0.25" is a legitimate MIC; parsed and validated by
-    # amrss.clsi.mic.MICValue.parse, which rejects anything else.
+    # amrss_clsi.mic.MICValue.parse, which rejects anything else.
     mic: str | None = Field(default=None, max_length=20)
     zone_mm: int | None = Field(default=None, ge=NO_ZONE_MM, le=MAX_PLAUSIBLE_ZONE_MM)
     site: str | None = Field(default=None, max_length=40)

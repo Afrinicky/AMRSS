@@ -2,14 +2,14 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-from amrss.clsi.breakpoints import Category, Method, Tier
-from amrss.clsi.qc import QCOutcome, QCResult
-from amrss.clsi.reporting import (
+from amrss_clsi.breakpoints import Category, Method, Tier
+from amrss_clsi.qc import QCOutcome, QCResult
+from amrss_clsi.reporting import (
     apply_cascade,
     is_multidrug_resistant,
     release_decision,
 )
-from amrss.clsi.rules import ResultEntry
+from amrss_clsi.rules import ResultEntry
 
 NOW = datetime(2026, 6, 1, 9, 0, tzinfo=UTC)
 

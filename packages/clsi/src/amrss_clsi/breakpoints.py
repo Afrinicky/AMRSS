@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 from enum import StrEnum
 
-from amrss.clsi.mic import is_on_doubling_series
+from amrss_clsi.mic import is_on_doubling_series
 
 # The disk itself is 6 mm; a zone measurement equal to the disk diameter means
 # no inhibition at all.
