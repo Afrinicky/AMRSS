@@ -114,7 +114,7 @@ docker compose ... exec api python -m amrss.cli create-block \
     --district "Asunafo North" --district "Asunafo South"
 
 docker compose ... exec api python -m amrss.cli create-user \
-    amr.lead@example.org "Regional AMR Lead" regional_amr_administrator --block AHA
+    admin@example.org "Platform Administrator" system_administrator
 ```
 
 The password is prompted for, never passed as an argument, so it does not reach
@@ -122,9 +122,29 @@ your shell history or the process list. Both commands are audited with the
 operating-system account as the actor, so a user created out of band is not
 invisible in the trail.
 
-Everything after this is done in the console: districts, laboratories, their
-enrollment paperwork and their lifecycle all live under **Administration →
-Facility enrollment**. AMRSS ships no facility roster.
+Everything after this is done in the console. Districts, laboratories and their
+enrollment lifecycle live under **Administration → Facility enrollment**;
+accounts live under **Administration → Accounts**. AMRSS ships no facility
+roster and no accounts.
+
+Create one **system administrator** from the command line and do the rest from
+the console. Note who holds what:
+
+| Role | Creates accounts | Sees surveillance data |
+|---|---|---|
+| System administrator | Every account, platform-wide | **No** — deliberately |
+| Facility administrator | Their own laboratory's staff only | Their own facility |
+| Regional AMR administrator | No | Yes, across the block |
+
+That first row is the separation SDD 7 is built on: whoever hands out access
+does not also read patient-derived figures. It means your first account should
+be a system administrator, and the regional AMR lead is an account that
+administrator then creates.
+
+An administrator who sets a password necessarily knows it, so the account is
+required to change it at first sign-in and says so on every page until it does.
+Deliver initial passwords in person or by another channel — not in the same
+message as the email address.
 
 ---
 
@@ -209,13 +229,15 @@ but it needs an operational backup routine.
 
 Stated plainly, because a deployment plan that hides them is worse than no plan.
 
-- **No user management in the console.** Accounts can only be created from the
-  command line, and there is no way to deactivate one through the interface.
-  `MANAGE_FACILITY_USERS` exists as a permission with nothing implementing it.
-  For more than a handful of users this needs building.
-- **No password reset.** A user who forgets their password needs an
-  administrator with shell access.
-- **No MFA**, which `docs/security.md` lists as a deployment expectation.
+- **No MFA**, which `docs/security.md` lists as a deployment expectation. Until
+  it exists, a stolen password is a stolen session; keep the administrator
+  accounts few and the password floor high.
+- **No self-service password recovery.** By design rather than omission — AMRSS
+  holds no email address it could send a reset link to, and sending one would
+  put a credential into a mailbox this system does not control. A forgotten
+  password is reset by an administrator who can confirm who is asking. That
+  needs an administrator to be reachable, which is an operational commitment,
+  not a technical one.
 - **Uploader installers are not built or signed** (§7).
 - **Rate limiting is per-process**, so running more than one API worker weakens
   it. Back it with Redis before scaling out.

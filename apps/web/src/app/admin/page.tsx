@@ -134,6 +134,15 @@ export default async function AdminPage() {
               available={profile.permissions.includes("methodology:manage")}
             />
             <ConsoleCard
+              href="/admin/users"
+              title="Accounts"
+              body="Who can sign in and what each of them may do. Create accounts, reset passwords, clear lockouts and deactivate leavers."
+              available={
+                profile.permissions.includes("user:manage") ||
+                profile.permissions.includes("user:manage_facility")
+              }
+            />
+            <ConsoleCard
               href="/admin/audit"
               title="Audit trail"
               body="Every consequential action, append-only. Who did what, when, and what the value was before."

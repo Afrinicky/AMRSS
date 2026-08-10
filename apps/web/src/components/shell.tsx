@@ -2,21 +2,56 @@ import Link from "next/link";
 
 import type { Profile } from "@/lib/api";
 
+/** Any one of these opens the surveillance views. Roles holding none of them —
+ * the system administrator and the auditor — are kept away from pages that
+ * would answer 403, and land somewhere they can work instead. */
+const SURVEILLANCE = [
+  "surveillance:view_regional",
+  "surveillance:view_cross_facility",
+  "surveillance:view_own_facility",
+];
+
+const ADMIN_CONSOLE = [
+  "facility:enroll",
+  "block:manage",
+  "dictionary:manage",
+  "mapping:review",
+  "methodology:manage",
+  "qc:manage_gating",
+  "audit:read",
+];
+
+const USER_ADMIN = ["user:manage", "user:manage_facility"];
+
+export function landingPathFor(profile: Profile): string {
+  if (SURVEILLANCE.some((p) => profile.permissions.includes(p))) return "/";
+  if (USER_ADMIN.some((p) => profile.permissions.includes(p))) return "/admin/users";
+  if (profile.permissions.includes("audit:read")) return "/admin/audit";
+  return "/account/password";
+}
+
 /** Navigation is filtered by permission, but the API enforces access
  * independently. Hiding a link is a courtesy to the user, never a control —
- * SDD 7 requires enforcement at the API layer. */
-const NAV = [
-  { href: "/", label: "Overview", permission: null },
-  { href: "/antibiogram", label: "Antibiogram", permission: null },
-  { href: "/organisms", label: "Organisms", permission: null },
-  { href: "/antibiotics", label: "Antibiotics", permission: null },
-  { href: "/specimens", label: "Specimens", permission: null },
-  { href: "/trends", label: "Trends", permission: null },
+ * SDD 7 requires enforcement at the API layer.
+ *
+ * `permission` accepts a list, satisfied by holding any one of them. Two roles
+ * need that: a system administrator and a facility administrator both reach
+ * Accounts by different permissions, and previously the surveillance links
+ * were shown unconditionally — so the two roles that hold no surveillance
+ * permission at all were offered nine links that answer 403. */
+const NAV: Array<{ href: string; label: string; permission: string | string[] | null }> = [
+  { href: "/", label: "Overview", permission: SURVEILLANCE },
+  { href: "/antibiogram", label: "Antibiogram", permission: SURVEILLANCE },
+  { href: "/organisms", label: "Organisms", permission: SURVEILLANCE },
+  { href: "/antibiotics", label: "Antibiotics", permission: SURVEILLANCE },
+  { href: "/specimens", label: "Specimens", permission: SURVEILLANCE },
+  { href: "/trends", label: "Trends", permission: SURVEILLANCE },
   { href: "/comparison", label: "Comparison", permission: "surveillance:view_regional" },
-  { href: "/alerts", label: "Alerts", permission: null },
+  { href: "/alerts", label: "Alerts", permission: SURVEILLANCE },
   { href: "/coverage", label: "Coverage", permission: "surveillance:view_regional" },
   { href: "/reports", label: "Reports", permission: "surveillance:view_regional" },
-  { href: "/admin", label: "Administration", permission: "facility:enroll" },
+  { href: "/admin", label: "Administration", permission: ADMIN_CONSOLE },
+  { href: "/admin/users", label: "Accounts", permission: USER_ADMIN },
 ];
 
 const ROLE_LABELS: Record<string, string> = {
@@ -38,9 +73,11 @@ export function Shell({
   current: string;
   children: React.ReactNode;
 }) {
-  const visible = NAV.filter(
-    (item) => item.permission === null || profile.permissions.includes(item.permission),
-  );
+  const visible = NAV.filter((item) => {
+    if (item.permission === null) return true;
+    const needed = Array.isArray(item.permission) ? item.permission : [item.permission];
+    return needed.some((permission) => profile.permissions.includes(permission));
+  });
 
   return (
     <div className="min-h-screen">
@@ -107,6 +144,12 @@ export function Shell({
                 {ROLE_LABELS[profile.role] ?? profile.role}
               </div>
             </div>
+            <Link
+              href="/account/password"
+              className="hidden rounded-lg border border-white/25 px-3 py-2 text-sm text-on-brand-muted transition-colors hover:bg-white/10 hover:text-on-brand sm:block"
+            >
+              Password
+            </Link>
             <form action="/api/signout" method="post">
               <button
                 type="submit"
@@ -120,6 +163,20 @@ export function Shell({
       </header>
 
       <main id="main" className="mx-auto max-w-[1440px] px-4 py-8 sm:px-6">
+        {/* Shown on every page rather than only on the account screen: the
+            window between an administrative reset and the owner choosing their
+            own password is the window in which the audit trail cannot say who
+            acted, and it should be short. */}
+        {profile.must_change_password && current !== "/account/password" ? (
+          <p className="mb-6 rounded-[--radius-card] border border-accent-strong/45 bg-accent/10 px-4 py-3 text-sm text-ink">
+            This account is using a password an administrator set.{" "}
+            <Link href="/account/password" className="font-medium text-brand-700 underline">
+              Choose your own
+            </Link>{" "}
+            — until you do, actions recorded against this account cannot be attributed to you
+            alone.
+          </p>
+        ) : null}
         {children}
       </main>
 

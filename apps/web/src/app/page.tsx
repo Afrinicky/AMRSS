@@ -1,11 +1,12 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
 import {
   ClinicalFraming,
   FreshnessBanner,
   formatPeriod,
 } from "@/components/context-panels";
-import { Shell } from "@/components/shell";
+import { Shell, landingPathFor } from "@/components/shell";
 import { Ring } from "@/components/statistic";
 import { api } from "@/lib/api";
 import { requireProfile } from "@/lib/session";
@@ -20,6 +21,14 @@ import { requireProfile } from "@/lib/session";
  */
 export default async function OverviewPage() {
   const profile = await requireProfile();
+
+  // A system administrator and an auditor hold no surveillance permission at
+  // all — deliberately, so that technical and accountability roles cannot read
+  // patient-derived data. Calling the antibiogram for them raised a 403 and
+  // showed an error page at sign-in; they now land where they can work.
+  const landing = landingPathFor(profile);
+  if (landing !== "/") redirect(landing);
+
   const [antibiogram, alerts] = await Promise.all([api.antibiogram(), api.alerts()]);
 
   const period = formatPeriod(antibiogram.freshness);

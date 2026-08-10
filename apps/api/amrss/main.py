@@ -12,6 +12,7 @@ from amrss.api.routers import (
     quality,
     reports,
     surveillance,
+    users,
 )
 from amrss.config import get_settings
 
@@ -61,6 +62,7 @@ def create_app() -> FastAPI:
     app.include_router(admin.router, prefix="/api/v1")
     app.include_router(quality.router, prefix="/api/v1")
     app.include_router(reports.router, prefix="/api/v1")
+    app.include_router(users.router, prefix="/api/v1")
 
     @app.get("/health", tags=["operations"])
     def health() -> dict[str, str]:
