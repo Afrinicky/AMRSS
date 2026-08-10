@@ -57,8 +57,11 @@ COPY --chown=amrss:amrss data/breakpoints/clsi_m100.template.csv ./data/breakpoi
 USER amrss
 EXPOSE 8000
 
-HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-  CMD python -c "import urllib.request;urllib.request.urlopen('http://localhost:8000/health')"
+# Readiness, not liveness: an instance that cannot reach the database answers
+# 500 to every request that matters, and a check that only proves the process
+# is running would keep it in the load balancer's rotation.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD python -c "import urllib.request;urllib.request.urlopen('http://localhost:8000/health/ready')"
 
 # Migrations run at start rather than in a separate step, so a deployment can
 # never serve an image against a schema older than the code in it. Alembic is

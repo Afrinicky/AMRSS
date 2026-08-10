@@ -10,7 +10,11 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-config.set_main_option("sqlalchemy.url", get_settings().database_url)
+# Migrations use the direct connection, not the pooled one. Neon's pooler runs
+# pgbouncer in transaction mode, which cannot execute the session-level
+# statements some DDL needs — this project's own enum migration is one. Falls
+# back to the application URL, which is right for a plain PostgreSQL.
+config.set_main_option("sqlalchemy.url", get_settings().migration_url)
 target_metadata = Base.metadata
 
 

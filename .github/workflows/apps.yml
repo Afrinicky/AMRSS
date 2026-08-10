@@ -156,6 +156,82 @@ jobs:
           fi
           echo "no test files in the package"
 
+  image:
+    name: API image — builds and starts against a real database
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # The deployment artefact itself. Neither the test suite nor the linters
+      # would notice a Dockerfile that cannot build, and the first sign would be
+      # a failed release.
+      - name: Build the API image
+        run: docker build -f infra/docker/api.Dockerfile -t amrss-api:ci .
+
+      - name: Start PostgreSQL
+        run: |
+          docker run -d --name pg -e POSTGRES_PASSWORD=ci -e POSTGRES_DB=amrss \
+            -e POSTGRES_USER=amrss --network host postgres:16-alpine
+          for i in $(seq 30); do
+            docker exec pg pg_isready -U amrss -d amrss && break
+            sleep 2
+          done
+
+      # Everything a deployment does on first start, in the order it does it:
+      # migrate, serve, become ready, load reference data, bootstrap an account.
+      # A green suite with a broken start-up sequence is the failure this
+      # catches.
+      - name: Start the API as a deployment would
+        run: |
+          docker run -d --name api --network host \
+            -e AMRSS_DATABASE_URL='postgresql+psycopg://amrss:ci@localhost:5432/amrss' \
+            -e AMRSS_JWT_SECRET="$(head -c 48 /dev/urandom | base64 | tr -d '\n')" \
+            -e AMRSS_ENVIRONMENT=production \
+            -e AMRSS_CORS_ORIGINS='[]' \
+            amrss-api:ci
+
+      - name: Wait for readiness
+        run: |
+          for i in $(seq 40); do
+            if curl -fsS http://localhost:8000/health/ready | grep -q '"ready"'; then
+              echo "API ready"; exit 0
+            fi
+            sleep 3
+          done
+          echo "API never became ready"; docker logs api; exit 1
+
+      - name: Bootstrap, exactly as docs/DEPLOYMENT.md says to
+        run: |
+          docker exec api python -m amrss.cli check-config
+          docker exec api python -m amrss.seed
+          docker exec api python -m amrss.cli create-block \
+            TST "Test Block" "Test Committee" --district "Test District"
+          docker exec api python -m amrss.cli list-users
+
+      - name: The demo block must refuse to load in production
+        run: |
+          # A production deployment must never receive known-password accounts.
+          if docker exec api python -c "
+          from amrss.seed import seed_demo_block
+          from amrss.db import SessionLocal
+          with SessionLocal() as db: seed_demo_block(db)
+          " 2>/dev/null; then
+            echo "Demo data loaded in production — refusing to pass"; exit 1
+          fi
+          echo "demo seed correctly refused"
+
+      - name: The audit trail must refuse to be rewritten
+        run: |
+          if docker exec pg psql -U amrss -d amrss -c "delete from audit_log" 2>/dev/null; then
+            echo "audit_log accepted a DELETE"; exit 1
+          fi
+          echo "audit_log is append-only"
+
+      - name: API logs
+        if: always()
+        run: docker logs api
+
   web:
     name: Dashboard — types and build
     runs-on: ubuntu-latest
