@@ -90,6 +90,7 @@ export const api = {
     request<AlertsPayload>(`/api/v1/surveillance/alerts${queryString(params)}`),
   coverage: () => request<Coverage>("/api/v1/surveillance/coverage"),
   reference: () => request<Reference>("/api/v1/surveillance/reference"),
+  scope: () => request<Scope>("/api/v1/surveillance/scope"),
   antibioticExplorer: (params?: Record<string, string | undefined>) =>
     request<AntibioticExplorer>(`/api/v1/surveillance/antibiotics${queryString(params)}`),
   organismExplorer: (params?: Record<string, string | undefined>) =>
@@ -259,6 +260,30 @@ export interface Coverage {
   districts_total: number;
   facilities_excluded_by_quality: number;
   facilities: FacilityReporting[];
+}
+
+export interface ScopeDistrict {
+  id: string;
+  name: string;
+  /** Null where the caller may not see facilities. A count is a smaller
+   * disclosure than a roster, but it is still one. */
+  facility_count: number | null;
+}
+
+export interface ScopeFacility {
+  id: string;
+  code: string;
+  name: string;
+  district_id: string;
+}
+
+/** The geography a caller may filter by. Mirrors what the API will accept, so a
+ * selector never offers a choice that would be refused. */
+export interface Scope {
+  districts: ScopeDistrict[];
+  facilities: ScopeFacility[];
+  can_select_facility: boolean;
+  pinned_facility_id: string | null;
 }
 
 export interface Reference {

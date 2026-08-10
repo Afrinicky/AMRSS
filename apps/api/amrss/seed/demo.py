@@ -67,6 +67,13 @@ DISTRICTS = [
 ]
 
 #: (facility code, name, district index, status, qc, eqa, schedule, weeks since last upload)
+#:
+#: Several districts carry more than one laboratory, because that is how the
+#: region is actually shaped: a district hospital and a mission hospital in the
+#: same district serve different populations and report different resistance.
+#: A one-facility-per-district demo would let a district filter stand in for a
+#: facility filter, and would never exercise the case the interface has to
+#: handle — two facilities whose figures are pooled into one district row.
 FACILITIES = [
     ("AHA-001", "Regional Hospital Laboratory", 4, FacilityStatus.ACTIVE, True, True, 0),
     ("AHA-002", "Mission Hospital Laboratory", 0, FacilityStatus.ACTIVE, True, True, 0),
@@ -76,6 +83,10 @@ FACILITIES = [
     ("AHA-005", "District Hospital Laboratory C", 3, FacilityStatus.ACTIVE, True, False, 1),
     # Overdue: last accepted upload well beyond its weekly schedule.
     ("AHA-006", "District Hospital Laboratory D", 5, FacilityStatus.ACTIVE, True, True, 6),
+    # A second and third laboratory in districts that already have one.
+    ("AHA-008", "St. Elizabeth Hospital Laboratory", 4, FacilityStatus.ACTIVE, True, True, 0),
+    ("AHA-009", "Municipal Hospital Laboratory", 4, FacilityStatus.ACTIVE, True, True, 2),
+    ("AHA-010", "Catholic Hospital Laboratory", 1, FacilityStatus.ACTIVE, True, True, 0),
     # Enrolled but not yet contributing.
     ("AHA-007", "Health Centre Laboratory", 0, FacilityStatus.UNDER_VERIFICATION, False, False, 0),
 ]

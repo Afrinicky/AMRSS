@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 
 import { BreakdownPanel, GroupRow, dimensionTitle } from "@/components/breakdown";
 import { ClinicalFraming, FreshnessBanner, MethodologyDisclosure } from "@/components/context-panels";
-import { PeriodFilter } from "@/components/period-filter";
+import { FilterBar, scopeParams } from "@/components/filter-bar";
 import { BannerFigure, PageHeading, Shell } from "@/components/shell";
 import { ApiError, api } from "@/lib/api";
 import { requireProfile } from "@/lib/session";
@@ -29,6 +29,8 @@ export default async function OrganismDetailPage({
 }: {
   params: Promise<{ organismId: string }>;
   searchParams: Promise<{
+    district_id?: string;
+    facility_id?: string;
     antibiotic_id?: string;
     care_setting?: string;
     date_from?: string;
@@ -38,11 +40,13 @@ export default async function OrganismDetailPage({
   const profile = await requireProfile();
   const { organismId } = await params;
   const query = await searchParams;
+  const scope = await api.scope();
 
   let detail;
   try {
     detail = await api.organismDetail(organismId, {
       antibiotic_id: query.antibiotic_id,
+      ...scopeParams(query),
       care_setting: query.care_setting,
       date_from: query.date_from,
       date_to: query.date_to,
@@ -87,11 +91,20 @@ export default async function OrganismDetailPage({
           </Link>
         </nav>
 
-        <PeriodFilter
+        <FilterBar
+          scope={scope}
+          districtId={query.district_id}
+          facilityId={query.facility_id}
           careSetting={query.care_setting}
           dateFrom={query.date_from}
           dateTo={query.date_to}
-        />
+        >
+          {/* The breakdown agent lives in the URL too. Without this, applying a
+              date range would silently reset it. */}
+          {query.antibiotic_id ? (
+            <input type="hidden" name="antibiotic_id" value={query.antibiotic_id} />
+          ) : null}
+        </FilterBar>
 
         <section aria-labelledby="agents-heading">
           <h2 id="agents-heading" className="heading-rule mb-1 text-lg font-semibold text-ink">

@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 
 import { BreakdownPanel, GroupRow, dimensionTitle } from "@/components/breakdown";
 import { ClinicalFraming, FreshnessBanner, MethodologyDisclosure } from "@/components/context-panels";
-import { PeriodFilter } from "@/components/period-filter";
+import { FilterBar, scopeParams } from "@/components/filter-bar";
 import { BannerFigure, PageHeading, Shell } from "@/components/shell";
 import { ApiError, api } from "@/lib/api";
 import { requireProfile } from "@/lib/session";
@@ -25,15 +25,23 @@ export default async function AntibioticDetailPage({
   searchParams,
 }: {
   params: Promise<{ antibioticId: string }>;
-  searchParams: Promise<{ care_setting?: string; date_from?: string; date_to?: string }>;
+  searchParams: Promise<{
+    district_id?: string;
+    facility_id?: string;
+    care_setting?: string;
+    date_from?: string;
+    date_to?: string;
+  }>;
 }) {
   const profile = await requireProfile();
   const { antibioticId } = await params;
   const query = await searchParams;
+  const scope = await api.scope();
 
   let detail;
   try {
     detail = await api.antibioticDetail(antibioticId, {
+      ...scopeParams(query),
       care_setting: query.care_setting,
       date_from: query.date_from,
       date_to: query.date_to,
@@ -81,7 +89,10 @@ export default async function AntibioticDetailPage({
           </Link>
         </nav>
 
-        <PeriodFilter
+        <FilterBar
+          scope={scope}
+          districtId={query.district_id}
+          facilityId={query.facility_id}
           careSetting={query.care_setting}
           dateFrom={query.date_from}
           dateTo={query.date_to}

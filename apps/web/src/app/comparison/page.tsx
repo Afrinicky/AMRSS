@@ -5,6 +5,7 @@ import {
   FreshnessBanner,
   MethodologyDisclosure,
 } from "@/components/context-panels";
+import { Field, FilterBar, filterControlClass } from "@/components/filter-bar";
 import { BannerFigure, PageHeading, Shell } from "@/components/shell";
 import { ApiError, api } from "@/lib/api";
 import { requireProfile } from "@/lib/session";
@@ -37,6 +38,7 @@ export default async function ComparisonPage({
 }: {
   searchParams: Promise<{
     dimension?: string;
+    district_id?: string;
     organism_id?: string;
     care_setting?: string;
     date_from?: string;
@@ -50,7 +52,7 @@ export default async function ComparisonPage({
   const dimension =
     params.dimension === "facility" && canCompareFacilities ? "facility" : "district";
 
-  const reference = await api.reference();
+  const [reference, scope] = await Promise.all([api.reference(), api.scope()]);
   const organisms = [...reference.organisms].sort((a, b) => a.name.localeCompare(b.name));
 
   let comparison: Comparison | null = null;
@@ -59,6 +61,7 @@ export default async function ComparisonPage({
     comparison = await api.comparison({
       dimension,
       organism_id: params.organism_id,
+      district_id: params.district_id,
       care_setting: params.care_setting,
       date_from: params.date_from,
       date_to: params.date_to,
@@ -100,79 +103,64 @@ export default async function ComparisonPage({
       <div className="space-y-6">
         {comparison ? <FreshnessBanner freshness={comparison.freshness} /> : null}
 
-        <form className="grid grid-cols-1 items-end gap-3 rounded-[--radius-card] border border-line bg-surface p-4 sm:grid-cols-2 lg:flex lg:flex-wrap">
-          <div className="lg:w-44">
-            <label
-              htmlFor="dimension"
-              className="block text-xs font-medium uppercase tracking-wide text-ink-muted"
-            >
-              Compare
-            </label>
-            <select
-              id="dimension"
-              name="dimension"
-              defaultValue={dimension}
-              className="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink"
-            >
-              <option value="district">Districts</option>
-              {/* Offered only where the API would allow it. A facility option
-                  that always returns 403 teaches nothing. */}
-              {canCompareFacilities ? <option value="facility">Facilities</option> : null}
-            </select>
-          </div>
+        <FilterBar
+          scope={scope}
+          districtId={params.district_id}
+          showFacility={false}
+          careSetting={params.care_setting}
+          dateFrom={params.date_from}
+          dateTo={params.date_to}
+          submitLabel="Compare"
+          leading={
+            <>
+              <Field label="Compare" htmlFor="dimension" className="lg:w-44">
+                <select
+                  id="dimension"
+                  name="dimension"
+                  defaultValue={dimension}
+                  className={filterControlClass}
+                >
+                  <option value="district">Districts</option>
+                  {/* Offered only where the API would allow it. A facility
+                      option that always returns 403 teaches nothing. */}
+                  {canCompareFacilities ? <option value="facility">Facilities</option> : null}
+                </select>
+              </Field>
 
-          <div className="lg:w-64">
-            <label
-              htmlFor="organism_id"
-              className="block text-xs font-medium uppercase tracking-wide text-ink-muted"
-            >
-              Organism
-            </label>
-            <select
-              id="organism_id"
-              name="organism_id"
-              defaultValue={params.organism_id ?? ""}
-              className="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink"
-            >
-              <option value="">All organisms pooled</option>
-              {organisms.map((organism) => (
-                <option key={organism.id} value={organism.id}>
-                  {organism.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="lg:w-44">
-            <label
-              htmlFor="care_setting"
-              className="block text-xs font-medium uppercase tracking-wide text-ink-muted"
-            >
-              Care setting
-            </label>
-            <select
-              id="care_setting"
-              name="care_setting"
-              defaultValue={params.care_setting ?? ""}
-              className="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink"
-            >
-              <option value="">All settings</option>
-              <option value="IPD">Inpatient</option>
-              <option value="OPD">Outpatient</option>
-            </select>
-          </div>
-
-          <button
-            type="submit"
-            className="w-full rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 sm:w-auto"
-          >
-            Compare
-          </button>
-        </form>
+              <Field label="Organism" htmlFor="organism_id" className="lg:w-56">
+                <select
+                  id="organism_id"
+                  name="organism_id"
+                  defaultValue={params.organism_id ?? ""}
+                  className={filterControlClass}
+                >
+                  <option value="">All organisms pooled</option>
+                  {organisms.map((organism) => (
+                    <option key={organism.id} value={organism.id}>
+                      {organism.name}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            </>
+          }
+        />
 
         {comparison ? (
           <p className="rounded-[--radius-card] border border-sir-i/40 bg-sir-i/5 px-4 py-3 text-sm text-ink">
             {comparison.comparison_caveat}
+          </p>
+        ) : null}
+
+        {/* The combination worth reaching for, and not obvious from the
+            controls alone: a district usually holds more than one laboratory,
+            and comparing those against each other is a different question from
+            comparing districts. */}
+        {canCompareFacilities && dimension === "district" ? (
+          <p className="rounded-[--radius-card] border border-line bg-surface-tint px-4 py-3 text-xs text-ink-muted">
+            Districts pool every laboratory inside them. To compare the hospitals within one
+            district, choose that district above and switch <strong>Compare</strong> to
+            facilities.
           </p>
         ) : null}
 

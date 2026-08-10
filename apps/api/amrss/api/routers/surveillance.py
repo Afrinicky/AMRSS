@@ -31,7 +31,7 @@ from amrss.models import (
     District,
     Facility,
 )
-from amrss.models.enums import AgeBand, CareSetting, OrganismKingdom
+from amrss.models.enums import AgeBand, CareSetting, FacilityStatus, OrganismKingdom
 from amrss.security.permissions import Permission
 from amrss.security.scope import resolve_block_id
 
@@ -553,6 +553,104 @@ def get_coverage(db: DbSession, principal: CurrentPrincipal) -> CoverageResponse
             )
             for facility in (summary.facility_status if include_facility_detail else [])
         ],
+    )
+
+
+class ScopeDistrict(BaseModel):
+    id: uuid.UUID
+    name: str
+    #: Districts routinely hold several participating laboratories, so a
+    #: district figure is a pooled figure. Present only where the caller may
+    #: also see the facilities themselves — a count is a smaller disclosure
+    #: than a roster, but it is still one.
+    facility_count: int | None = None
+
+
+class ScopeFacility(BaseModel):
+    id: uuid.UUID
+    code: str
+    name: str
+    district_id: uuid.UUID
+
+
+class ScopeResponse(BaseModel):
+    """The geography a caller may filter by.
+
+    Districts and facilities are returned as separate lists joined by
+    ``district_id`` rather than nested, so a client can show facilities grouped
+    under their district without either list having to be walked twice.
+    """
+
+    districts: list[ScopeDistrict]
+    #: Empty unless the caller may see facility-level data. A list of
+    #: participating laboratories is the enrolment roster, and withholding the
+    #: figures while publishing the names would disclose it anyway.
+    facilities: list[ScopeFacility]
+    can_select_facility: bool
+    #: Set for a facility-scoped account. Their view is pinned to this facility
+    #: whatever the URL says, so the interface should state it rather than offer
+    #: a choice that will be refused.
+    pinned_facility_id: uuid.UUID | None
+
+
+@router.get("/scope", response_model=ScopeResponse, tags=["reference"])
+def get_scope(db: DbSession, principal: CurrentPrincipal) -> ScopeResponse:
+    """Districts and facilities available as filters, for populating selectors.
+
+    Mirrors the rules in ``scope_resolution.resolve`` exactly: what this returns
+    is what that will accept. Offering a facility the API would refuse teaches a
+    user nothing, and hiding one it would accept makes the data unreachable
+    except by editing a URL.
+    """
+    block_id = resolve_block_id(db, principal)
+
+    districts = list(
+        db.scalars(
+            select(District)
+            .where(District.regional_block_id == block_id if block_id else True)
+            .order_by(District.name)
+        )
+    )
+
+    pinned = principal.facility_id
+    can_select_facility = pinned is not None or principal.has(Permission.VIEW_CROSS_FACILITY)
+
+    facilities: list[Facility] = []
+    if can_select_facility:
+        stmt = (
+            select(Facility)
+            .where(Facility.status == FacilityStatus.ACTIVE)
+            .where(Facility.district_id.in_([d.id for d in districts]))
+            .order_by(Facility.name)
+        )
+        if pinned is not None:
+            stmt = stmt.where(Facility.id == pinned)
+        facilities = list(db.scalars(stmt))
+
+    counts: dict[uuid.UUID, int] = {}
+    for facility in facilities:
+        counts[facility.district_id] = counts.get(facility.district_id, 0) + 1
+
+    return ScopeResponse(
+        districts=[
+            ScopeDistrict(
+                id=district.id,
+                name=district.name,
+                facility_count=counts.get(district.id, 0) if can_select_facility else None,
+            )
+            for district in districts
+        ],
+        facilities=[
+            ScopeFacility(
+                id=facility.id,
+                code=facility.code,
+                name=facility.name,
+                district_id=facility.district_id,
+            )
+            for facility in facilities
+        ],
+        can_select_facility=can_select_facility,
+        pinned_facility_id=pinned,
     )
 
 

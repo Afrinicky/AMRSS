@@ -3,7 +3,7 @@ import {
   FreshnessBanner,
 } from "@/components/context-panels";
 import { OrganismSiteChart } from "@/components/figures";
-import { PeriodFilter } from "@/components/period-filter";
+import { FilterBar, scopeParams } from "@/components/filter-bar";
 import { BannerFigure, PageHeading, Shell } from "@/components/shell";
 import { api } from "@/lib/api";
 import { requireProfile } from "@/lib/session";
@@ -24,6 +24,8 @@ export default async function OrganismsPage({
   searchParams,
 }: {
   searchParams: Promise<{
+    district_id?: string;
+    facility_id?: string;
     care_setting?: string;
     organism_kingdom?: string;
     date_from?: string;
@@ -32,8 +34,10 @@ export default async function OrganismsPage({
 }) {
   const profile = await requireProfile();
   const params = await searchParams;
+  const scope = await api.scope();
 
   const explorer = await api.organismExplorer({
+    ...scopeParams(params),
     care_setting: params.care_setting,
     organism_kingdom: params.organism_kingdom,
     date_from: params.date_from,
@@ -81,7 +85,10 @@ export default async function OrganismsPage({
       <div className="space-y-6">
         <FreshnessBanner freshness={explorer.freshness} />
 
-        <PeriodFilter
+        <FilterBar
+          scope={scope}
+          districtId={params.district_id}
+          facilityId={params.facility_id}
           careSetting={params.care_setting}
           dateFrom={params.date_from}
           dateTo={params.date_to}
