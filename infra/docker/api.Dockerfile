@@ -79,4 +79,8 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
 # --proxy-headers is required because TLS terminates upstream; without it every
 # request appears to come from the proxy and rate limiting becomes global.
 # Set --forwarded-allow-ips to the proxy's address in your deployment.
-CMD ["sh", "-c", "alembic upgrade head && exec uvicorn amrss.main:app --host 0.0.0.0 --port 8000 --proxy-headers --no-server-header"]
+# `bootstrap` does nothing unless AMRSS_BOOTSTRAP asks for something, and what
+# it does is idempotent. It is in the start-up path because the free tiers this
+# is demonstrated on give no shell — a deployment that cannot seed itself there
+# cannot be used at all.
+CMD ["sh", "-c", "alembic upgrade head && python -m amrss.cli bootstrap && exec uvicorn amrss.main:app --host 0.0.0.0 --port 8000 --proxy-headers --no-server-header"]

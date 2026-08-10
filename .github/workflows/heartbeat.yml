@@ -1,0 +1,98 @@
+# Keeps the surveillance API awake through the working day.
+#
+# Render's free tier spins a service down after fifteen minutes of inactivity,
+# and the next request then waits about a minute while it comes back. For a
+# system people open a few times a day that means almost every visit pays the
+# minute — which reads as a slow system rather than a sleeping one.
+#
+# A request every ten minutes keeps it up. This is not a trick to get more than
+# the tier gives: Render grants 750 instance-hours per workspace per month, and
+# the window below uses roughly 465 of them (15 hours a day, 31 days), leaving
+# real headroom rather than sitting on the limit. Outside the window the service
+# is allowed to sleep, because at 03:00 nobody is waiting and those hours are
+# better kept than spent.
+#
+# Ghana keeps GMT year-round with no daylight saving, so the UTC hours below are
+# also the local ones: 06:00 to 20:59.
+#
+# Two things to know about the mechanism:
+#   * GitHub delays scheduled workflows when its runners are busy, sometimes
+#     past the fifteen-minute window. This makes cold starts rare, not
+#     impossible, which is why the dashboard also handles a wake gracefully.
+#   * GitHub disables scheduled workflows in a repository with no activity for
+#     60 days. If the system has been idle that long, re-enable this from the
+#     Actions tab.
+
+name: Heartbeat
+
+on:
+  schedule:
+    - cron: "*/10 6-20 * * *"
+  workflow_dispatch:
+
+# A late run has nothing to add to a run already in flight.
+concurrency:
+  group: heartbeat
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  ping:
+    name: Wake the surveillance API
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping
+        env:
+          # Set this as a repository *variable* (Settings → Secrets and
+          # variables → Actions → Variables), e.g.
+          #   AMRSS_API_URL = https://amrss-api.onrender.com
+          # It is not a secret — it is a public address — and as a variable it
+          # can be read here to skip cleanly when nobody has set it yet.
+          API_URL: ${{ vars.AMRSS_API_URL }}
+        run: |
+          set -uo pipefail
+
+          if [ -z "${API_URL}" ]; then
+            echo "AMRSS_API_URL is not set; nothing to keep awake."
+            echo "Set it under Settings → Secrets and variables → Actions → Variables."
+            exit 0
+          fi
+
+          # Liveness, not readiness, and the distinction is load-bearing.
+          #
+          # /health/ready opens a database connection. Doing that every ten
+          # minutes would hold Neon's compute open all day, and Neon's free plan
+          # meters compute by the hour (100 CU-hours a month) rather than by the
+          # query. The database would be suspended partway through the month for
+          # answering health checks nobody read.
+          #
+          # /health deliberately touches nothing. It keeps the container warm and
+          # lets Neon suspend after five idle minutes, which costs a wake of well
+          # under a second on the next real query. Whether the database is
+          # actually reachable is a question for /health/ready, asked by Render's
+          # own health check on deploy and by anyone debugging.
+          target="${API_URL%/}/health"
+
+          # A spun-down instance answers the first request only after it has
+          # finished starting, so the timeout has to allow for the wake itself.
+          for attempt in 1 2 3; do
+            code=$(curl --silent --show-error --location \
+                        --max-time 90 \
+                        --output /dev/null \
+                        --write-out '%{http_code}' \
+                        "${target}") && [ "${code}" = "200" ] && {
+              echo "awake (HTTP ${code}) on attempt ${attempt}"
+              exit 0
+            }
+            echo "attempt ${attempt}: HTTP ${code:-no response}"
+            [ "${attempt}" -lt 3 ] && sleep 15
+          done
+
+          # Failing here is deliberate. Three refusals across a minute and a half
+          # is no longer a cold start, and a red run is the only notice anyone
+          # gets that the deployment is down — the closest thing to uptime
+          # monitoring that costs nothing.
+          echo "::error::${target} did not answer 200 after 3 attempts."
+          exit 1

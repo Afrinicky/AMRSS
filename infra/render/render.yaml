@@ -1,0 +1,68 @@
+# Surveillance API on Render's free tier.
+#
+# For the demonstration phase: nothing here costs anything, and nothing here
+# expires. Render's free web services sleep after fifteen minutes idle and take
+# roughly a minute to wake. That is mostly dealt with elsewhere:
+# .github/workflows/heartbeat.yml pings this service every ten minutes through
+# the working day, using about 465 of the 750 free instance-hours a month, and
+# the dashboard handles a wake gracefully when one happens anyway. See
+# docs/DEPLOYMENT.md §2.1, which is also where the one manual step lives —
+# setting AMRSS_API_URL as a repository variable once this service has a URL.
+#
+# Deploy: Render dashboard → New → Blueprint → point at this repository.
+#
+# The API is a plain container, so moving to a paid host later — Fly, Render's
+# own paid tier, a virtual machine — is a change of address, not of software.
+
+services:
+  - type: web
+    name: amrss-api
+    runtime: docker
+    plan: free
+    # Frankfurt is Render's closest free region to Ghana.
+    region: frankfurt
+
+    dockerfilePath: ./infra/docker/api.Dockerfile
+    # The repository root, because the API depends on packages/clsi, which sits
+    # outside apps/api (ADR-0005).
+    dockerContext: .
+
+    # Readiness, not liveness. An instance that cannot reach Neon answers 500 to
+    # every request that matters, and Render would otherwise call the deploy a
+    # success and route traffic to it.
+    healthCheckPath: /health/ready
+
+    envVars:
+      # Not production: this deployment carries synthetic data and known-password
+      # demonstration accounts, and `production` refuses both — correctly.
+      # Promoting it to a real deployment means setting this to `production`,
+      # clearing AMRSS_BOOTSTRAP, and creating accounts deliberately.
+      - key: AMRSS_ENVIRONMENT
+        value: staging
+
+      # Populate the database on first start. Render's free tier gives no shell,
+      # so a deployment that cannot seed itself cannot be used at all. Idempotent,
+      # which matters on a tier that sleeps and restarts.
+      - key: AMRSS_BOOTSTRAP
+        value: demo
+
+      # The dashboard calls this API from Vercel's servers, never from the
+      # browser, so no browser origin needs trusting.
+      - key: AMRSS_CORS_ORIGINS
+        value: "[]"
+
+      # Render generates this once and keeps it. Changing it signs every session
+      # out, which is the intended response to a suspected leak.
+      - key: AMRSS_JWT_SECRET
+        generateValue: true
+
+      # Both from Neon, and they are different hosts. sync: false means Render
+      # prompts for them rather than storing them in this file.
+      #   AMRSS_DATABASE_URL            the POOLED endpoint (host has -pooler)
+      #   AMRSS_MIGRATION_DATABASE_URL  the DIRECT endpoint
+      # Neon's pooler runs pgbouncer in transaction mode and cannot execute the
+      # session-level DDL some migrations need.
+      - key: AMRSS_DATABASE_URL
+        sync: false
+      - key: AMRSS_MIGRATION_DATABASE_URL
+        sync: false

@@ -109,3 +109,20 @@ def test_development_is_not_held_to_production_rules():
 
     get_settings.cache_clear()
     assert not Settings(environment="development").is_production
+
+
+# ---- Bootstrap ------------------------------------------------------------
+
+
+def test_bootstrap_defaults_to_loading_nothing():
+    """A deployment that silently seeded itself would be a deployment whose
+    contents nobody decided on."""
+    assert Settings().bootstrap == "none"
+
+
+def test_demo_bootstrap_is_expressible_only_outside_production():
+    """The setting can be `demo` anywhere — it is the seed itself that refuses,
+    so a misconfigured production deployment fails loudly at start rather than
+    quietly loading known-password accounts."""
+    assert Settings(environment="staging", bootstrap="demo").bootstrap == "demo"
+    assert not Settings(environment="staging").is_production

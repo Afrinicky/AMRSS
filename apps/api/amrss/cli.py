@@ -1,6 +1,7 @@
 """Operational command line for the surveillance platform.
 
     python -m amrss.cli check-config
+    python -m amrss.cli bootstrap
     python -m amrss.cli gen-secret [--bytes 64]
     python -m amrss.cli create-block <code> <name> <governing-body> [--district NAME ...]
     python -m amrss.cli create-user <email> <full-name> <role> [--block CODE] [--facility CODE]
@@ -69,6 +70,36 @@ def _cmd_check_config(_: argparse.Namespace) -> int:
             "AMRSS_ENVIRONMENT=production. Nothing here has verified the "
             "secrets this deployment would use in production."
         )
+    return 0
+
+
+def _cmd_bootstrap(_: argparse.Namespace) -> int:
+    """Load whatever AMRSS_BOOTSTRAP asks for, then get out of the way.
+
+    Runs on every container start, so it must be idempotent and it must not
+    fail a deployment that has nothing to do. `none` — the default, and the
+    only correct value in production — does nothing and returns success.
+    """
+    from amrss.config import get_settings
+
+    mode = get_settings().bootstrap
+    if mode == "none":
+        return 0
+
+    from amrss.db import SessionLocal
+    from amrss.seed import seed_demo_block, seed_reference_data
+
+    with SessionLocal() as db:
+        counts = seed_reference_data(db)
+        print(
+            f"Bootstrap ({mode}): {counts['organisms']} organisms, "
+            f"{counts['antibiotics']} antibiotics, {counts['specimen_types']} specimen types, "
+            f"{counts['methodology']} methodology versions."
+        )
+        if mode == "demo":
+            # Refuses in production on its own; this only reports it clearly.
+            seed_demo_block(db)
+            print("Bootstrap (demo): synthetic regional block loaded.")
     return 0
 
 
@@ -259,6 +290,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("check-config", help="validate configuration and exit")
     p.set_defaults(func=_cmd_check_config)
+
+    p = sub.add_parser(
+        "bootstrap", help="load reference or demo data per AMRSS_BOOTSTRAP; idempotent"
+    )
+    p.set_defaults(func=_cmd_bootstrap)
 
     p = sub.add_parser("gen-secret", help="generate key material for AMRSS_JWT_SECRET")
     p.add_argument("--bytes", type=int, default=64)

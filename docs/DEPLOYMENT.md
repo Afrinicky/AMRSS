@@ -1,31 +1,48 @@
 # Deploying AMRSS
 
-Getting the surveillance platform and the offline uploader into service.
+This is the deployment. Not a demonstration standing in for one — the same
+software, the same architecture, the same code paths, running for real on
+infrastructure that happens to cost nothing while the system is small.
 
-The deployment described here is **Vercel** for the dashboard, **Neon** for
-PostgreSQL, and **Fly.io** for the API. Only the third is a choice rather than a
-constraint: the API is an ordinary container and runs unchanged on Render,
-Railway or a virtual machine — `infra/docker/docker-compose.prod.yml` is that
-path. Substitute freely.
+Scaling it later is a change of plan, not a change of software: the API is a
+container, the dashboard is a Next.js app, the database is PostgreSQL. Moving
+from a free tier to a paid one is a billing decision and a new connection
+string.
 
-| Piece | Where it runs | Why |
-|---|---|---|
-| Dashboard | Vercel | It is a Next.js app; this is what Vercel is for |
-| Surveillance API | Fly.io, region `jnb` | A container, close to the laboratories, with no request-body limit |
-| Database | Neon | Managed PostgreSQL 16, with backups you did not have to build |
-| Offline uploader | A workstation inside each laboratory | It must never leave the facility |
+What starts small is the *data*. A new deployment has no facilities and no
+accounts, so it seeds itself with a synthetic regional block — otherwise there
+is nothing to look at and no way in. Those seeded accounts are a way to get
+started, not the finished state: sign in with one, create your own accounts and
+register your own laboratories through the console, then deactivate the seeded
+ones. Section 5.
+
+One boundary the software enforces rather than trusting you to remember: while
+`AMRSS_ENVIRONMENT` is `staging`, this deployment may carry synthetic data and
+known-password accounts. Setting it to `production` refuses both — so the day
+real patient-derived data arrives, the seeded block cannot come with it.
+
+---
+
+## What it costs: nothing
+
+| Piece | Service | Free tier | Catch |
+|---|---|---|---|
+| Dashboard | **Vercel** Hobby | Permanent | None worth mentioning |
+| Surveillance API | **Render** free web service | Permanent | Sleeps after 15 min idle — kept awake through the working day by §2.1 |
+| Database | **Neon** free | Permanent, 0.5 GB, 100 CU-hours | Suspends when idle; wakes in under a second |
+| Offline uploader | Runs on a laboratory PC | — | Unsigned until certificates are bought |
+
+None of these expire. Fly.io was the earlier recommendation and its free
+allowance is now a 7-day trial, which is no use to a project that has to still
+be running when the directorate asks to see it again a month later.
 
 **The API cannot go on Vercel.** The uploader submits one gzipped batch of up to
-64 MB, and Vercel's serverless functions cap request bodies at roughly 4.5 MB.
-Splitting a batch into chunks would mean changing the component that handles
-identifiable patient data to satisfy a hosting limit, which is the wrong way
-round.
-
-The uploader is the only part that touches identifiable data, and it never
-leaves the facility. See `docs/security.md` for why that boundary exists.
+64 MB and Vercel's serverless functions cap request bodies at roughly 4.5 MB.
+That is why the API is a container on Render rather than a second Vercel
+project.
 
 ```
-  Laboratory workstation                Vercel                    Fly.io           Neon
+  Laboratory workstation                Vercel                    Render          Neon
   ┌──────────────────┐            ┌──────────────┐          ┌─────────────┐   ┌──────────┐
   │ Uploader         │──batch────────────────────────────▶  │ FastAPI     │──▶│ Postgres │
   │ (de-identifies)  │            │              │          │             │   │          │
@@ -34,172 +51,205 @@ leaves the facility. See `docs/security.md` for why that boundary exists.
    Browser ─────────────────────▶ └──────────────┘
 ```
 
-The browser talks only to Vercel. The session lives in an httpOnly cookie there,
+The browser talks only to Vercel. The session lives in an httpOnly cookie there
 and the dashboard calls the API from its own server, so no API address and no
 token ever reaches the browser.
 
 ---
 
-## 1. Create the database
+## 1. Database — Neon
 
-In Neon, create a project and a database. Take **both** connection strings from
-the dashboard — they are different hosts and both are needed:
+Create a project and a database at neon.tech. From the connection details, take
+**both** strings; they are different hosts and both are needed.
 
-| Neon endpoint | Used for | Looks like |
+| Neon endpoint | Used for | Host contains |
 |---|---|---|
-| Pooled | The API's own connections | `...-pooler.<region>.aws.neon.tech` |
-| Direct | Migrations | `...<region>.aws.neon.tech` |
+| Pooled | The API's own connections | `-pooler` |
+| Direct | Migrations | no `-pooler` |
 
-Migrations need the direct one. Neon's pooler runs pgbouncer in transaction
-mode, which cannot execute the session-level statements some DDL requires —
-this project's own `ALTER TYPE ... ADD VALUE` migration is one, and it fails
-halfway through a release rather than at the start.
-
-Rewrite both for the driver this project uses, and require TLS:
+Rewrite each for this project's driver and require TLS — change `postgresql://`
+to `postgresql+psycopg://` and append `?sslmode=require`:
 
 ```
 postgresql+psycopg://USER:PASSWORD@ep-xxx-pooler.eu-central-1.aws.neon.tech/amrss?sslmode=require
 postgresql+psycopg://USER:PASSWORD@ep-xxx.eu-central-1.aws.neon.tech/amrss?sslmode=require
 ```
 
-`check-config` refuses a hosted database URL without `sslmode`, and refuses a
-deployment that points migrations at the pooler.
+Migrations need the direct endpoint because Neon's pooler runs pgbouncer in
+transaction mode, which cannot execute the session-level statements some DDL
+requires — this project's own `ALTER TYPE ... ADD VALUE` migration is one, and
+it would fail halfway through a release rather than at the start.
 
 ---
 
-## 2. Deploy the API
+## 2. API — Render
+
+Render dashboard → **New** → **Blueprint** → point it at this repository. It
+reads `infra/render/render.yaml` and asks for the two values that file does not
+carry:
+
+- `AMRSS_DATABASE_URL` — the **pooled** string from step 1
+- `AMRSS_MIGRATION_DATABASE_URL` — the **direct** string
+
+Everything else is already set: `staging` (not production, because this
+deployment carries synthetic data), an empty CORS origin list, a generated
+signing key, and `AMRSS_BOOTSTRAP=demo`.
+
+That last one matters. Render's free tier gives **no shell**, so there is no way
+to run a seed command after deploying. The container therefore seeds itself on
+start: migrations, then the dictionaries, then a synthetic regional block. All
+of it is idempotent, which it has to be on a tier that sleeps and restarts.
+
+Wait for the first deploy — three or four minutes, most of it building the
+image — then check it is genuinely up rather than merely running:
 
 ```bash
-fly launch --no-deploy --copy-config --config infra/fly/fly.toml
-
-fly secrets set \
-  AMRSS_DATABASE_URL='postgresql+psycopg://...-pooler.../amrss?sslmode=require' \
-  AMRSS_MIGRATION_DATABASE_URL='postgresql+psycopg://.../amrss?sslmode=require' \
-  AMRSS_JWT_SECRET="$(python -m amrss.cli gen-secret)"
-
-fly deploy --config infra/fly/fly.toml --dockerfile infra/docker/api.Dockerfile
+curl https://amrss-api.onrender.com/health/ready
+# {"status":"ready","version":"0.1.0"}
 ```
 
-Migrations run as the container starts, so an instance can never serve against a
-schema older than the code inside it. Alembic is idempotent; a restart finds
-nothing to apply.
+`/health` answering `ok` only means the process started. `/health/ready` means
+it reached Neon, and that is the one to trust.
 
-Confirm it before going further — `/health` says the process is up, `/health/ready`
-says it can reach Neon, and only the second one is a real answer:
+### 2.1 Stop it going to sleep
 
-```bash
-curl https://amrss-api.fly.dev/health/ready     # {"status":"ready", ...}
-fly ssh console -C "python -m amrss.cli check-config"
+Render's free service spins down after fifteen minutes idle, and the next
+visitor then waits about a minute. Since a demonstration system is opened a few
+times a day, almost every visit would pay that minute — which reads as a slow
+system rather than a sleeping one.
+
+The repository fixes this itself. Take the Render URL and set it as a
+repository **variable** (Settings → Secrets and variables → Actions →
+**Variables** → New):
+
+```
+AMRSS_API_URL = https://amrss-api.onrender.com
 ```
 
-`AMRSS_ENVIRONMENT=production` makes the API refuse to start on a development
-signing key, a key under 32 characters, a database URL carrying the development
-password published in this repository, a hosted database without TLS, or a
-leftover localhost CORS origin. A missed secret fails loudly rather than
-shipping a system whose sessions anyone can forge.
+`.github/workflows/heartbeat.yml` then pings the API every ten minutes from
+06:00 to 21:00 Ghana time. It is a variable rather than a secret because a
+public address is not a secret, and because the workflow can then read it to
+skip cleanly when nobody has set one.
 
-What it deliberately does *not* refuse is a database on `localhost`: a virtual
-machine running PostgreSQL beside the API is a legitimate deployment, and a
-check that blocks it only teaches operators to work around checks. A database
-that genuinely is not there answers at `/health/ready`.
+This stays inside what the free tiers give, which is the point:
 
-Then load the dictionaries — organisms, antimicrobials, specimen types and the
-provisional methodology versions:
+| | Free allowance | What the heartbeat uses |
+|---|---|---|
+| Render | 750 instance-hours / month | ~465 (15 h/day × 31) |
+| Neon | 100 CU-hours / month | nothing |
 
-```bash
-fly ssh console -C "python -m amrss.seed"
-```
+Neon reads zero because the ping hits `/health`, which touches no database.
+`/health/ready` would have held Neon's compute open all day and spent a
+month's compute allowance answering health checks nobody reads — the database
+would then be suspended partway through the month. Outside the window the API
+is allowed to sleep: at 03:00 nobody is waiting, and those hours are better
+kept than spent.
 
-In production this loads reference data only. The demo block, its synthetic
-isolates and its known-password accounts refuse to load when
-`AMRSS_ENVIRONMENT=production`.
+Two honest caveats. GitHub delays scheduled workflows when its runners are
+busy, so a cold start becomes rare rather than impossible — the dashboard is
+built to handle one gracefully (skeleton, then an explanation, then an
+automatic retry) rather than to assume it never happens. And GitHub disables
+scheduled workflows in a repository with no activity for 60 days; if the system
+has been quiet that long, re-enable it from the Actions tab.
+
+A red Heartbeat run is also the closest thing to free uptime monitoring: three
+failures across ninety seconds is no longer a cold start.
 
 ---
 
-## 3. Deploy the dashboard
+## 3. Dashboard — Vercel
 
-Import the repository into Vercel and set **Root Directory** to `apps/web`.
-Vercel detects Next.js; `apps/web/vercel.json` supplies the region and the
-security headers.
+Import the repository at vercel.com and set **Root Directory** to `apps/web`.
+Vercel detects Next.js on its own; `apps/web/vercel.json` supplies the region
+and the security headers.
 
-One environment variable, for Production and Preview both:
+Add one environment variable, to Production **and** Preview:
 
 ```
-AMRSS_API_URL = https://amrss-api.fly.dev
+AMRSS_API_URL = https://amrss-api.onrender.com
 ```
 
-It is read per request on the server, never inlined into the bundle —
-`next.config.mjs` deliberately declares no `env:` block, because that setting
-bakes the build-time value into the image and made the runtime variable inert
-once already.
+No trailing slash. It is read per request on the server, never inlined into the
+bundle — `next.config.mjs` deliberately declares no `env:` block, because that
+setting bakes the build-time value into the deployment and made this variable
+inert once already.
 
 There is no `NEXT_PUBLIC_` variable and there should never be one: the API
 address is not the browser's business.
 
----
-
-## 4. Close the loop between them
-
-Two settings have to agree, and getting either wrong looks like a broken
-dashboard rather than a misconfiguration:
-
-- **`AMRSS_API_URL` on Vercel** must be the API's public HTTPS origin, with no
-  trailing slash.
-- **`AMRSS_CORS_ORIGINS` on the API** should stay **empty**. The dashboard calls
-  the API from Vercel's servers, so no browser origin needs trusting, and an
-  empty list is the tighter configuration. Set it only if something else calls
-  the API from a browser.
-
-The API is publicly reachable, because Vercel's functions and the laboratories'
-uploaders both need to reach it and neither is on a private network with Fly.
-That is fine — every endpoint but `/health` and sign-in requires a token — but
-it does mean rate limiting and the account lockout are load-bearing rather than
-defence in depth.
+Deploy. That is the URL you present.
 
 ---
 
-## 5. Create the first administrator
+## 4. Sign in
 
-A new deployment has no accounts. Nobody can sign in until you make one, and
-there is no default account to delete afterwards — that is deliberate.
+The seeded block carries an account per role — both so the system is usable
+immediately, and so you can show what each role sees. Password for all of them:
 
-```bash
-fly ssh console -C "python -m amrss.cli create-block AHA 'Ahafo' 'Ahafo Regional AMR Committee'"
-fly ssh console --pty -C "python -m amrss.cli create-user admin@example.org 'Platform Administrator' system_administrator"
+```
+AmrssDemo!2026
 ```
 
-Use `--pty` for `create-user`: the password is prompted for rather than passed
-as an argument, so it never reaches your shell history or the process list. Both
-commands are audited with the operating-system account as the actor, so an
-account created out of band is not invisible in the trail.
+| Account | Shows |
+|---|---|
+| `amr.admin@amrss-demo.org` | The regional view — antibiogram, trends, comparison, reports |
+| `clinician@amrss-demo.org` | What a prescriber sees, and what is withheld from them |
+| `lab@amrss-demo.org` | One laboratory's own data, unsuppressed |
+| `sysadmin@amrss-demo.org` | Account administration, with no access to clinical data |
+| `auditor@amrss-demo.org` | The audit trail, and nothing else |
 
-Everything after this is done in the console. Districts, laboratories and their
-enrollment lifecycle live under **Administration → Facility enrollment**;
-accounts live under **Administration → Accounts**. AMRSS ships no facility
-roster and no accounts.
-
-Create one **system administrator** and do the rest from the console. Note who
-holds what:
-
-| Role | Creates accounts | Sees surveillance data |
-|---|---|---|
-| System administrator | Every account, platform-wide | **No** — deliberately |
-| Facility administrator | Their own laboratory's staff only | Their own facility |
-| Regional AMR administrator | No | Yes, across the block |
-
-That first row is the separation SDD 7 is built on: whoever hands out access
-does not also read patient-derived figures. Your first account should therefore
-be a system administrator, and the regional AMR lead is an account that
-administrator then creates.
-
-An administrator who sets a password necessarily knows it, so the account is
-required to change it at first sign-in and says so on every page until it does.
-Deliver initial passwords in person or by another channel — not in the same
-message as the email address.
+That last pair is worth showing deliberately: the person who hands out access
+cannot read patient-derived figures, and the person who reads the audit trail
+holds no operational permission. It is the kind of thing a directorate asks
+about and rarely sees answered.
 
 ---
 
-## 6. Load the breakpoint table
+## 5. Make it yours
+
+The seeded accounts got you in. Replace them before anyone else uses the system.
+
+1. Sign in as `sysadmin@amrss-demo.org` and open **Administration → Accounts**.
+2. Create your own system administrator, then sign in as that account.
+3. Deactivate the seeded accounts. The platform refuses to leave itself with no
+   one able to manage accounts, so create yours first — that refusal is the
+   safeguard working, not an obstacle.
+4. Under **Administration → Facility enrollment**, add your districts and
+   register your real laboratories.
+
+None of this needs a redeploy, and none of it needs a shell. That is the point:
+the roster and the account list are data this system was built to be filled in,
+not configuration baked into a build.
+
+The synthetic isolates stay until you clear them, and they are harmless — they
+sit in a block of their own. When you no longer want them, drop the demo block's
+facilities from the console and set `AMRSS_BOOTSTRAP` to `none` so a restart
+does not put them back.
+
+---
+
+## 6. Before you present
+
+**Check the heartbeat ran.** If you set `AMRSS_API_URL` in step 2.1 there is
+nothing to do — the repository keeps the API awake through the working day by
+itself. Confirm it under the Actions tab: the most recent **Heartbeat** run
+should be green and within the last ten minutes. If you skipped that step, open
+the dashboard ten minutes before you start and click through a couple of pages.
+
+**Load the breakpoints.** Without a CLSI table the antibiogram computes from
+what the laboratories already interpreted, and every zone diameter sits
+uninterpreted. Section 6 covers it, and it is worth doing before the
+demonstration: "here is the CLSI table we loaded, here is what it refused and
+why" is a strong answer to the first technical question anyone asks.
+
+**Know what the empty pages mean.** Coverage, alerts and some drill-downs will
+be sparse — the demonstration block is small on purpose. Sparse is the honest
+display state for a small denominator, and saying so is better than apologising
+for it.
+
+---
+
+## 7. Load the breakpoint table
 
 Until a CLSI table is loaded, zone diameters and MICs are stored but not
 interpreted, and the antibiogram will look far emptier than the data behind it.
@@ -230,7 +280,7 @@ an antibiogram.
 
 ---
 
-## 7. Distribute the uploader
+## 8. Distribute the uploader
 
 The uploader is an Electron application that reads WHONET SQLite exports,
 de-identifies them at the facility and submits only the result.
@@ -281,7 +331,23 @@ but it needs an operational backup routine.
 
 ---
 
-## 8. Before you call it live
+## 9. Before this carries real patient data
+
+Everything above stands. What changes is small, and deliberately so — the
+software is the same, the topology is the same, and scaling is a plan change:
+
+| Setting | Now | When real data arrives |
+|---|---|---|
+| `AMRSS_ENVIRONMENT` | `staging` | `production` |
+| `AMRSS_BOOTSTRAP` | `demo` | `none` |
+| Render plan | free (sleeps when idle) | paid (always on) |
+| Neon plan | free (0.5 GB) | paid, with point-in-time restore |
+
+Setting `AMRSS_ENVIRONMENT=production` turns on the configuration checks and
+makes the seeded block un-loadable — so the switch is the same act as retiring
+the synthetic data, and cannot be half-done.
+
+Then the checklist:
 
 - [ ] `check-config` passes with `AMRSS_ENVIRONMENT=production`
 - [ ] `/health/ready` answers `ready`, not just `/health` answering `ok`
@@ -312,19 +378,20 @@ Stated plainly, because a deployment plan that hides them is worse than no plan.
   needs an administrator to be reachable, which is an operational commitment,
   not a technical one.
 - **Uploader installers are built but unsigned** until you supply certificates
-  (§7). Nothing in the repository can fix that for you.
+  (§8). Nothing in the repository can fix that for you.
 - **Rate limiting is per-process**, so it weakens as soon as more than one API
-  machine runs. `fly.toml` keeps a single machine for that reason; back the
-  limiter with Redis before scaling out, or the limit multiplies by the machine
-  count.
-- **Scale-to-zero costs the first laboratory of the day a cold start**, and the
-  container runs migrations on the way up. Both are seconds, and an uploader
-  submitting a batch can absorb them — but if that ever stops being true, set
-  `min_machines_running = 1`.
+  instance runs. A Render free service is a single instance and never scales
+  out, so the limit holds today — but back the limiter with Redis before adding
+  a second instance, or the limit multiplies by the instance count.
+- **Sleeping still costs the first visitor outside the heartbeat window** a
+  cold start of roughly a minute, and the container runs migrations on the way
+  up. §2.1 keeps the API awake through the day and the dashboard handles a wake
+  gracefully when one happens anyway, but neither makes it free: a paid instance
+  type is what removes the sleep entirely.
 - **The repository root still carries a second `Dockerfile` and
   `docker-compose.yml`** which build the laboratory service under `src/`, not
-  this platform. Use `infra/fly/` or `infra/docker/` for the surveillance
-  platform.
+  this platform. Use `infra/render/`, `infra/docker/` or `infra/fly/` for the
+  surveillance platform.
 
 ---
 
@@ -333,8 +400,10 @@ Stated plainly, because a deployment plan that hides them is worse than no plan.
 Nothing above is load-bearing except the database URLs and
 `AMRSS_API_URL`. The API image is an ordinary container:
 
-- **Render or Railway** — point them at `infra/docker/api.Dockerfile` with the
-  repository root as build context, and set the same secrets.
+- **Railway, Fly.io or Render's paid tier** — point them at
+  `infra/docker/api.Dockerfile` with the repository root as build context, and
+  set the same secrets. `infra/fly/fly.toml` is a working Fly configuration for
+  when the free trial there stops being the obstacle.
 - **A virtual machine** — `infra/docker/docker-compose.yml` plus
   `docker-compose.prod.yml` runs the API, the dashboard and a local PostgreSQL
   behind your own reverse proxy. Drop the `postgres` service and point

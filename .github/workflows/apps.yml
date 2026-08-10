@@ -294,3 +294,23 @@ jobs:
       - run: npm run typecheck
 
       - run: npm run build
+
+      # The loading fallback must not depend on JavaScript running.
+      #
+      # React never hydrates a Suspense fallback — it is markup standing in for a
+      # subtree that has not rendered yet — so a client component placed there is
+      # inert, and an effect scheduled in one never fires. The first version of
+      # the "the service is waking up" notice was exactly that: it typechecked,
+      # it built, and against a slow API it simply never appeared. Only running
+      # it found that, so the invariant is checked here rather than remembered.
+      - name: The loading fallback survives without hydration
+        run: |
+          if grep -q '"use client"' src/app/loading.tsx; then
+            echo "::error file=apps/web/src/app/loading.tsx::A Suspense fallback is never hydrated, so it cannot be a client component."
+            exit 1
+          fi
+          if grep -nE '^\s*import .* from "@/components/' src/app/loading.tsx; then
+            echo "::error file=apps/web/src/app/loading.tsx::Imported components may be client components, whose effects never run in a fallback. Use CSS."
+            exit 1
+          fi
+          echo "loading.tsx is server-rendered markup only"

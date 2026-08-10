@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 
-import { ApiError, login } from "@/lib/api";
+import { SubmitButton } from "@/components/submit-button";
+import { ApiError, ApiUnavailableError, login } from "@/lib/api";
 import { setSession } from "@/lib/session";
 
 export const metadata = { title: "Sign in" };
@@ -15,8 +16,17 @@ async function signIn(formData: FormData) {
     const tokens = await login(email, password);
     await setSession(tokens.access_token);
   } catch (error) {
+    // Three outcomes, and telling them apart is the whole point. A rejected
+    // credential is the person's problem to fix; an unreachable service is not,
+    // and saying "sign-in failed" for it sends someone hunting for a password
+    // that was never wrong.
     const message =
-      error instanceof ApiError ? error.message : "Sign-in failed. Please try again.";
+      error instanceof ApiUnavailableError
+        ? "The surveillance service is not responding. If it has been quiet for a while " +
+          "it is waking up — wait a moment and sign in again."
+        : error instanceof ApiError
+          ? error.message
+          : "Sign-in failed. Please try again.";
     redirect(`/signin?error=${encodeURIComponent(message)}`);
   }
   redirect("/");
@@ -77,12 +87,12 @@ export default async function SignInPage({
             </p>
           ) : null}
 
-          <button
-            type="submit"
-            className="w-full rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-700"
+          <SubmitButton
+            pendingLabel="Signing in…"
+            className="w-full rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-70"
           >
             Sign in
-          </button>
+          </SubmitButton>
         </form>
 
         <p className="mt-6 text-center text-xs text-ink-muted">
