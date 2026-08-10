@@ -239,12 +239,24 @@ def interpret(
 
 
 def _definitely_within(mic: MICValue, lo: Decimal | None, hi: Decimal | None) -> bool:
-    if lo is None or hi is None:
+    """Whether the MIC certainly falls in this range.
+
+    A missing lower bound means the range is open below — the criterion defines
+    no susceptible category, as with colistin, so there is no floor to clear.
+    Import-time validation permits that only where no susceptible bound exists,
+    which is what keeps an open range from swallowing susceptible results.
+    A missing upper bound is not a range at all and matches nothing.
+    """
+    if hi is None:
         return False
-    return mic.definitely_at_least(lo) and mic.definitely_at_most(hi)
+    if lo is not None and not mic.definitely_at_least(lo):
+        return False
+    return mic.definitely_at_most(hi)
 
 
 def _zone_within(zone_mm: int, lo: int | None, hi: int | None) -> bool:
-    if lo is None or hi is None:
+    """The zone-diameter mirror: here it is the *upper* bound that may be open,
+    because a larger zone means a more susceptible isolate."""
+    if lo is None:
         return False
-    return lo <= zone_mm <= hi
+    return lo <= zone_mm and (hi is None or zone_mm <= hi)

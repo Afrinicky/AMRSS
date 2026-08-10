@@ -3,10 +3,32 @@
 A surveillance platform for antimicrobial susceptibility testing (AST) data,
 built to conform to CLSI methodology and to hold patient data safely.
 
-> **Status: scaffold.** The CLSI interpretation engine, security core, data
-> model, and migrations are implemented and tested. Specimen/isolate ingest
-> endpoints, the reporting API, and the web client are not yet built — see
-> [Roadmap](#roadmap).
+The repository holds two deployable services and one desktop client:
+
+| | Path | What it is |
+|---|---|---|
+| **Surveillance platform** | `apps/api`, `apps/web` | The regional API and dashboard: ingestion, quality gating, antibiograms, trends, reports, administration. Deployed from `infra/docker/` — see **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**. |
+| **Offline uploader** | `apps/uploader` | Runs inside a laboratory. Reads WHONET exports, de-identifies them there, submits only the result. |
+| **Laboratory service** | `src/amrss` | The bench-side service. Its own stack: the root `Dockerfile` and `docker-compose.yml`, and the quick start below. |
+| **CLSI engine** | `packages/clsi` | The interpretive engine both halves share rather than reimplement (ADR-0005). |
+
+---
+
+## Getting the platform live
+
+Read **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**. In short:
+
+```bash
+cp infra/docker/.env.example infra/docker/.env      # then fill it in
+docker compose -f infra/docker/docker-compose.yml \
+               -f infra/docker/docker-compose.prod.yml up -d --build
+docker compose ... exec api python -m amrss.seed              # dictionaries
+docker compose ... exec api python -m amrss.cli create-block  # your region
+docker compose ... exec api python -m amrss.cli create-user   # first admin
+```
+
+A new deployment has no accounts and no facilities, by design. Laboratories are
+registered from **Administration → Facility enrollment** once you can sign in.
 
 ---
 

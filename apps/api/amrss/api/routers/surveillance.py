@@ -31,7 +31,7 @@ from amrss.models import (
     District,
     Facility,
 )
-from amrss.models.enums import AgeBand, CareSetting, OrganismKingdom
+from amrss.models.enums import AgeBand, CareSetting, FacilityStatus, OrganismKingdom
 from amrss.security.permissions import Permission
 from amrss.security.scope import resolve_block_id
 
@@ -553,6 +553,101 @@ def get_coverage(db: DbSession, principal: CurrentPrincipal) -> CoverageResponse
             )
             for facility in (summary.facility_status if include_facility_detail else [])
         ],
+    )
+
+
+class ScopeDistrict(BaseModel):
+    id: uuid.UUID
+    name: str
+    #: Districts routinely hold several participating laboratories, so a
+    #: district figure is a pooled figure. Present only where the caller may
+    #: also see the facilities themselves — a count is a smaller disclosure
+    #: than a roster, but it is still one.
+    facility_count: int | None = None
+
+
+class ScopeFacility(BaseModel):
+    id: uuid.UUID
+    code: str
+    name: str
+    district_id: uuid.UUID
+
+
+class ScopeResponse(BaseModel):
+    """The geography a caller may filter by.
+
+    Districts and facilities are returned as separate lists joined by
+    ``district_id`` rather than nested, so a client can show facilities grouped
+    under their district without either list having to be walked twice.
+    """
+
+    districts: list[ScopeDistrict]
+    #: Empty unless the caller may see facility-level data. A list of
+    #: participating laboratories is the enrolment roster, and withholding the
+    #: figures while publishing the names would disclose it anyway.
+    facilities: list[ScopeFacility]
+    can_select_facility: bool
+    #: Set for a facility-scoped account. Their view is pinned to this facility
+    #: whatever the URL says, so the interface should state it rather than offer
+    #: a choice that will be refused.
+    pinned_facility_id: uuid.UUID | None
+
+
+@router.get("/scope", response_model=ScopeResponse, tags=["reference"])
+def get_scope(db: DbSession, principal: CurrentPrincipal) -> ScopeResponse:
+    """Districts and facilities available as filters, for populating selectors.
+
+    Mirrors the rules in ``scope_resolution.resolve`` exactly: what this returns
+    is what that will accept. Offering a facility the API would refuse teaches a
+    user nothing, and hiding one it would accept makes the data unreachable
+    except by editing a URL.
+    """
+    block_id = resolve_block_id(db, principal)
+
+    district_query = select(District).order_by(District.name)
+    if block_id is not None:
+        district_query = district_query.where(District.regional_block_id == block_id)
+    districts = list(db.scalars(district_query))
+
+    pinned = principal.facility_id
+    can_select_facility = pinned is not None or principal.has(Permission.VIEW_CROSS_FACILITY)
+
+    facilities: list[Facility] = []
+    if can_select_facility:
+        stmt = (
+            select(Facility)
+            .where(Facility.status == FacilityStatus.ACTIVE)
+            .where(Facility.district_id.in_([d.id for d in districts]))
+            .order_by(Facility.name)
+        )
+        if pinned is not None:
+            stmt = stmt.where(Facility.id == pinned)
+        facilities = list(db.scalars(stmt))
+
+    counts: dict[uuid.UUID, int] = {}
+    for facility in facilities:
+        counts[facility.district_id] = counts.get(facility.district_id, 0) + 1
+
+    return ScopeResponse(
+        districts=[
+            ScopeDistrict(
+                id=district.id,
+                name=district.name,
+                facility_count=counts.get(district.id, 0) if can_select_facility else None,
+            )
+            for district in districts
+        ],
+        facilities=[
+            ScopeFacility(
+                id=facility.id,
+                code=facility.code,
+                name=facility.name,
+                district_id=facility.district_id,
+            )
+            for facility in facilities
+        ],
+        can_select_facility=can_select_facility,
+        pinned_facility_id=pinned,
     )
 
 
@@ -1237,3 +1332,147 @@ def _build_breakdowns(
             )
         )
     return results
+
+
+# ---- Comparison heat map (SDD 11.2) ----------------------------------------
+
+
+class MatrixRowResponse(BaseModel):
+    key: str
+    label: str
+    isolate_count: int
+    cells: list[BreakdownGroupResponse]
+
+
+class ComparisonResponse(BaseModel):
+    dimension: str
+    organism: DictionaryRef | None
+    antibiotics: list[DictionaryRef]
+    rows: list[MatrixRowResponse]
+    minimum_isolates: int
+    small_cell_threshold: int
+    suppression_applied: bool
+    freshness: FreshnessResponse
+    methodology: dict[str, Any]
+    #: Non-negotiable framing for this view specifically. A grid of facilities
+    #: against agents is one design decision away from a league table, and a
+    #: laboratory that fears being ranked reports less.
+    comparison_caveat: str
+    clinical_framing: str = CLINICAL_FRAMING
+
+
+COMPARISON_CAVEAT = (
+    "Differences between geographies reflect the organisms and specimens each one happens to "
+    "submit as much as any difference in resistance, and are not a measure of laboratory "
+    "performance. Read this as a map of where to look, never as a ranking."
+)
+
+#: Geographic rendering — a true choropleth over district boundaries — needs
+#: boundary geometry AMRSS does not hold. The matrix carries the same finding
+#: (which geography differs, and on what) without inventing coordinates, and a
+#: map can be layered on later from the same endpoint.
+GEOGRAPHY_NOTE = (
+    "Shown as a matrix rather than a map: AMRSS holds no district boundary geometry, and "
+    "positioning facilities on an invented map would misrepresent where they are."
+)
+
+
+@router.get("/comparison", response_model=ComparisonResponse)
+def get_comparison(
+    db: DbSession,
+    principal: CurrentPrincipal,
+    dimension: str = "district",
+    organism_id: uuid.UUID | None = None,
+    district_id: uuid.UUID | None = None,
+    care_setting: CareSetting | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+) -> ComparisonResponse:
+    """Susceptibility across districts or facilities, agent by agent.
+
+    An agent that works regionally but has collapsed in one district is
+    invisible in a pooled figure, and finding that is the whole point of the
+    view.
+
+    Facility comparison requires cross-facility permission. Without it the
+    request is refused rather than silently downgraded to districts: a caller
+    who asked for facilities and received districts would misread the result.
+    """
+    if dimension not in ("district", "facility"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="dimension must be 'district' or 'facility'",
+        )
+    if dimension == "facility" and not principal.has(Permission.VIEW_CROSS_FACILITY):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Comparing facilities requires cross-facility permission",
+        )
+
+    scope = resolve(
+        db,
+        principal,
+        district_id=district_id,
+        organism_ids=[organism_id] if organism_id else None,
+        care_setting=care_setting,
+        date_from=date_from,
+        date_to=date_to,
+    )
+    organisms, antibiotics = _dictionary_maps(db)
+    organism = organisms.get(organism_id) if organism_id else None
+    if organism_id and organism is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unknown organism")
+
+    methodology = methodology_engine.resolve(db, regional_block_id=scope.regional_block_id)
+    records = query.load_isolates(db, scope.filters)
+
+    names: dict[Any, str]
+    if dimension == "facility":
+        names = {f.id: f.name for f in db.scalars(select(Facility))}
+        key_of: Any = lambda record: record.facility_id  # noqa: E731
+    else:
+        names = {d.id: d.name for d in db.scalars(select(District))}
+        key_of = lambda record: record.district_id  # noqa: E731
+
+    rows, ordered_agents = breakdowns.matrix(
+        records,
+        methodology,
+        key_of=key_of,
+        organism_id=organism_id,
+        verified_only=scope.verified_only,
+        apply_suppression=scope.apply_suppression,
+    )
+
+    return ComparisonResponse(
+        dimension=dimension,
+        organism=_ref(organism) if organism else None,
+        antibiotics=[_ref(antibiotics[a]) for a in ordered_agents if a in antibiotics],
+        rows=[
+            MatrixRowResponse(
+                key=str(row.key),
+                label=names[row.key],
+                isolate_count=row.isolate_count,
+                cells=[
+                    _group_response(row.cells[a], antibiotics[a].name)
+                    for a in ordered_agents
+                    if a in antibiotics and a in row.cells
+                ],
+            )
+            for row in rows
+            if row.key in names
+        ],
+        minimum_isolates=methodology.minimum_isolates,
+        small_cell_threshold=methodology.small_cell_threshold,
+        suppression_applied=scope.apply_suppression,
+        freshness=_freshness_response(
+            coverage_engine.freshness(
+                db,
+                regional_block_id=scope.regional_block_id,
+                contributing_facility_ids=_contributing_facilities(records, scope.verified_only),
+                coverage_start=scope.filters.date_from,
+                coverage_end=scope.filters.date_to,
+            )
+        ),
+        methodology=provenance.cite(methodology),
+        comparison_caveat=f"{COMPARISON_CAVEAT} {GEOGRAPHY_NOTE}",
+    )

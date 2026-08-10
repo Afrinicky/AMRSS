@@ -240,3 +240,92 @@ def organism_profile_for_agent(
         verified_only=verified_only,
         apply_suppression=False,
     )
+
+
+@dataclass(frozen=True)
+class MatrixRow:
+    """One geography — a district or a facility — across every agent."""
+
+    key: Hashable
+    isolate_count: int
+    cells: dict[uuid.UUID, Group]
+
+
+def matrix(
+    records: list[IsolateRecord],
+    methodology: MethodologySet,
+    *,
+    key_of: Callable[[IsolateRecord], K | None],
+    organism_id: uuid.UUID | None = None,
+    verified_only: bool = True,
+    apply_suppression: bool = True,
+) -> tuple[list[MatrixRow], list[uuid.UUID]]:
+    """Susceptibility for every geography against every agent.
+
+    The heat-map view: one row per district or facility, one column per agent.
+    Its purpose is to make *variation* visible — an agent that works regionally
+    but has collapsed in one district is invisible in a pooled figure and is
+    exactly the finding a regional team needs.
+
+    Deduplicated once for the whole matrix rather than once per agent. Beyond
+    the obvious cost, a per-agent pass would let two columns disagree about
+    which isolates exist whenever a patient's episode straddled the window.
+
+    Both gates apply to every cell independently, as they do in the antibiogram
+    and in every other breakdown. A cell that clears neither is returned with a
+    state and no value: the geography exists, and the reader must be able to see
+    that it was withheld rather than assume it was empty.
+    """
+    population = [
+        record
+        for record in records
+        if (record.quality_verified or not verified_only)
+        and (organism_id is None or record.organism_id == organism_id)
+    ]
+    retained, _ = deduplicate(
+        population,
+        window_days=methodology.dedup_window_days,
+        scope=methodology.dedup_scope,
+    )
+
+    isolates: dict[K, int] = {}
+    values: dict[K, dict[uuid.UUID, list[SirResult]]] = {}
+    agents: dict[uuid.UUID, int] = {}
+
+    for record in retained:
+        key = key_of(record)
+        if key is None:
+            continue
+        isolates[key] = isolates.get(key, 0) + 1
+        per_agent = values.setdefault(key, {})
+        for antibiotic_id, result in record.results.items():
+            per_agent.setdefault(antibiotic_id, []).append(result)
+            agents[antibiotic_id] = agents.get(antibiotic_id, 0) + 1
+
+    rows: list[MatrixRow] = []
+    for key, isolate_count in isolates.items():
+        cells: dict[uuid.UUID, Group] = {}
+        for antibiotic_id in agents:
+            results = values[key].get(antibiotic_id, [])
+            state, summary = _grade(
+                results, isolate_count, methodology, apply_suppression=apply_suppression
+            )
+            interval = (
+                summary.confidence_interval(methodology.confidence_level) if summary else None
+            )
+            cells[antibiotic_id] = Group(
+                key=antibiotic_id,
+                state=state,
+                summary=summary,
+                confidence_lower=interval.lower if interval else None,
+                confidence_upper=interval.upper if interval else None,
+                isolate_count=len(results),
+            )
+        rows.append(MatrixRow(key=key, isolate_count=isolate_count, cells=cells))
+
+    # Geographies by volume, agents by how widely they were tested. Neither is
+    # ranked by susceptibility: ordering a comparison by performance turns it
+    # into a league table, which is the one thing this view must not become.
+    rows.sort(key=lambda row: -row.isolate_count)
+    ordered_agents = sorted(agents, key=lambda agent_id: -agents[agent_id])
+    return rows, ordered_agents

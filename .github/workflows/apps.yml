@@ -93,6 +93,15 @@ jobs:
       - name: Seed reference data and demo block
         run: uv run python -m amrss.seed
 
+      # The bootstrap path a deployment depends on. A new installation has no
+      # accounts, so if these break nobody can sign in to a fresh deployment —
+      # and that is not something the test suite would notice.
+      - name: Bootstrap commands
+        run: |
+          uv run python -m amrss.cli check-config
+          uv run python -m amrss.cli gen-secret --bytes 32 > /dev/null
+          uv run python -m amrss.cli list-users
+
   uploader:
     name: Offline uploader — de-identification tests
     runs-on: ubuntu-latest

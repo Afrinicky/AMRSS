@@ -1,7 +1,14 @@
 """Demo regional block with synthetic surveillance data.
 
-Development and pilot use only. The isolates here are generated, not real: no
-patient data of any kind is committed to this repository.
+Development and pilot use only, and it refuses to run in production. The
+isolates here are generated, not real: no patient data of any kind is committed
+to this repository.
+
+Neither are the laboratories. AMRSS ships no facility roster — a block starts
+empty and its laboratories are registered through the admin console, so that a
+single build serves Ahafo and every region after it without knowing the name of
+a single hospital in advance (ADR-0002). The facilities below are numbered
+placeholders whose only job is to make the display states reachable.
 
 The generator deliberately produces conditions the platform must handle
 correctly, rather than a uniformly clean dataset that would let bugs hide:
@@ -67,17 +74,36 @@ DISTRICTS = [
 ]
 
 #: (facility code, name, district index, status, qc, eqa, schedule, weeks since last upload)
+#:
+#: **These are not real laboratories and must never be read as a roster.** No
+#: facility ships with AMRSS: a regional block starts empty and its laboratories
+#: are registered through the admin console by the people who run it, which is
+#: what lets one build serve Ahafo and every region after it (ADR-0002). The
+#: entries below exist only so the demo exercises the display states a real
+#: deployment will reach — hence the deliberately synthetic names, which no one
+#: can mistake for a participating hospital.
+#:
+#: Several districts carry more than one laboratory, because that is how a
+#: region is actually shaped: two hospitals in the same district serve different
+#: populations and report different resistance. A one-facility-per-district demo
+#: would let a district filter stand in for a facility filter, and would never
+#: exercise the case the interface has to handle — two facilities whose figures
+#: are pooled into one district row.
 FACILITIES = [
-    ("AHA-001", "Regional Hospital Laboratory", 4, FacilityStatus.ACTIVE, True, True, 0),
-    ("AHA-002", "Mission Hospital Laboratory", 0, FacilityStatus.ACTIVE, True, True, 0),
-    ("AHA-003", "District Hospital Laboratory A", 1, FacilityStatus.ACTIVE, True, True, 1),
-    ("AHA-004", "District Hospital Laboratory B", 2, FacilityStatus.ACTIVE, True, True, 0),
+    ("AHA-001", "Demo Laboratory 01", 4, FacilityStatus.ACTIVE, True, True, 0),
+    ("AHA-002", "Demo Laboratory 02", 0, FacilityStatus.ACTIVE, True, True, 0),
+    ("AHA-003", "Demo Laboratory 03", 1, FacilityStatus.ACTIVE, True, True, 1),
+    ("AHA-004", "Demo Laboratory 04", 2, FacilityStatus.ACTIVE, True, True, 0),
     # EQA lapsed — data continues to arrive but is excluded from the verified aggregate.
-    ("AHA-005", "District Hospital Laboratory C", 3, FacilityStatus.ACTIVE, True, False, 1),
+    ("AHA-005", "Demo Laboratory 05", 3, FacilityStatus.ACTIVE, True, False, 1),
     # Overdue: last accepted upload well beyond its weekly schedule.
-    ("AHA-006", "District Hospital Laboratory D", 5, FacilityStatus.ACTIVE, True, True, 6),
-    # Enrolled but not yet contributing.
-    ("AHA-007", "Health Centre Laboratory", 0, FacilityStatus.UNDER_VERIFICATION, False, False, 0),
+    ("AHA-006", "Demo Laboratory 06", 5, FacilityStatus.ACTIVE, True, True, 6),
+    # A second and third laboratory in districts that already have one.
+    ("AHA-008", "Demo Laboratory 08", 4, FacilityStatus.ACTIVE, True, True, 0),
+    ("AHA-009", "Demo Laboratory 09", 4, FacilityStatus.ACTIVE, True, True, 2),
+    ("AHA-010", "Demo Laboratory 10", 1, FacilityStatus.ACTIVE, True, True, 0),
+    # Registered but not yet contributing.
+    ("AHA-007", "Demo Laboratory 07", 0, FacilityStatus.UNDER_VERIFICATION, False, False, 0),
 ]
 
 DEMO_PASSWORD = "AmrssDemo!2026"

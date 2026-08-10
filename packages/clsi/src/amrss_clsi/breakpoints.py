@@ -222,10 +222,16 @@ def _validate_mic_bounds(bp: Breakpoint, err, warn) -> None:  # noqa: ANN001
     if s is not None and r is not None and s >= r:
         err(f"susceptible bound ({s}) must be below resistant bound ({r})")
 
-    _check_range(bp.mic_sdd_min, bp.mic_sdd_max, "SDD", err)
-    _check_range(bp.mic_intermediate_min, bp.mic_intermediate_max, "intermediate", err)
+    # With no susceptible category at all, the lowest category tabulated has no
+    # floor: colistin is intermediate at ≤2 µg/mL and resistant at ≥4, and there
+    # is no MIC low enough to be called susceptible.
+    open_end = "lower" if s is None else None
+    _check_range(bp.mic_sdd_min, bp.mic_sdd_max, "SDD", err, open_end=open_end)
+    _check_range(
+        bp.mic_intermediate_min, bp.mic_intermediate_max, "intermediate", err, open_end=open_end
+    )
 
-    if bp.mic_sdd_min is not None and bp.mic_intermediate_min is not None:
+    if bp.mic_sdd_max is not None and bp.mic_intermediate_max is not None:
         err("a breakpoint defines both SDD and intermediate ranges; CLSI uses one or the other")
 
     if s is not None and bp.mic_intermediate_min is not None and bp.mic_intermediate_min <= s:
@@ -259,8 +265,13 @@ def _validate_disk_bounds(bp: Breakpoint, err, warn) -> None:  # noqa: ANN001
     if s is not None and r is not None and s <= r:
         err(f"susceptible zone bound ({s} mm) must exceed resistant bound ({r} mm)")
 
-    _check_range(bp.disk_sdd_min, bp.disk_sdd_max, "SDD", err)
-    _check_range(bp.disk_intermediate_min, bp.disk_intermediate_max, "intermediate", err)
+    # Zone diameters run the other way round, so the open end of a one-sided
+    # zone range is its *upper* bound: "I at 15 mm or more, R at 14 mm or less".
+    open_end = "upper" if s is None else None
+    _check_range(bp.disk_sdd_min, bp.disk_sdd_max, "SDD", err, open_end=open_end)
+    _check_range(
+        bp.disk_intermediate_min, bp.disk_intermediate_max, "intermediate", err, open_end=open_end
+    )
 
     if bp.disk_sdd_min is not None and bp.disk_intermediate_min is not None:
         err("a breakpoint defines both SDD and intermediate ranges; CLSI uses one or the other")
@@ -271,8 +282,18 @@ def _validate_disk_bounds(bp: Breakpoint, err, warn) -> None:  # noqa: ANN001
         err("intermediate zone range overlaps the resistant category")
 
 
-def _check_range(lo, hi, label: str, err) -> None:  # noqa: ANN001
-    if (lo is None) != (hi is None):
+def _check_range(lo, hi, label: str, err, *, open_end: str | None = None) -> None:  # noqa: ANN001
+    """Check a category range.
+
+    ``open_end`` names the bound that may legitimately be absent — "lower" for
+    MICs, "upper" for zone diameters — and is passed only where the criterion
+    tabulates no susceptible category. Everywhere else a half-open range means
+    a value was lost in transcription, and a half-open range that reached the
+    engine would silently swallow every result below it.
+    """
+    if lo is None and hi is None:
+        return
+    if (lo is None and open_end != "lower") or (hi is None and open_end != "upper"):
         err(f"{label} range needs both a lower and an upper bound")
     elif lo is not None and hi is not None and lo > hi:
         err(f"{label} range is inverted ({lo} > {hi})")

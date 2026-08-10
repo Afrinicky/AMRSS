@@ -1,6 +1,6 @@
 import { ClinicalFraming, FreshnessBanner } from "@/components/context-panels";
 import { SpecimenDistributionChart } from "@/components/figures";
-import { PeriodFilter } from "@/components/period-filter";
+import { FilterBar, scopeParams } from "@/components/filter-bar";
 import { BannerFigure, PageHeading, Shell } from "@/components/shell";
 import { api } from "@/lib/api";
 import { requireProfile } from "@/lib/session";
@@ -21,12 +21,20 @@ export const metadata = { title: "Specimen explorer" };
 export default async function SpecimensPage({
   searchParams,
 }: {
-  searchParams: Promise<{ care_setting?: string; date_from?: string; date_to?: string }>;
+  searchParams: Promise<{
+    district_id?: string;
+    facility_id?: string;
+    care_setting?: string;
+    date_from?: string;
+    date_to?: string;
+  }>;
 }) {
   const profile = await requireProfile();
   const params = await searchParams;
+  const scope = await api.scope();
 
   const explorer = await api.specimenExplorer({
+    ...scopeParams(params),
     care_setting: params.care_setting,
     date_from: params.date_from,
     date_to: params.date_to,
@@ -64,7 +72,10 @@ export default async function SpecimensPage({
       <div className="space-y-6">
         <FreshnessBanner freshness={explorer.freshness} />
 
-        <PeriodFilter
+        <FilterBar
+          scope={scope}
+          districtId={params.district_id}
+          facilityId={params.facility_id}
           careSetting={params.care_setting}
           dateFrom={params.date_from}
           dateTo={params.date_to}

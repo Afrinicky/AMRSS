@@ -8,8 +8,20 @@
 
 import { cookies } from "next/headers";
 
-const API_URL = process.env.AMRSS_API_URL ?? "http://localhost:8000";
 export const SESSION_COOKIE = "amrss_session";
+
+/**
+ * Where the surveillance API lives, read per request rather than at module load.
+ *
+ * Read at call time so a container image built once can be pointed at a
+ * different API by configuration. This is only reliable because `next.config`
+ * declares no `env:` block — that setting inlines values into the bundle during
+ * `next build`, which previously baked the localhost fallback into the image and
+ * made the deployment's own setting inert.
+ */
+export function apiUrl(): string {
+  return process.env.AMRSS_API_URL ?? "http://localhost:8000";
+}
 
 export class ApiError extends Error {
   constructor(
@@ -24,7 +36,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const store = await cookies();
   const token = store.get(SESSION_COOKIE)?.value;
 
-  const response = await fetch(`${API_URL}${path}`, {
+  const response = await fetch(`${apiUrl()}${path}`, {
     ...init,
     headers: {
       "content-type": "application/json",
@@ -40,7 +52,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     let detail = response.statusText;
     try {
       const body = await response.json();
-      detail = typeof body.detail === "string" ? body.detail : detail;
+      detail = readDetail(body.detail) ?? detail;
     } catch {
       /* response carried no JSON body */
     }
@@ -50,11 +62,49 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return (await response.json()) as T;
 }
 
+/**
+ * Read an API error's `detail`, which is not always a string.
+ *
+ * The refusals worth explaining are exactly the structured ones: a blocked
+ * activation carries the list of missing paperwork, and a rejected breakpoint
+ * import carries every problem it found. Reading only the string form dropped
+ * those and left the caller with the bare status text — "Conflict" in place of
+ * "activation requires an MOU execution date".
+ */
+function readDetail(detail: unknown): string | null {
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    const parts = detail.map(readDetail).filter(Boolean);
+    return parts.length > 0 ? parts.join("; ") : null;
+  }
+  if (detail && typeof detail === "object") {
+    const record = detail as Record<string, unknown>;
+    const message = typeof record.message === "string" ? record.message : null;
+    // FastAPI's own validation errors use `msg`.
+    const fallback = typeof record.msg === "string" ? record.msg : null;
+    const extra = ["missing", "problems"]
+      .map((key) => (Array.isArray(record[key]) ? readDetail(record[key]) : null))
+      .filter(Boolean)
+      .join("; ");
+    const head = message ?? fallback;
+    if (head && extra) return `${head} (${extra})`;
+    return head ?? (extra || null);
+  }
+  return null;
+}
+
+async function send<T>(path: string, method: string, body?: unknown): Promise<T> {
+  return request<T>(path, {
+    method,
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  });
+}
+
 export async function login(
   email: string,
   password: string,
 ): Promise<{ access_token: string; refresh_token: string }> {
-  const response = await fetch(`${API_URL}/api/v1/auth/login`, {
+  const response = await fetch(`${apiUrl()}/api/v1/auth/login`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ email, password }),
@@ -78,6 +128,7 @@ export const api = {
     request<AlertsPayload>(`/api/v1/surveillance/alerts${queryString(params)}`),
   coverage: () => request<Coverage>("/api/v1/surveillance/coverage"),
   reference: () => request<Reference>("/api/v1/surveillance/reference"),
+  scope: () => request<Scope>("/api/v1/surveillance/scope"),
   antibioticExplorer: (params?: Record<string, string | undefined>) =>
     request<AntibioticExplorer>(`/api/v1/surveillance/antibiotics${queryString(params)}`),
   organismExplorer: (params?: Record<string, string | undefined>) =>
@@ -92,17 +143,35 @@ export const api = {
   // Administration. Every one of these is permission-gated at the API; the
   // console only ever hides links, never enforces (SDD 7).
   blocks: () => request<Block[]>("/api/v1/admin/blocks"),
+  districts: (params?: Record<string, string | undefined>) =>
+    request<DistrictRef[]>(`/api/v1/admin/districts${queryString(params)}`),
   facilities: (params?: Record<string, string | undefined>) =>
     request<AdminFacility[]>(`/api/v1/admin/facilities${queryString(params)}`),
   mappings: (params?: Record<string, string | undefined>) =>
     request<CodeMapping[]>(`/api/v1/admin/mappings${queryString(params)}`),
   methodologyVersions: () => request<MethodologyVersionRow[]>("/api/v1/admin/methodology"),
   dictionarySummary: () => request<DictionarySummary>("/api/v1/admin/dictionary/summary"),
+  createDistrict: (regionalBlockId: string, name: string) =>
+    send<DistrictRef>(
+      `/api/v1/admin/districts${queryString({ regional_block_id: regionalBlockId, name })}`,
+      "POST",
+    ),
+  enrollFacility: (payload: FacilityEnrollment) =>
+    send<AdminFacility>("/api/v1/admin/facilities", "POST", payload),
+  updateFacility: (facilityId: string, payload: Partial<FacilityEnrollment>) =>
+    send<AdminFacility>(`/api/v1/admin/facilities/${facilityId}`, "PATCH", payload),
+  transitionFacility: (facilityId: string, target: FacilityStatus, reason: string) =>
+    send<AdminFacility>(`/api/v1/admin/facilities/${facilityId}/transition`, "POST", {
+      target,
+      reason,
+    }),
   auditTrail: (params?: Record<string, string | undefined>) =>
     request<AuditPage>(`/api/v1/admin/audit${queryString(params)}`),
   qualityDashboard: (params?: Record<string, string | undefined>) =>
     request<QualityDashboard>(`/api/v1/quality/dashboard${queryString(params)}`),
   reports: () => request<ReportSummary[]>("/api/v1/reports"),
+  comparison: (params?: Record<string, string | undefined>) =>
+    request<Comparison>(`/api/v1/surveillance/comparison${queryString(params)}`),
   trend: (params: Record<string, string | undefined>) =>
     request<Trend>(`/api/v1/surveillance/trend${queryString(params)}`),
 };
@@ -245,6 +314,30 @@ export interface Coverage {
   districts_total: number;
   facilities_excluded_by_quality: number;
   facilities: FacilityReporting[];
+}
+
+export interface ScopeDistrict {
+  id: string;
+  name: string;
+  /** Null where the caller may not see facilities. A count is a smaller
+   * disclosure than a roster, but it is still one. */
+  facility_count: number | null;
+}
+
+export interface ScopeFacility {
+  id: string;
+  code: string;
+  name: string;
+  district_id: string;
+}
+
+/** The geography a caller may filter by. Mirrors what the API will accept, so a
+ * selector never offers a choice that would be refused. */
+export interface Scope {
+  districts: ScopeDistrict[];
+  facilities: ScopeFacility[];
+  can_select_facility: boolean;
+  pinned_facility_id: string | null;
 }
 
 export interface Reference {
@@ -394,6 +487,28 @@ export interface AdminFacility {
   eqa_status: string;
   available_transitions: FacilityStatus[];
   blocking_activation: string[];
+}
+
+export interface DistrictRef {
+  id: string;
+  name: string;
+  regional_block_id: string;
+  facility_count: number;
+}
+
+/** What a laboratory supplies when it enrols. Everything past the first three
+ * fields can arrive later — but a facility cannot be activated without an MOU
+ * date and a WHONET configuration version, and the console says so. */
+export interface FacilityEnrollment {
+  code: string;
+  name: string;
+  district_id: string;
+  whonet_config_version?: string | null;
+  upload_schedule?: string;
+  upload_interval_days?: number | null;
+  mou_signed_on?: string | null;
+  mou_reference?: string | null;
+  enrollment_notes?: string | null;
 }
 
 export interface CodeMapping {
@@ -552,4 +667,27 @@ export interface ReportSummary {
   facilities_excluded: number;
   notes: string | null;
   formats: string[];
+}
+
+// ---- Comparison heat map (SDD 11.2) ----------------------------------------
+
+export interface MatrixRow {
+  key: string;
+  label: string;
+  isolate_count: number;
+  cells: BreakdownGroup[];
+}
+
+export interface Comparison {
+  dimension: "district" | "facility";
+  organism: DictionaryRef | null;
+  antibiotics: DictionaryRef[];
+  rows: MatrixRow[];
+  minimum_isolates: number;
+  small_cell_threshold: number;
+  suppression_applied: boolean;
+  freshness: Freshness;
+  methodology: Record<string, unknown>;
+  comparison_caveat: string;
+  clinical_framing: string;
 }
