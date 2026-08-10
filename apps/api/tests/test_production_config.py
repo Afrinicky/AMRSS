@@ -8,7 +8,12 @@ key does not.
 
 import pytest
 
-from amrss.config import DEVELOPMENT_JWT_SECRET, Settings, production_problems
+from amrss.config import (
+    DEVELOPMENT_JWT_SECRET,
+    Settings,
+    connection_url_problems,
+    production_problems,
+)
 
 GOOD_SECRET = "P" * 40
 NEON_POOLED = (
@@ -126,3 +131,97 @@ def test_demo_bootstrap_is_expressible_only_outside_production():
     quietly loading known-password accounts."""
     assert Settings(environment="staging", bootstrap="demo").bootstrap == "demo"
     assert not Settings(environment="staging").is_production
+
+
+# ---- Malformed connection URLs --------------------------------------------
+#
+# These are checked in every environment, not just production, because the
+# deployment that prompted them was running as `staging` — where none of the
+# checks above run at all.
+
+
+def test_a_neon_url_left_as_neon_gave_it_is_accepted():
+    """The correct action is to change the scheme and nothing else."""
+    assert (
+        connection_url_problems(
+            "postgresql+psycopg://u:p@ep-x.eu-west-2.aws.neon.tech/amrss"
+            "?sslmode=require&channel_binding=require",
+            "AMRSS_DATABASE_URL",
+        )
+        == []
+    )
+
+
+def test_appending_a_second_query_string_is_refused():
+    """The real failure, verbatim.
+
+    docs/DEPLOYMENT.md used to say "append ?sslmode=require" to a Neon string
+    that already carried its own parameters. The append landed inside the last
+    value instead of adding a parameter, and Render died with
+    `invalid channel_binding value: "require?sslmode=require"` — an error that
+    names neither the setting nor the fix.
+    """
+    problems = connection_url_problems(
+        "postgresql+psycopg://u:p@ep-calm-glade-za0n4q4f.c-2.eu-west-2.aws.neon.tech/amrss"
+        "?sslmode=require&channel_binding=require?sslmode=require",
+        "AMRSS_DATABASE_URL",
+    )
+    assert len(problems) == 1
+    assert "more than one '?'" in problems[0]
+    assert "AMRSS_DATABASE_URL" in problems[0]
+    assert "&" in problems[0]
+
+
+def test_a_parameter_whose_value_swallowed_a_query_string_is_refused():
+    """The same mistake caught by its result rather than its shape, for a URL
+    that reached this state some other way."""
+    problems = connection_url_problems(
+        "postgresql+psycopg://u:p@host/amrss?channel_binding=require%3Fsslmode%3Drequire",
+        "AMRSS_DATABASE_URL",
+    )
+    assert len(problems) == 1
+    assert "channel_binding" in problems[0]
+
+
+def test_a_driverless_scheme_is_refused():
+    """psycopg is the only driver in the image; a bare postgresql:// URL sends
+    SQLAlchemy looking for psycopg2 and fails as if the image were broken."""
+    problems = connection_url_problems(
+        "postgresql://u:p@ep-x.aws.neon.tech/amrss?sslmode=require", "AMRSS_DATABASE_URL"
+    )
+    assert len(problems) == 1
+    assert "postgresql+psycopg://" in problems[0]
+
+
+def test_the_development_default_is_well_formed():
+    """The default must not trip a check that runs in every environment."""
+    assert connection_url_problems(Settings().database_url, "AMRSS_DATABASE_URL") == []
+
+
+def test_a_malformed_url_refuses_to_start_outside_production(monkeypatch):
+    """The staging deployment that hit this had no production checks running."""
+    from amrss.config import get_settings
+
+    monkeypatch.setenv("AMRSS_ENVIRONMENT", "staging")
+    monkeypatch.setenv(
+        "AMRSS_DATABASE_URL",
+        "postgresql+psycopg://u:p@host/amrss?sslmode=require&channel_binding=require"
+        "?sslmode=require",
+    )
+    get_settings.cache_clear()
+    with pytest.raises(RuntimeError, match="unusable database URL"):
+        get_settings()
+    get_settings.cache_clear()
+
+
+def test_a_malformed_migration_url_is_refused_too(monkeypatch):
+    """Migrations run first in the container, against their own URL."""
+    from amrss.config import get_settings
+
+    monkeypatch.setenv("AMRSS_ENVIRONMENT", "staging")
+    monkeypatch.setenv("AMRSS_DATABASE_URL", NEON_POOLED)
+    monkeypatch.setenv("AMRSS_MIGRATION_DATABASE_URL", NEON_DIRECT + "?sslmode=require")
+    get_settings.cache_clear()
+    with pytest.raises(RuntimeError, match="AMRSS_MIGRATION_DATABASE_URL"):
+        get_settings()
+    get_settings.cache_clear()
