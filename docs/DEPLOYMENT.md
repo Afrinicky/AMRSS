@@ -338,17 +338,19 @@ Stated plainly, because a deployment plan that hides them is worse than no plan.
 - **Uploader installers are built but unsigned** until you supply certificates
   (§8). Nothing in the repository can fix that for you.
 - **Rate limiting is per-process**, so it weakens as soon as more than one API
-  machine runs. `fly.toml` keeps a single machine for that reason; back the
-  limiter with Redis before scaling out, or the limit multiplies by the machine
-  count.
-- **Scale-to-zero costs the first laboratory of the day a cold start**, and the
-  container runs migrations on the way up. Both are seconds, and an uploader
-  submitting a batch can absorb them — but if that ever stops being true, set
-  `min_machines_running = 1`.
+  instance runs. A Render free service is a single instance and never scales
+  out, so the limit holds today — but back the limiter with Redis before adding
+  a second instance, or the limit multiplies by the instance count.
+- **Sleeping costs the first laboratory of the day a cold start** of roughly a
+  minute, and the container runs migrations on the way up. An uploader
+  submitting a batch waits it out; a person watching a dashboard notices. §6 is
+  how to have it awake before you present, and a paid instance type removes the
+  sleep entirely.
 - **The repository root still carries a second `Dockerfile` and
   `docker-compose.yml`** which build the laboratory service under `src/`, not
-  this platform. Use `infra/fly/` or `infra/docker/` for the surveillance
-  platform.
+  this platform, alongside a `fly.toml` left over from an abandoned Fly.io
+  launch. Use `infra/render/`, `infra/docker/` or `infra/fly/` for the
+  surveillance platform.
 
 ---
 
@@ -357,8 +359,10 @@ Stated plainly, because a deployment plan that hides them is worse than no plan.
 Nothing above is load-bearing except the database URLs and
 `AMRSS_API_URL`. The API image is an ordinary container:
 
-- **Render or Railway** — point them at `infra/docker/api.Dockerfile` with the
-  repository root as build context, and set the same secrets.
+- **Railway, Fly.io or Render's paid tier** — point them at
+  `infra/docker/api.Dockerfile` with the repository root as build context, and
+  set the same secrets. `infra/fly/fly.toml` is a working Fly configuration for
+  when the free trial there stops being the obstacle.
 - **A virtual machine** — `infra/docker/docker-compose.yml` plus
   `docker-compose.prod.yml` runs the API, the dashboard and a local PostgreSQL
   behind your own reverse proxy. Drop the `postgres` service and point
