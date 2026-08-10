@@ -604,13 +604,10 @@ def get_scope(db: DbSession, principal: CurrentPrincipal) -> ScopeResponse:
     """
     block_id = resolve_block_id(db, principal)
 
-    districts = list(
-        db.scalars(
-            select(District)
-            .where(District.regional_block_id == block_id if block_id else True)
-            .order_by(District.name)
-        )
-    )
+    district_query = select(District).order_by(District.name)
+    if block_id is not None:
+        district_query = district_query.where(District.regional_block_id == block_id)
+    districts = list(db.scalars(district_query))
 
     pinned = principal.facility_id
     can_select_facility = pinned is not None or principal.has(Permission.VIEW_CROSS_FACILITY)

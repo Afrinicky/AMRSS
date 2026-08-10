@@ -52,7 +52,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     let detail = response.statusText;
     try {
       const body = await response.json();
-      detail = typeof body.detail === "string" ? body.detail : detail;
+      detail = readDetail(body.detail) ?? detail;
     } catch {
       /* response carried no JSON body */
     }
@@ -60,6 +60,44 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
 
   return (await response.json()) as T;
+}
+
+/**
+ * Read an API error's `detail`, which is not always a string.
+ *
+ * The refusals worth explaining are exactly the structured ones: a blocked
+ * activation carries the list of missing paperwork, and a rejected breakpoint
+ * import carries every problem it found. Reading only the string form dropped
+ * those and left the caller with the bare status text — "Conflict" in place of
+ * "activation requires an MOU execution date".
+ */
+function readDetail(detail: unknown): string | null {
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    const parts = detail.map(readDetail).filter(Boolean);
+    return parts.length > 0 ? parts.join("; ") : null;
+  }
+  if (detail && typeof detail === "object") {
+    const record = detail as Record<string, unknown>;
+    const message = typeof record.message === "string" ? record.message : null;
+    // FastAPI's own validation errors use `msg`.
+    const fallback = typeof record.msg === "string" ? record.msg : null;
+    const extra = ["missing", "problems"]
+      .map((key) => (Array.isArray(record[key]) ? readDetail(record[key]) : null))
+      .filter(Boolean)
+      .join("; ");
+    const head = message ?? fallback;
+    if (head && extra) return `${head} (${extra})`;
+    return head ?? (extra || null);
+  }
+  return null;
+}
+
+async function send<T>(path: string, method: string, body?: unknown): Promise<T> {
+  return request<T>(path, {
+    method,
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  });
 }
 
 export async function login(
@@ -105,12 +143,28 @@ export const api = {
   // Administration. Every one of these is permission-gated at the API; the
   // console only ever hides links, never enforces (SDD 7).
   blocks: () => request<Block[]>("/api/v1/admin/blocks"),
+  districts: (params?: Record<string, string | undefined>) =>
+    request<DistrictRef[]>(`/api/v1/admin/districts${queryString(params)}`),
   facilities: (params?: Record<string, string | undefined>) =>
     request<AdminFacility[]>(`/api/v1/admin/facilities${queryString(params)}`),
   mappings: (params?: Record<string, string | undefined>) =>
     request<CodeMapping[]>(`/api/v1/admin/mappings${queryString(params)}`),
   methodologyVersions: () => request<MethodologyVersionRow[]>("/api/v1/admin/methodology"),
   dictionarySummary: () => request<DictionarySummary>("/api/v1/admin/dictionary/summary"),
+  createDistrict: (regionalBlockId: string, name: string) =>
+    send<DistrictRef>(
+      `/api/v1/admin/districts${queryString({ regional_block_id: regionalBlockId, name })}`,
+      "POST",
+    ),
+  enrollFacility: (payload: FacilityEnrollment) =>
+    send<AdminFacility>("/api/v1/admin/facilities", "POST", payload),
+  updateFacility: (facilityId: string, payload: Partial<FacilityEnrollment>) =>
+    send<AdminFacility>(`/api/v1/admin/facilities/${facilityId}`, "PATCH", payload),
+  transitionFacility: (facilityId: string, target: FacilityStatus, reason: string) =>
+    send<AdminFacility>(`/api/v1/admin/facilities/${facilityId}/transition`, "POST", {
+      target,
+      reason,
+    }),
   auditTrail: (params?: Record<string, string | undefined>) =>
     request<AuditPage>(`/api/v1/admin/audit${queryString(params)}`),
   qualityDashboard: (params?: Record<string, string | undefined>) =>
@@ -433,6 +487,28 @@ export interface AdminFacility {
   eqa_status: string;
   available_transitions: FacilityStatus[];
   blocking_activation: string[];
+}
+
+export interface DistrictRef {
+  id: string;
+  name: string;
+  regional_block_id: string;
+  facility_count: number;
+}
+
+/** What a laboratory supplies when it enrols. Everything past the first three
+ * fields can arrive later — but a facility cannot be activated without an MOU
+ * date and a WHONET configuration version, and the console says so. */
+export interface FacilityEnrollment {
+  code: string;
+  name: string;
+  district_id: string;
+  whonet_config_version?: string | null;
+  upload_schedule?: string;
+  upload_interval_days?: number | null;
+  mou_signed_on?: string | null;
+  mou_reference?: string | null;
+  enrollment_notes?: string | null;
 }
 
 export interface CodeMapping {

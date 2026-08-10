@@ -34,9 +34,10 @@ supplies. See packages/clsi/README.md.
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
-from typing import IO
+from typing import IO, Any, NamedTuple
 
 from openpyxl import load_workbook
 
@@ -198,6 +199,26 @@ class _UnreadableValueError(ValueError):
     pass
 
 
+#: MIC criteria are concentrations and zone criteria are whole millimetres. The
+#: parsing rules are identical, so each reader takes the parser for whichever
+#: numeric type its column carries and stays written once.
+Parser = Callable[[str], Any]
+
+
+class _Categories(NamedTuple):
+    """The S / SDD / I / R quartet for one method, already parsed.
+
+    Ranges are (low, high) pairs, either bound of which may be absent: CLSI
+    tabulates some criteria with no floor, and one that reached the engine as a
+    closed range would claim a bound the table never printed.
+    """
+
+    susceptible: Any | None
+    sdd: tuple[Any | None, Any | None]
+    intermediate: tuple[Any | None, Any | None]
+    resistant: Any | None
+
+
 def _text(value: object) -> str:
     return "" if value is None else str(value).translate(_MU).strip()
 
@@ -237,7 +258,7 @@ def _integer(token: str) -> int:
     return int(text)
 
 
-def _bounded(raw: str, prefix: str, parse):
+def _bounded(raw: str, prefix: str, parse: Parser) -> Any:
     """Read a one-sided bound such as ``≤8`` or ``≥17``.
 
     The comparator is required. A bare number in a bound column means the
@@ -250,7 +271,7 @@ def _bounded(raw: str, prefix: str, parse):
     return parse(text[len(prefix) :])
 
 
-def _range(raw: str, parse):
+def _range(raw: str, parse: Parser) -> tuple[Any | None, Any | None]:
     """Read an intermediate or SDD range: ``4``, ``4-8``, or ``1/19-2/38``."""
     text = _strip_markers(raw)
     if text.startswith("≤"):
@@ -383,7 +404,7 @@ _COMBINED_HEADER = (
 )
 
 
-def _locate_data_start(sheet) -> int:
+def _locate_data_start(sheet: Any) -> int:
     """Find the first row of data.
 
     The combined sheet carries a two-line header: a merged method band above the
@@ -516,7 +537,7 @@ def _convert_row(
         drop("no breakpoint values on this row")
 
 
-def _read_categories(values: list[str], parse):
+def _read_categories(values: list[str], parse: Parser) -> _Categories | None:
     """Read the S / SDD / I / R quartet for one method, or None if all absent."""
     s_raw, sdd_raw, i_raw, r_raw = values
     if all(_is_absent(v) for v in (s_raw, sdd_raw, i_raw, r_raw)):
@@ -530,10 +551,10 @@ def _read_categories(values: list[str], parse):
 
     if susceptible is None and resistant is None:
         raise _UnreadableValueError("neither a susceptible nor a resistant bound")
-    return susceptible, sdd, intermediate, resistant
+    return _Categories(susceptible, sdd, intermediate, resistant)
 
 
-def _mic_columns(bounds) -> dict[str, object]:
+def _mic_columns(bounds: _Categories) -> dict[str, object]:
     susceptible, sdd, intermediate, resistant = bounds
     return {
         "mic_susceptible_max": susceptible,
@@ -545,7 +566,7 @@ def _mic_columns(bounds) -> dict[str, object]:
     }
 
 
-def _disk_columns(bounds) -> dict[str, object]:
+def _disk_columns(bounds: _Categories) -> dict[str, object]:
     susceptible, sdd, intermediate, resistant = bounds
     return {
         "disk_susceptible_min": susceptible,
