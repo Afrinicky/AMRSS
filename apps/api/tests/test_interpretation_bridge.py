@@ -244,7 +244,11 @@ def test_species_group_precedes_the_broader_group():
         }
     )
 
-    assert groups == ["Escherichia coli", "Enterobacterales"]
+    assert groups == [
+        "Escherichia coli",
+        "Enterobacterales (excluding Salmonella and Shigella spp.)",
+        "Enterobacterales",
+    ]
 
 
 def test_genus_level_groups_are_seeded_for_non_enterobacterales():
@@ -286,3 +290,43 @@ def test_an_explicit_group_mapping_wins_over_the_derived_one():
     )
 
     assert groups == ["Salmonella and Shigella spp.", "Enterobacterales"]
+
+
+def test_salmonella_does_not_inherit_the_table_that_excludes_it():
+    """The mapping that decides whether a Salmonella isolate is reported against
+    the right thresholds.
+
+    M100's main Enterobacterales table is headed "excluding Salmonella and
+    Shigella spp." and their criteria differ materially — the ciprofloxacin
+    susceptible bound is several dilutions apart. An isolate that picked up the
+    general table would be called susceptible at MICs the specific table calls
+    resistant.
+    """
+    from amrss.seed import clsi_groups_for
+    from amrss.seed.dictionary_data import ORGANISMS
+
+    seeded = {entry["code"]: clsi_groups_for(entry) for entry in ORGANISMS}
+
+    for code in ("sal", "shi"):
+        assert "Salmonella and Shigella spp." in seeded[code]
+        # Ahead of the family label, so the specific criteria win where both
+        # are loaded.
+        assert seeded[code].index("Salmonella and Shigella spp.") < seeded[code].index(
+            "Enterobacterales"
+        )
+        assert not any("excluding Salmonella" in group for group in seeded[code])
+        # The family-level label still applies: a laboratory may load a table
+        # that only tabulates "Enterobacterales".
+        assert "Enterobacterales" in seeded[code]
+
+    assert "Enterobacterales (excluding Salmonella and Shigella spp.)" in seeded["eco"]
+
+
+def test_an_unspeciated_pseudomonas_does_not_borrow_the_aeruginosa_table():
+    from amrss.seed import clsi_groups_for
+    from amrss.seed.dictionary_data import ORGANISMS
+
+    seeded = {entry["code"]: clsi_groups_for(entry) for entry in ORGANISMS}
+
+    assert "Pseudomonas aeruginosa" not in seeded["ps-"]
+    assert seeded["pae"] == ["Pseudomonas aeruginosa"]

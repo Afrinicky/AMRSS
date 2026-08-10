@@ -7,8 +7,16 @@ be possible without a name attached to it.
 
 The import is deliberately a file upload of the laboratory's own licensed CLSI
 table rather than anything AMRSS ships. See packages/clsi/README.md for why.
+
+Two shapes are accepted. A CSV in the template's shape is taken as reviewed and
+goes straight to strict validation. A workbook — what a laboratory usually has,
+being an extraction of the printed document — is converted first, and that
+conversion drops everything it cannot vouch for. Preview the conversion before
+importing: the drop list is the part worth reading, because it says which agents
+the laboratory will *not* be able to report.
 """
 
+import io
 import uuid
 from datetime import date
 
@@ -27,14 +35,43 @@ from pydantic import BaseModel
 from amrss import audit
 from amrss.analytics import interpretation as interpretation_engine
 from amrss.analytics import methodology as methodology_engine
-from amrss.analytics.breakpoint_import import BreakpointImportError, import_breakpoints
+from amrss.analytics.breakpoint_import import (
+    BreakpointImportError,
+    agent_lookup,
+    import_breakpoints,
+    parse_breakpoint_csv,
+)
+from amrss.analytics.m100_workbook import (
+    WorkbookFormatError,
+    convert_workbook,
+    to_template_csv,
+)
 from amrss.api.deps import CurrentPrincipal, DbSession, client_context, requires
 from amrss.audit import AuditAction
 from amrss.security.permissions import Permission
 
 router = APIRouter(prefix="/breakpoints", tags=["breakpoints"])
 
-MAX_UPLOAD_BYTES = 4 * 1024 * 1024
+#: A workbook carries styling and shared strings a CSV does not, so it needs
+#: more headroom than the 4 MB a template CSV ever reaches.
+MAX_UPLOAD_BYTES = 12 * 1024 * 1024
+
+WORKBOOK_SUFFIXES = (".xlsx", ".xlsm")
+
+
+class ConversionReport(BaseModel):
+    """What reading a workbook decided, for review before anything is stored."""
+
+    criteria: int
+    organism_groups: list[str]
+    agent_codes: list[str]
+    #: Source rows that produced no criterion, each with its reason. The
+    #: important half of this response: a laboratory that cannot see what was
+    #: left out will believe its table is complete.
+    dropped: list[str]
+    #: Rows whose agent was identified by repairing a damaged label. Mechanical,
+    #: but still worth a human eye before they interpret an isolate.
+    repairs: list[str]
 
 
 class ImportResponse(BaseModel):
@@ -44,6 +81,16 @@ class ImportResponse(BaseModel):
     #: Non-blocking observations — an incomplete panel is legitimate, so these
     #: are surfaced rather than treated as failures.
     warnings: list[str]
+    #: Present only when a workbook was converted on the way in.
+    conversion: ConversionReport | None = None
+
+
+class PreviewResponse(BaseModel):
+    conversion: ConversionReport
+    warnings: list[str]
+    #: The converted table in the template's shape, so it can be saved, diffed
+    #: against the printed tables and imported as a reviewed CSV instead.
+    template_csv: str
 
 
 class InterpretationResponse(BaseModel):
@@ -59,6 +106,94 @@ class InterpretationResponse(BaseModel):
     uncovered: list[dict]
 
 
+async def _read_upload(file: UploadFile) -> bytes:
+    raw = await file.read(MAX_UPLOAD_BYTES + 1)
+    if len(raw) > MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"Breakpoint table exceeds the {MAX_UPLOAD_BYTES // (1024 * 1024)} MB limit",
+        )
+    return raw
+
+
+def _to_template_csv(
+    db: DbSession, filename: str | None, raw: bytes
+) -> tuple[str, ConversionReport | None]:
+    """Get a template-shaped CSV out of whatever the laboratory uploaded.
+
+    A CSV is passed through untouched: it is the reviewable artefact, and
+    softening it here would defeat the strict validation it is about to meet.
+    A workbook is converted, and the conversion's decisions come back with it so
+    they can be recorded and shown.
+    """
+    if not (filename or "").lower().endswith(WORKBOOK_SUFFIXES):
+        try:
+            return raw.decode("utf-8-sig"), None
+        except UnicodeDecodeError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=(
+                    "The file is neither a workbook nor UTF-8 text. Upload the .xlsx, "
+                    "or export it from your spreadsheet as CSV (UTF-8)."
+                ),
+            ) from exc
+
+    try:
+        conversion = convert_workbook(io.BytesIO(raw), agents=agent_lookup(db))
+    except WorkbookFormatError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+        ) from exc
+
+    report = ConversionReport(
+        criteria=len(conversion.rows),
+        organism_groups=conversion.organism_groups,
+        agent_codes=conversion.agent_codes,
+        dropped=[str(d) for d in conversion.dropped],
+        repairs=[str(r) for r in conversion.repairs],
+    )
+    return to_template_csv(conversion.rows), report
+
+
+@router.post(
+    "/preview",
+    response_model=PreviewResponse,
+    dependencies=[Depends(requires(Permission.MANAGE_METHODOLOGY))],
+)
+async def preview_breakpoint_table(
+    db: DbSession,
+    file: UploadFile = File(..., description="CLSI workbook (.xlsx) or template CSV"),
+    version: str = Form(default="preview"),
+) -> PreviewResponse:
+    """Parse a table and report what it would import, storing nothing.
+
+    Separate from the import because the two questions are different. The
+    import asks "is this table structurally sound"; the preview asks "is this
+    the table I meant to load" — which only a person holding the printed
+    document can answer, and only if they are shown what was dropped first.
+    """
+    raw = await _read_upload(file)
+    text, report = _to_template_csv(db, file.filename, raw)
+
+    try:
+        rows, warnings = parse_breakpoint_csv(text, version=version)
+    except BreakpointImportError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"message": str(exc), "problems": exc.problems},
+        ) from exc
+
+    if report is None:
+        report = ConversionReport(
+            criteria=len(rows),
+            organism_groups=sorted({str(r["organism_group"]) for r in rows}),
+            agent_codes=sorted({str(r["agent_code"]) for r in rows}),
+            dropped=[],
+            repairs=[],
+        )
+    return PreviewResponse(conversion=report, warnings=warnings, template_csv=text)
+
+
 @router.post(
     "/import",
     response_model=ImportResponse,
@@ -69,7 +204,7 @@ async def import_breakpoint_table(
     request: Request,
     db: DbSession,
     principal: CurrentPrincipal,
-    file: UploadFile = File(..., description="CSV in the shape of clsi_m100.template.csv"),
+    file: UploadFile = File(..., description="CLSI workbook (.xlsx) or template CSV"),
     version: str = Form(..., description="e.g. M100-Ed36"),
     source_edition: str = Form(..., description="e.g. CLSI M100 36th ed. (2026)"),
     effective_from: date = Form(...),
@@ -82,19 +217,8 @@ async def import_breakpoint_table(
     bad rows out of nine hundred would put three wrong thresholds into clinical
     reports, and there is no way to tell afterwards which results they touched.
     """
-    raw = await file.read(MAX_UPLOAD_BYTES + 1)
-    if len(raw) > MAX_UPLOAD_BYTES:
-        raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail="Breakpoint table exceeds the 4 MB limit",
-        )
-    try:
-        text = raw.decode("utf-8-sig")
-    except UnicodeDecodeError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="The file is not UTF-8 text. Export it from your spreadsheet as CSV (UTF-8).",
-        ) from exc
+    raw = await _read_upload(file)
+    text, report = _to_template_csv(db, file.filename, raw)
 
     try:
         result = import_breakpoints(
@@ -124,6 +248,12 @@ async def import_breakpoint_table(
             "source_edition": source_edition,
             "breakpoints": result.imported,
             "warnings": len(result.warnings),
+            # A conversion's drops are part of what this table *is*. Recording
+            # only the criteria that survived would leave the audit trail
+            # unable to answer why an agent has no breakpoint.
+            "converted_from_workbook": report is not None,
+            "dropped_source_rows": len(report.dropped) if report else 0,
+            "repaired_labels": len(report.repairs) if report else 0,
         },
         source_ip=ip,
         user_agent=agent,
@@ -136,6 +266,7 @@ async def import_breakpoint_table(
         source_edition=result.source_edition,
         imported=result.imported,
         warnings=result.warnings,
+        conversion=report,
     )
 
 

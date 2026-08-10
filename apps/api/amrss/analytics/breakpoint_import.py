@@ -30,7 +30,7 @@ from amrss_clsi.breakpoints import (
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from amrss.models import MethodologyVersion
+from amrss.models import CanonicalAntibiotic, MethodologyVersion
 from amrss.models.enums import MethodologyComponent
 
 #: Columns the engine needs. Everything else in the template is optional, so a
@@ -56,6 +56,22 @@ _INT_COLUMNS = (
     "disk_intermediate_max",
     "disk_resistant_max",
 )
+
+
+def agent_lookup(db: Session) -> dict[str, str]:
+    """Agent names and CLSI aliases, lower-cased, mapped to dictionary codes.
+
+    Read from the dictionary rather than declared in code, so a laboratory that
+    adds an agent — or records the spelling its own CLSI table uses in
+    ``clsi_agent_code`` — can import a table naming it without a deployment
+    (ADR-0002).
+    """
+    lookup: dict[str, str] = {}
+    for antibiotic in db.scalars(select(CanonicalAntibiotic)):
+        for alias in (antibiotic.name, antibiotic.clsi_agent_code, antibiotic.code):
+            if alias:
+                lookup[alias.strip().lower()] = antibiotic.code
+    return lookup
 
 
 class BreakpointImportError(ValueError):

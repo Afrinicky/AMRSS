@@ -1,10 +1,19 @@
 from __future__ import annotations
 
+from decimal import Decimal
+
 import pytest
 
-from amrss_clsi.breakpoints import Category, Method
-from amrss_clsi.interpretation import NoInterpretationReason, interpret
+from amrss_clsi.breakpoints import (
+    Breakpoint,
+    BreakpointSet,
+    Category,
+    Method,
+    validate_breakpoints,
+)
+from amrss_clsi.interpretation import NoInterpretationReason, interpret, interpret_disk
 from amrss_clsi.mic import MICValue
+from tests.conftest import TEST_SET_VERSION
 
 ENTERO = ("Escherichia coli", "Enterobacterales")
 
@@ -127,8 +136,6 @@ class TestDiskDiffusion:
         assert result.category is expected
 
     def test_implausible_zone_is_rejected_not_interpreted(self, breakpoint_set):
-        from amrss_clsi.interpretation import interpret_disk
-
         bp = breakpoint_set.lookup(
             organism_groups=("Enterobacterales",), agent_code="CIP", method=Method.DISK
         )
@@ -153,3 +160,92 @@ class TestProvenance:
             mic=MICValue.parse("0.25"),
         )
         assert result.category is Category.S
+
+
+class TestCriteriaWithNoSusceptibleCategory:
+    """Agents CLSI tabulates as intermediate-or-resistant only.
+
+    Colistin is the case that matters here: M100 defines no susceptible
+    category for it at all, so its intermediate range has no floor. A system
+    that cannot represent that shape cannot report colistin — and colistin
+    resistance in carbapenem-resistant Gram-negatives is precisely what a
+    surveillance programme exists to see.
+    """
+
+    @staticmethod
+    def _colistin_set() -> BreakpointSet:
+        return BreakpointSet(
+            version=TEST_SET_VERSION,
+            source_edition="Synthetic fixture data - not for clinical use",
+            breakpoints=[
+                Breakpoint(
+                    set_version=TEST_SET_VERSION,
+                    standard="TEST",
+                    table_reference="Fixture",
+                    organism_group="Pseudomonas aeruginosa",
+                    agent_code="COL",
+                    method=Method.MIC,
+                    mic_intermediate_max=Decimal("2"),
+                    mic_resistant_min=Decimal("4"),
+                )
+            ],
+        )
+
+    @pytest.mark.parametrize(
+        ("mic", "expected"),
+        [("<=0.5", Category.I), ("1", Category.I), ("2", Category.I), ("4", Category.R)],
+    )
+    def test_open_ended_intermediate_range_has_no_floor(self, mic, expected):
+        result = interpret(
+            breakpoint_set=self._colistin_set(),
+            organism_groups=("Pseudomonas aeruginosa",),
+            agent_code="COL",
+            method=Method.MIC,
+            mic=MICValue.parse(mic),
+        )
+        assert result.category is expected
+
+    def test_the_table_validates(self):
+        assert validate_breakpoints(self._colistin_set().breakpoints) == []
+
+    def test_an_open_range_is_refused_where_a_susceptible_category_exists(self):
+        """The guard that makes the open range safe.
+
+        Without a susceptible bound the range has nothing to swallow. With one,
+        an absent floor would quietly reclassify every susceptible result as
+        intermediate, so a half-open range there is a transcription error.
+        """
+        issues = validate_breakpoints(
+            [
+                Breakpoint(
+                    set_version=TEST_SET_VERSION,
+                    standard="TEST",
+                    table_reference="Fixture",
+                    organism_group="Enterobacterales",
+                    agent_code="GEN",
+                    method=Method.MIC,
+                    mic_susceptible_max=Decimal("2"),
+                    mic_intermediate_max=Decimal("4"),
+                    mic_resistant_min=Decimal("8"),
+                )
+            ]
+        )
+        assert [i.severity for i in issues] == ["error"]
+        assert "lower and an upper bound" in issues[0].message
+
+    def test_zone_criteria_open_at_the_other_end(self):
+        """Zone diameters mirror MICs, so their open end is the upper one."""
+        criterion = Breakpoint(
+            set_version=TEST_SET_VERSION,
+            standard="TEST",
+            table_reference="Fixture",
+            organism_group="Pseudomonas aeruginosa",
+            agent_code="COL",
+            method=Method.DISK,
+            disk_content="10 µg",
+            disk_intermediate_min=11,
+            disk_resistant_max=10,
+        )
+        assert validate_breakpoints([criterion]) == []
+        assert interpret_disk(30, criterion).category is Category.I
+        assert interpret_disk(10, criterion).category is Category.R

@@ -27,7 +27,11 @@ dist/
 build/
 
 # Local data - may contain patient information or licensed CLSI tables
+# Real breakpoint tables are the laboratory's licensed property and are never
+# committed — in either the CSV or the workbook it was extracted into.
 data/breakpoints/*.csv
+data/breakpoints/*.xlsx
+data/breakpoints/*.xlsm
 !data/breakpoints/*.template.csv
 *.sqlite
 *.db

@@ -27,7 +27,8 @@ from amrss.models import (
 )
 from amrss.seed.dictionary_data import (
     ANTIBIOTICS,
-    ENTEROBACTERALES_GROUP,
+    ENTEROBACTERALES_EXCLUDED_GENERA,
+    ENTEROBACTERALES_GROUPS,
     GENUS_CLSI_GROUPS,
     ORGANISMS,
     SPECIMEN_TYPES,
@@ -179,6 +180,13 @@ def clsi_groups_for(entry: OrganismSeed) -> list[str]:
     for group in GENUS_CLSI_GROUPS.get(entry["genus"] or "", []):
         if group not in groups:
             groups.append(group)
-    if entry["is_enterobacterales"] and ENTEROBACTERALES_GROUP not in groups:
-        groups.append(ENTEROBACTERALES_GROUP)
+    if entry["is_enterobacterales"]:
+        excluded = (entry["genus"] or "") in ENTEROBACTERALES_EXCLUDED_GENERA
+        for group in ENTEROBACTERALES_GROUPS:
+            # Salmonella and Shigella take the family-level label but not the
+            # table that excludes them by name.
+            if excluded and group is ENTEROBACTERALES_GROUPS[0]:
+                continue
+            if group not in groups:
+                groups.append(group)
     return groups

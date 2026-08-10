@@ -46,13 +46,21 @@ class AntibioticSeed(TypedDict):
 GENUS_CLSI_GROUPS: dict[str, list[str]] = {
     "Staphylococcus": ["Staphylococcus spp."],
     "Enterococcus": ["Enterococcus spp."],
+    # M100 splits the streptococci into three tables with genuinely different
+    # criteria, so a plain "Streptococcus spp." group would match none of them.
+    # Species that belong to one of the three carry it in their own
+    # ``clsi_groups``; the genus fallback stays as the broad label for anything
+    # a laboratory adds later.
     "Streptococcus": ["Streptococcus spp."],
+    # M100 tabulates these two together, apart from the rest of the family.
+    "Salmonella": ["Salmonella and Shigella spp."],
+    "Shigella": ["Salmonella and Shigella spp."],
     "Pseudomonas": ["Pseudomonas aeruginosa"],
     "Acinetobacter": ["Acinetobacter spp."],
     "Haemophilus": ["Haemophilus influenzae and Haemophilus parainfluenzae"],
     "Neisseria": ["Neisseria spp."],
     "Stenotrophomonas": ["Stenotrophomonas maltophilia"],
-    "Burkholderia": ["Burkholderia cepacia complex"],
+    "Burkholderia": ["Burkholderia cepacia complex", "Other Non-Enterobacterales"],
     "Campylobacter": ["Campylobacter jejuni/coli"],
     "Vibrio": ["Vibrio spp."],
     "Candida": ["Candida spp."],
@@ -61,8 +69,20 @@ GENUS_CLSI_GROUPS: dict[str, list[str]] = {
 }
 
 #: Applied to every organism flagged is_enterobacterales, after its own species
-#: and genus groups. M100 defines most Gram-negative criteria at this level.
-ENTEROBACTERALES_GROUP = "Enterobacterales"
+#: and genus groups. M100 defines most Gram-negative criteria at this level, and
+#: prints them in a table whose heading excludes Salmonella and Shigella — those
+#: two have their own criteria, and the ciprofloxacin thresholds in particular
+#: differ by several dilutions. Both labels are carried, most specific first, so
+#: a table loaded under either heading is found.
+ENTEROBACTERALES_GROUPS = (
+    "Enterobacterales (excluding Salmonella and Shigella spp.)",
+    "Enterobacterales",
+)
+
+#: Genera the heading above excludes. Data rather than a branch in the engine:
+#: if a future edition moves a genus in or out of that table, this line changes
+#: and nothing else does.
+ENTEROBACTERALES_EXCLUDED_GENERA = frozenset({"Salmonella", "Shigella"})
 
 
 class SpecimenSeed(TypedDict):
@@ -198,6 +218,9 @@ ORGANISMS: list[OrganismSeed] = [
         "gram_stain": "positive",
         "is_enterobacterales": False,
         "special_importance": True,
+        # M100 gives the pneumococcus its own table; the viridans and
+        # beta-haemolytic criteria do not apply to it.
+        "clsi_groups": ["Streptococcus pneumoniae"],
     },
     {
         "code": "efa",
@@ -319,6 +342,10 @@ ORGANISMS: list[OrganismSeed] = [
         "gram_stain": "negative",
         "is_enterobacterales": False,
         "special_importance": True,
+        # Only P. aeruginosa has its own M100 table. An unspeciated
+        # Pseudomonas must not borrow it — the other species are less
+        # susceptible, and the aeruginosa criteria would flatter them.
+        "clsi_groups": ["Other Non-Enterobacterales"],
     },
     {
         "code": "pr-",

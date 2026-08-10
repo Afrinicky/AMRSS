@@ -24,6 +24,43 @@ records which document a criterion came from.
 
 ## Loading breakpoints
 
+### From a workbook
+
+Most laboratories hold M100 as the printed document plus a spreadsheet someone
+extracted from it, not as a tidy CSV. Upload the workbook directly:
+
+```
+POST /api/v1/breakpoints/preview   # parses, stores nothing
+POST /api/v1/breakpoints/import    # parses and stores
+```
+
+Both accept an `.xlsx` whose combined sheet has the columns *Table, Organism,
+Drug Class, Antimicrobial Agent, Disk Content*, followed by the zone-diameter
+S/SDD/I/R quartet and the MIC quartet.
+
+**Preview first, and read the drop list.** Extractions of printed documents are
+lossy in specific ways — a row label wraps onto two lines, a footnote becomes an
+agent name, the disk-content column bleeds into its neighbour, two sub-tables
+are flattened into one — and the reader refuses every one of those rather than
+guessing:
+
+| What it sees | What it does |
+|---|---|
+| A bound with no comparator (`8` where `≤8` was printed) | drops the row — a bare number could be a ceiling or a floor |
+| A criterion scoped to a species inside its table's group | drops it — widening the *S. epidermidis* oxacillin criterion to all staphylococci would call resistant isolates susceptible |
+| Two criteria for the same group, agent and method | drops **both** — where the extraction merged Salmonella with Shigella, or meningitis with non-meningitis, keeping either is a coin toss |
+| A zone criterion whose disk content is unreadable | drops the zone half — the same 17 mm is S against one disk content and R against another |
+| An agent the dictionary does not carry | drops it, and names it |
+| A damaged but unambiguous label (`Trimethoprim-`, `Penicillin All staphylococci`) | reads it, and lists the repair for review |
+
+The response's `dropped` list is the half worth reading: it says which agents
+the laboratory will **not** be able to report. Anything dropped can be supplied
+by hand — save the preview's `template_csv`, correct it against the printed
+tables, and import that CSV instead. Both the drop count and the repair count go
+into the audit record, so the trail can answer why an agent has no breakpoint.
+
+### From a CSV
+
 1. Copy `data/breakpoints/clsi_m100.template.csv`. The template documents every
    column inline; `#` lines are stripped at import.
 2. Populate from your licensed edition. Real tables are gitignored — only the
@@ -102,6 +139,13 @@ interpretable without it.
 
 Where no explicit intermediate range is tabulated, `I` is implied by the gap
 between the susceptible and resistant bounds.
+
+Some agents have **no susceptible category at all** — colistin is intermediate
+at or below its bound and resistant above it, with nothing below. There the
+lowest category has no floor, and the engine accepts a one-sided range. Import
+validation permits that *only* where the criterion tabulates no susceptible
+bound; anywhere else a half-open range is a transcription error, and one that
+reached the engine would silently reclassify every susceptible result.
 
 ### Disk diffusion
 
