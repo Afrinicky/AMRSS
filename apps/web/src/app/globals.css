@@ -334,3 +334,65 @@ body {
 .scroll-row::-webkit-scrollbar-track {
   background: transparent;
 }
+
+/* Placeholder blocks shown while a page's data is still in flight.
+ *
+ * These exist because of where this runs. A free-tier container that has been
+ * idle for fifteen minutes takes about a minute to wake, and a blank screen for
+ * that long reads as a broken system rather than a loading one — the dashboard
+ * has to say "working" for the whole wait, not just render nothing until it can
+ * render everything.
+ *
+ * Each placeholder takes the shape of the content that replaces it, so nothing
+ * jumps when the data lands. The sweep is a courtesy rather than information:
+ * the reduced-motion rule above flattens it, and the placeholder still reads as
+ * a placeholder standing still. */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--color-surface-muted) 0%,
+    var(--color-surface-tint) 50%,
+    var(--color-surface-muted) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-sweep 1.4s ease-in-out infinite;
+  border-radius: 6px;
+}
+
+/* On the brand header, where the muted surface tokens would disappear. */
+.skeleton-on-brand {
+  background: rgb(255 255 255 / 0.16);
+  border-radius: 6px;
+}
+
+@keyframes skeleton-sweep {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+/* Content that appears only if a wait has gone on long enough to need
+ * explaining — the "the service is waking up" line under the loading skeleton.
+ *
+ * CSS rather than a timer in JavaScript, and that is the whole point. This runs
+ * inside a Suspense fallback, and React never hydrates a fallback: it is markup
+ * standing in for a subtree that has not rendered yet, so any component here is
+ * HTML and nothing more. An effect scheduled in one never fires, which is how
+ * the first version of this failed — silently, and only against a slow API.
+ *
+ * The delay survives the reduced-motion rule above, which overrides
+ * animation-duration but not animation-delay, so the line still appears on time
+ * for everyone. */
+.reveal-late {
+  opacity: 0;
+  animation: reveal-late 200ms ease-out 6s forwards;
+}
+
+@keyframes reveal-late {
+  to {
+    opacity: 1;
+  }
+}

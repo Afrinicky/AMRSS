@@ -2,9 +2,12 @@
 #
 # For the demonstration phase: nothing here costs anything, and nothing here
 # expires. Render's free web services sleep after fifteen minutes idle and take
-# roughly a minute to wake, which is the price of free and is fine for a system
-# nobody is watching between demonstrations. See docs/DEPLOYMENT.md for how to
-# have it awake before you present.
+# roughly a minute to wake. That is mostly dealt with elsewhere:
+# .github/workflows/heartbeat.yml pings this service every ten minutes through
+# the working day, using about 465 of the 750 free instance-hours a month, and
+# the dashboard handles a wake gracefully when one happens anyway. See
+# docs/DEPLOYMENT.md §2.1, which is also where the one manual step lives —
+# setting AMRSS_API_URL as a repository variable once this service has a URL.
 #
 # Deploy: Render dashboard → New → Blueprint → point at this repository.
 #

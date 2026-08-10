@@ -32,11 +32,52 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * The API could not be reached at all — as distinct from answering badly.
+ *
+ * Worth its own type because the two call for opposite responses: a 409 is the
+ * system working and refusing something, while this is the system not being
+ * there, which on a free tier is usually temporary and fixes itself.
+ */
+export class ApiUnavailableError extends Error {
+  constructor(readonly cause_: unknown) {
+    super("The surveillance service could not be reached.");
+  }
+}
+
+/**
+ * How long to wait for the API before giving up on it.
+ *
+ * Sized against the free tier this runs on. A Render free instance that has
+ * been idle for fifteen minutes spins down, and the next request waits roughly
+ * a minute while it comes back — Render holds the connection open rather than
+ * refusing it, so without a deadline of our own the wait is inherited from
+ * whoever runs out of patience first.
+ *
+ * That has to be us. Vercel's function budget is the hard ceiling (`maxDuration`
+ * in the root layout, 60s), and a timeout Vercel raises becomes a platform 504
+ * that the dashboard never gets to dress. A timeout we raise ten seconds
+ * earlier becomes a page that explains itself and offers to try again.
+ */
+const API_TIMEOUT_MS = 50_000;
+
+/** Every outbound call, with the deadline and the not-there case handled once. */
+async function callApi(url: string, init: RequestInit): Promise<Response> {
+  try {
+    return await fetch(url, { ...init, signal: AbortSignal.timeout(API_TIMEOUT_MS) });
+  } catch (error) {
+    // fetch rejects for exactly two reasons here: the deadline above, and the
+    // connection never being established. Neither carries a status code, and
+    // both mean the same thing to the person waiting.
+    throw new ApiUnavailableError(error);
+  }
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const store = await cookies();
   const token = store.get(SESSION_COOKIE)?.value;
 
-  const response = await fetch(`${apiUrl()}${path}`, {
+  const response = await callApi(`${apiUrl()}${path}`, {
     ...init,
     headers: {
       "content-type": "application/json",
@@ -112,7 +153,7 @@ export async function login(
   email: string,
   password: string,
 ): Promise<{ access_token: string; refresh_token: string }> {
-  const response = await fetch(`${apiUrl()}/api/v1/auth/login`, {
+  const response = await callApi(`${apiUrl()}/api/v1/auth/login`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ email, password }),

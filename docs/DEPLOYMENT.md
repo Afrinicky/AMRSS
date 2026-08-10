@@ -28,8 +28,8 @@ real patient-derived data arrives, the seeded block cannot come with it.
 | Piece | Service | Free tier | Catch |
 |---|---|---|---|
 | Dashboard | **Vercel** Hobby | Permanent | None worth mentioning |
-| Surveillance API | **Render** free web service | Permanent | Sleeps after 15 min idle; ~1 min to wake |
-| Database | **Neon** free | Permanent, 0.5 GB | Suspends when idle; wakes in under a second |
+| Surveillance API | **Render** free web service | Permanent | Sleeps after 15 min idle — kept awake through the working day by §2.1 |
+| Database | **Neon** free | Permanent, 0.5 GB, 100 CU-hours | Suspends when idle; wakes in under a second |
 | Offline uploader | Runs on a laboratory PC | — | Unsigned until certificates are bought |
 
 None of these expire. Fly.io was the earlier recommendation and its free
@@ -111,6 +111,50 @@ curl https://amrss-api.onrender.com/health/ready
 `/health` answering `ok` only means the process started. `/health/ready` means
 it reached Neon, and that is the one to trust.
 
+### 2.1 Stop it going to sleep
+
+Render's free service spins down after fifteen minutes idle, and the next
+visitor then waits about a minute. Since a demonstration system is opened a few
+times a day, almost every visit would pay that minute — which reads as a slow
+system rather than a sleeping one.
+
+The repository fixes this itself. Take the Render URL and set it as a
+repository **variable** (Settings → Secrets and variables → Actions →
+**Variables** → New):
+
+```
+AMRSS_API_URL = https://amrss-api.onrender.com
+```
+
+`.github/workflows/heartbeat.yml` then pings the API every ten minutes from
+06:00 to 21:00 Ghana time. It is a variable rather than a secret because a
+public address is not a secret, and because the workflow can then read it to
+skip cleanly when nobody has set one.
+
+This stays inside what the free tiers give, which is the point:
+
+| | Free allowance | What the heartbeat uses |
+|---|---|---|
+| Render | 750 instance-hours / month | ~465 (15 h/day × 31) |
+| Neon | 100 CU-hours / month | nothing |
+
+Neon reads zero because the ping hits `/health`, which touches no database.
+`/health/ready` would have held Neon's compute open all day and spent a
+month's compute allowance answering health checks nobody reads — the database
+would then be suspended partway through the month. Outside the window the API
+is allowed to sleep: at 03:00 nobody is waiting, and those hours are better
+kept than spent.
+
+Two honest caveats. GitHub delays scheduled workflows when its runners are
+busy, so a cold start becomes rare rather than impossible — the dashboard is
+built to handle one gracefully (skeleton, then an explanation, then an
+automatic retry) rather than to assume it never happens. And GitHub disables
+scheduled workflows in a repository with no activity for 60 days; if the system
+has been quiet that long, re-enable it from the Actions tab.
+
+A red Heartbeat run is also the closest thing to free uptime monitoring: three
+failures across ninety seconds is no longer a cold start.
+
 ---
 
 ## 3. Dashboard — Vercel
@@ -186,13 +230,11 @@ does not put them back.
 
 ## 6. Before you present
 
-**Wake it up.** The API sleeps after fifteen minutes of inactivity and takes
-about a minute to return. Open the dashboard ten minutes before you start and
-click through a couple of pages. If you would rather not think about it, a free
-uptime pinger (UptimeRobot, cron-job.org) hitting
-`https://amrss-api.onrender.com/health` every ten minutes keeps it awake — the
-liveness endpoint, deliberately, so the ping costs a database query it does not
-need.
+**Check the heartbeat ran.** If you set `AMRSS_API_URL` in step 2.1 there is
+nothing to do — the repository keeps the API awake through the working day by
+itself. Confirm it under the Actions tab: the most recent **Heartbeat** run
+should be green and within the last ten minutes. If you skipped that step, open
+the dashboard ten minutes before you start and click through a couple of pages.
 
 **Load the breakpoints.** Without a CLSI table the antibiogram computes from
 what the laboratories already interpreted, and every zone diameter sits
@@ -341,15 +383,14 @@ Stated plainly, because a deployment plan that hides them is worse than no plan.
   instance runs. A Render free service is a single instance and never scales
   out, so the limit holds today — but back the limiter with Redis before adding
   a second instance, or the limit multiplies by the instance count.
-- **Sleeping costs the first laboratory of the day a cold start** of roughly a
-  minute, and the container runs migrations on the way up. An uploader
-  submitting a batch waits it out; a person watching a dashboard notices. §6 is
-  how to have it awake before you present, and a paid instance type removes the
-  sleep entirely.
+- **Sleeping still costs the first visitor outside the heartbeat window** a
+  cold start of roughly a minute, and the container runs migrations on the way
+  up. §2.1 keeps the API awake through the day and the dashboard handles a wake
+  gracefully when one happens anyway, but neither makes it free: a paid instance
+  type is what removes the sleep entirely.
 - **The repository root still carries a second `Dockerfile` and
   `docker-compose.yml`** which build the laboratory service under `src/`, not
-  this platform, alongside a `fly.toml` left over from an abandoned Fly.io
-  launch. Use `infra/render/`, `infra/docker/` or `infra/fly/` for the
+  this platform. Use `infra/render/`, `infra/docker/` or `infra/fly/` for the
   surveillance platform.
 
 ---
