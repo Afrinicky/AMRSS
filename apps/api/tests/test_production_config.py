@@ -61,11 +61,19 @@ def test_migrations_pointed_at_the_pooler_are_refused():
     assert any("pooled endpoint" in p for p in problems)
 
 
-def test_the_development_database_is_refused():
+def test_the_published_development_password_is_refused():
     problems = production_problems(
-        settings(database_url="postgresql+psycopg://amrss:amrss_dev@localhost:5432/amrss")
+        settings(database_url="postgresql+psycopg://amrss:amrss_dev@db.internal:5432/amrss")
     )
-    assert any("development database" in p for p in problems)
+    assert any("development password" in p for p in problems)
+
+
+def test_a_loopback_database_is_allowed():
+    """A virtual machine running PostgreSQL beside the API is a legitimate
+    deployment. Refusing it would push an operator to work around the check,
+    and a database that genuinely is not there answers at /health/ready."""
+    local = "postgresql+psycopg://amrss:a-real-password@localhost:5432/amrss"
+    assert production_problems(settings(database_url=local)) == []
 
 
 @pytest.mark.parametrize(

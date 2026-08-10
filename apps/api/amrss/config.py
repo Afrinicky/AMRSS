@@ -6,6 +6,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 DEVELOPMENT_JWT_SECRET = "dev-secret-not-for-production"
 
+#: The password in the development compose file and in this module's default
+#: URL. Anyone reading the repository knows it.
+DEVELOPMENT_DB_PASSWORD = "amrss_dev"
+
 #: Below this, a signing key is guessable in a way that makes every session
 #: forgeable. Generate one with ``python -m amrss.cli gen-secret``.
 MIN_JWT_SECRET_LENGTH = 32
@@ -107,13 +111,16 @@ def production_problems(settings: Settings) -> list[str]:
             "surveillance responses would cross the network unencrypted."
         )
 
-    # The development database URL carries a password published in this
-    # repository, and a deployment still pointing at it is pointing at nothing
-    # real — or, worse, at something real with a known password.
-    if "amrss_dev" in settings.database_url or "@localhost" in settings.database_url:
+    # The published development credential, and only that. A loopback host is
+    # not evidence of anything — a virtual machine running PostgreSQL beside
+    # the API is a legitimate deployment — and refusing it would push an
+    # operator to work around the check, which is worse than not having one.
+    # A database that genuinely is not there announces itself at /health/ready.
+    if DEVELOPMENT_DB_PASSWORD in settings.database_url:
         problems.append(
-            "AMRSS_DATABASE_URL still looks like the development database. "
-            "Point it at the deployment's own PostgreSQL instance."
+            "AMRSS_DATABASE_URL carries the development password, which is "
+            "published in this repository. Point it at the deployment's own "
+            "PostgreSQL instance."
         )
 
     # A hosted database is reached across the public internet. Without

@@ -93,10 +93,15 @@ fly ssh console -C "python -m amrss.cli check-config"
 ```
 
 `AMRSS_ENVIRONMENT=production` makes the API refuse to start on a development
-signing key, a key under 32 characters, a database URL still pointing at the
-development instance, a hosted database without TLS, or a leftover localhost
-CORS origin. A missed secret fails loudly rather than shipping a system whose
-sessions anyone can forge.
+signing key, a key under 32 characters, a database URL carrying the development
+password published in this repository, a hosted database without TLS, or a
+leftover localhost CORS origin. A missed secret fails loudly rather than
+shipping a system whose sessions anyone can forge.
+
+What it deliberately does *not* refuse is a database on `localhost`: a virtual
+machine running PostgreSQL beside the API is a legitimate deployment, and a
+check that blocks it only teaches operators to work around checks. A database
+that genuinely is not there answers at `/health/ready`.
 
 Then load the dictionaries — organisms, antimicrobials, specimen types and the
 provisional methodology versions:
