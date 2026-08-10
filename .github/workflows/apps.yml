@@ -169,23 +169,29 @@ jobs:
       - name: Build the API image
         run: docker build -f infra/docker/api.Dockerfile -t amrss-api:ci .
 
+      # A user-defined network rather than the host's, so the database is
+      # reached by service name. That is how a real deployment addresses it —
+      # and `@localhost` is one of the things the production configuration check
+      # refuses, correctly, as a leftover development setting.
       - name: Start PostgreSQL
         run: |
-          docker run -d --name pg -e POSTGRES_PASSWORD=ci -e POSTGRES_DB=amrss \
-            -e POSTGRES_USER=amrss --network host postgres:16-alpine
-          for i in $(seq 30); do
-            docker exec pg pg_isready -U amrss -d amrss && break
+          docker network create amrss
+          docker run -d --name db --network amrss \
+            -e POSTGRES_PASSWORD=ci -e POSTGRES_DB=amrss -e POSTGRES_USER=amrss \
+            postgres:16-alpine
+          for _ in $(seq 30); do
+            docker exec db pg_isready -U amrss -d amrss && break
             sleep 2
           done
 
       # Everything a deployment does on first start, in the order it does it:
       # migrate, serve, become ready, load reference data, bootstrap an account.
-      # A green suite with a broken start-up sequence is the failure this
-      # catches.
+      # Run in production mode, because that is the mode a deployment runs in
+      # and it is the only mode where the configuration checks apply.
       - name: Start the API as a deployment would
         run: |
-          docker run -d --name api --network host \
-            -e AMRSS_DATABASE_URL='postgresql+psycopg://amrss:ci@localhost:5432/amrss' \
+          docker run -d --name api --network amrss -p 8000:8000 \
+            -e AMRSS_DATABASE_URL='postgresql+psycopg://amrss:ci@db:5432/amrss' \
             -e AMRSS_JWT_SECRET="$(head -c 48 /dev/urandom | base64 | tr -d '\n')" \
             -e AMRSS_ENVIRONMENT=production \
             -e AMRSS_CORS_ORIGINS='[]' \
@@ -193,13 +199,20 @@ jobs:
 
       - name: Wait for readiness
         run: |
-          for i in $(seq 40); do
+          for _ in $(seq 40); do
             if curl -fsS http://localhost:8000/health/ready | grep -q '"ready"'; then
               echo "API ready"; exit 0
             fi
             sleep 3
           done
           echo "API never became ready"; docker logs api; exit 1
+
+      # Liveness and readiness must not be the same answer, or the container
+      # healthcheck is checking nothing useful.
+      - name: Liveness and readiness are distinct
+        run: |
+          curl -fsS http://localhost:8000/health | grep -q '"ok"'
+          curl -fsS http://localhost:8000/health/ready | grep -q '"ready"'
 
       - name: Bootstrap, exactly as docs/DEPLOYMENT.md says to
         run: |
@@ -212,21 +225,38 @@ jobs:
       - name: The demo block must refuse to load in production
         run: |
           # A production deployment must never receive known-password accounts.
-          if docker exec api python -c "
-          from amrss.seed import seed_demo_block
-          from amrss.db import SessionLocal
-          with SessionLocal() as db: seed_demo_block(db)
-          " 2>/dev/null; then
+          if docker exec api python -c 'from amrss.db import SessionLocal; from amrss.seed import seed_demo_block; db = SessionLocal(); seed_demo_block(db)'; then
             echo "Demo data loaded in production — refusing to pass"; exit 1
           fi
           echo "demo seed correctly refused"
 
       - name: The audit trail must refuse to be rewritten
         run: |
-          if docker exec pg psql -U amrss -d amrss -c "delete from audit_log" 2>/dev/null; then
+          if docker exec db psql -U amrss -d amrss -c "delete from audit_log"; then
             echo "audit_log accepted a DELETE"; exit 1
           fi
           echo "audit_log is append-only"
+
+      # The check earns its place by refusing things, so refusing is what gets
+      # tested: the published development password, and the development signing
+      # key, are both configurations that would start and serve traffic.
+      - name: Unsafe production configuration must be refused
+        run: |
+          for bad in \
+            "AMRSS_DATABASE_URL=postgresql+psycopg://amrss:amrss_dev@db:5432/amrss" \
+            "AMRSS_JWT_SECRET=dev-secret-not-for-production"
+          do
+            if docker run --rm --network amrss \
+              -e AMRSS_DATABASE_URL='postgresql+psycopg://amrss:ci@db:5432/amrss' \
+              -e AMRSS_JWT_SECRET="$(head -c 48 /dev/urandom | base64 | tr -d '\n')" \
+              -e AMRSS_CORS_ORIGINS='[]' \
+              -e AMRSS_ENVIRONMENT=production \
+              -e "$bad" \
+              amrss-api:ci python -m amrss.cli check-config; then
+              echo "check-config accepted: $bad"; exit 1
+            fi
+            echo "correctly refused: ${bad%%=*}"
+          done
 
       - name: API logs
         if: always()
