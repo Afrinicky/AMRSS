@@ -1,3 +1,9 @@
+# Laboratory service image, built from `src/`.
+#
+# NOT the surveillance platform. The cloud API and dashboard are built from
+# infra/docker/api.Dockerfile and infra/docker/web.Dockerfile, whose build
+# context is the repository root. See docs/DEPLOYMENT.md.
+#
 # Build stage - wheels are built here so the runtime image carries no compilers.
 FROM python:3.11-slim-bookworm AS build
 

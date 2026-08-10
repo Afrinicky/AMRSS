@@ -1,4 +1,10 @@
-# Local development stack. NOT a production deployment:
+# Local development stack for the LABORATORY SERVICE under `src/`.
+#
+# The surveillance platform - the API and dashboard this repository's docs
+# mostly describe - has its own stack under infra/docker/. Running this one will
+# not start them. See docs/DEPLOYMENT.md.
+#
+# NOT a production deployment:
 #   - Postgres is reachable on localhost only, with a development password.
 #   - TLS terminates at your reverse proxy in production, not here.
 # See docs/security.md for the production checklist.

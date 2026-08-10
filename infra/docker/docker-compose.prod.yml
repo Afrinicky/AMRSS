@@ -1,0 +1,48 @@
+# Production overlay.
+#
+#   docker compose -f infra/docker/docker-compose.yml \
+#                  -f infra/docker/docker-compose.prod.yml up -d
+#
+# Every value below comes from the environment with no default, so a missing
+# secret stops the deployment instead of silently falling back to a development
+# one. Compose fails on an unset variable in a `${VAR:?}` expansion, which is
+# the behaviour wanted here.
+#
+# What this file does NOT do, because it cannot: terminate TLS. Put a reverse
+# proxy in front of the web service and point it at 127.0.0.1:3000, with the API
+# reachable only on the container network. See docs/DEPLOYMENT.md.
+
+services:
+  postgres:
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+    # No published port at all: only the API needs the database, and it reaches
+    # it over the container network.
+    ports: !override []
+    restart: unless-stopped
+
+  api:
+    environment:
+      AMRSS_ENVIRONMENT: production
+      AMRSS_JWT_SECRET: ${AMRSS_JWT_SECRET:?set AMRSS_JWT_SECRET - generate with: python -m amrss.cli gen-secret}
+      AMRSS_DATABASE_URL: postgresql+psycopg://amrss:${POSTGRES_PASSWORD:?}@postgres:5432/amrss
+      AMRSS_CORS_ORIGINS: ${AMRSS_CORS_ORIGINS:?set AMRSS_CORS_ORIGINS to the dashboard origin, e.g. ["https://amrss.example.org"]}
+    ports: !override []
+    restart: unless-stopped
+    read_only: true
+    tmpfs: ["/tmp"]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+
+  web:
+    environment:
+      AMRSS_API_URL: http://api:8000
+    # Bound to loopback: the reverse proxy is the only thing that should reach
+    # it, and publishing on 0.0.0.0 would expose the dashboard over plain HTTP.
+    ports:
+      - "127.0.0.1:3000:3000"
+    restart: unless-stopped
+    read_only: true
+    tmpfs: ["/tmp"]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]

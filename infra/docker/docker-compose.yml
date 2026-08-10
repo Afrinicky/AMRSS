@@ -1,3 +1,14 @@
+# Local stack for the surveillance platform.
+#
+#   docker compose -f infra/docker/docker-compose.yml up --build
+#
+# NOT a production deployment. Postgres carries a development password, the API
+# runs with development settings, and nothing terminates TLS. For production see
+# docker-compose.prod.yml beside this file and docs/DEPLOYMENT.md.
+#
+# Build contexts are the repository root because the API depends on
+# packages/clsi, which sits outside apps/api (ADR-0005).
+
 name: amrss
 
 services:
@@ -7,8 +18,10 @@ services:
       POSTGRES_USER: amrss
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-amrss_dev}
       POSTGRES_DB: amrss
+    # Loopback only: a surveillance database should not be reachable from the
+    # host's other interfaces even in development.
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -19,29 +32,32 @@ services:
 
   api:
     build:
-      context: ../../apps/api
-      dockerfile: ../../infra/docker/api.Dockerfile
+      context: ../..
+      dockerfile: infra/docker/api.Dockerfile
     environment:
       AMRSS_DATABASE_URL: postgresql+psycopg://amrss:${POSTGRES_PASSWORD:-amrss_dev}@postgres:5432/amrss
       AMRSS_JWT_SECRET: ${AMRSS_JWT_SECRET:-dev-secret-not-for-production}
-      AMRSS_ENVIRONMENT: development
+      AMRSS_ENVIRONMENT: ${AMRSS_ENVIRONMENT:-development}
+      AMRSS_CORS_ORIGINS: '["http://localhost:3000"]'
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     depends_on:
       postgres:
         condition: service_healthy
 
   web:
     build:
-      context: ../../apps/web
-      dockerfile: ../../infra/docker/web.Dockerfile
+      context: ../..
+      dockerfile: infra/docker/web.Dockerfile
     environment:
+      # Server-side only. The dashboard never hands the API address to the
+      # browser, so this is a container-network address, not a public one.
       AMRSS_API_URL: http://api:8000
-      NEXT_PUBLIC_AMRSS_API_URL: http://localhost:8000
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     depends_on:
-      - api
+      api:
+        condition: service_healthy
 
 volumes:
   pgdata:
