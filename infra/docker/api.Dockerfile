@@ -32,9 +32,18 @@ COPY apps/api/amrss ./apps/api/amrss
 # `amrss-clsi` requirement finds it already present, rather than depending on
 # uv's handling of a path source during a bare `pip install`. It also keeps the
 # engine on its own layer.
+#
+# --no-sources is what makes the image work at all. apps/api declares
+# `[tool.uv.sources] amrss-clsi = { path = "../../packages/clsi", editable = true }`
+# for local development, and honouring it here installs a .pth file pointing at
+# /src — a path this stage discards. The container then migrated fine, because
+# Alembic does not import the engine, and died the moment uvicorn loaded the
+# app. Ignoring the source declaration copies the package into site-packages
+# instead, so nothing in the image depends on a build-time path.
 RUN uv venv /opt/venv \
-    && uv pip install --python /opt/venv/bin/python --no-cache ./packages/clsi \
-    && uv pip install --python /opt/venv/bin/python --no-cache ./apps/api
+    && uv pip install --python /opt/venv/bin/python --no-cache --no-sources ./packages/clsi \
+    && uv pip install --python /opt/venv/bin/python --no-cache --no-sources ./apps/api \
+    && test ! -e /opt/venv/lib/python3.11/site-packages/__editable__.amrss_clsi-0.1.0.pth
 
 # ---------------------------------------------------------------------------
 FROM python:3.11-slim AS runtime
