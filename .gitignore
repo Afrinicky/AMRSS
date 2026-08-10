@@ -25,6 +25,9 @@ venv/
 htmlcov/
 dist/
 build/
+# The uploader's packaging resources are source, not output: electron-builder
+# reads its application icon from here.
+!apps/uploader/build/
 
 # Local data - may contain patient information or licensed CLSI tables
 # Real breakpoint tables are the laboratory's licensed property and are never

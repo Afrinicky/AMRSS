@@ -182,18 +182,38 @@ an antibiogram.
 ## 7. Distribute the uploader
 
 The uploader is an Electron application that reads WHONET SQLite exports,
-de-identifies them at the facility and submits only the result. It is currently
-built and run from source:
+de-identifies them at the facility and submits only the result.
 
 ```bash
-cd apps/uploader && npm ci && npm run dev
+cd apps/uploader
+npm ci
+npm run dist        # installers for the host platform, into release/
 ```
 
-**Packaging it into signed installers is not done.** For a pilot with a handful
-of laboratories, running from source under supervision is workable. Beyond that
-it needs `electron-builder`, a code-signing certificate for each platform, and
-an update channel — unsigned installers are exactly what facility IT will refuse,
-and rightly.
+`npm run dist` produces an NSIS installer on Windows, a DMG on macOS, and an
+AppImage and .deb on Linux. Build each platform on that platform — electron-builder
+cannot cross-compile the native SQLite module, which is rebuilt against
+Electron's ABI rather than Node's. The compiled tests and their WHONET fixtures
+are excluded from the package; they have no business on a clinical workstation.
+
+**Sign the builds before distributing them.** electron-builder signs
+automatically when the credentials are in the environment and produces an
+unsigned artefact when they are not — so an unsigned build means a missing
+certificate, never a silent misconfiguration:
+
+| Platform | Environment |
+|---|---|
+| Windows | `WIN_CSC_LINK` (path or base64 of the .pfx), `WIN_CSC_KEY_PASSWORD` |
+| macOS | `CSC_LINK`, `CSC_KEY_PASSWORD`, plus `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID` for notarisation |
+
+An unsigned installer is one facility IT should refuse, and telling them to
+click through the warning is the worst security advice this project could give.
+Certificates are the one part of this that has to be bought rather than built.
+
+No auto-update channel is configured, deliberately. Software that de-identifies
+patient data should not replace itself silently on a clinical workstation;
+upgrades are coordinated with the facility, and `AMRSS_MINIMUM_UPLOADER_VERSION`
+is what refuses genuinely stale clients at the ingestion API.
 
 Before it reaches any real laboratory, confirm the WHONET column profile against
 that laboratory's own export. The default profile in
@@ -238,7 +258,8 @@ Stated plainly, because a deployment plan that hides them is worse than no plan.
   password is reset by an administrator who can confirm who is asking. That
   needs an administrator to be reachable, which is an operational commitment,
   not a technical one.
-- **Uploader installers are not built or signed** (§7).
+- **Uploader installers are built but unsigned** until you supply certificates
+  (§7). Nothing in the repository can fix that for you.
 - **Rate limiting is per-process**, so running more than one API worker weakens
   it. Back it with Redis before scaling out.
 - **The repository root still carries a second `Dockerfile` and

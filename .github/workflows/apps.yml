@@ -125,6 +125,37 @@ jobs:
       # linkage-key irreversibility and the allow-list output shape.
       - run: npm test
 
+      # Package it. The native SQLite module is rebuilt against Electron's ABI
+      # here, and a mismatch does not surface until the packaged application
+      # opens a database — which, without this step, would be on a laboratory
+      # workstation after installation.
+      - name: Package
+        run: npm run package
+
+      - name: Verify the packaged native module loads
+        run: |
+          cat > /tmp/probe.js <<'PROBE'
+          const path = require("path");
+          const Database = require(path.join(process.argv[2], "resources/app.asar/node_modules/better-sqlite3"));
+          const db = new Database(":memory:");
+          db.exec("create table t(x int); insert into t values (42)");
+          if (db.prepare("select x from t").get().x !== 42) process.exit(1);
+          console.log("packaged native module OK");
+          PROBE
+          ELECTRON_RUN_AS_NODE=1 ./release/linux-unpacked/amrss-uploader /tmp/probe.js "$PWD/release/linux-unpacked"
+
+      - name: Confirm no test fixtures were packaged
+        run: |
+          # The WHONET fixtures exercise de-identification against realistic
+          # patient-shaped records. They have no business on a clinical
+          # workstation, so their absence from the package is checked, not
+          # assumed.
+          npx asar list release/linux-unpacked/resources/app.asar > /tmp/packaged.txt
+          if grep -q "/dist/test" /tmp/packaged.txt; then
+            echo "Test files were packaged:"; grep "/dist/test" /tmp/packaged.txt; exit 1
+          fi
+          echo "no test files in the package"
+
   web:
     name: Dashboard — types and build
     runs-on: ubuntu-latest
