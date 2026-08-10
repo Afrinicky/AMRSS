@@ -1,5 +1,6 @@
 from functools import lru_cache
 from typing import Literal
+from urllib.parse import parse_qsl, urlsplit
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -82,6 +83,62 @@ class Settings(BaseSettings):
             host in self.database_url
             for host in (".neon.tech", ".supabase.co", ".rds.amazonaws.com", ".render.com")
         )
+
+
+def connection_url_problems(url: str, label: str) -> list[str]:
+    """Ways a database URL is malformed before anything tries to connect.
+
+    Unlike :func:`production_problems`, these are checked in *every*
+    environment, because a URL that cannot be parsed is not a policy question.
+
+    This exists because of a real deployment. Neon hands out a string that
+    already carries its own query parameters::
+
+        postgresql://u:p@ep-xxx.aws.neon.tech/db?sslmode=require&channel_binding=require
+
+    and docs/DEPLOYMENT.md used to say "append ``?sslmode=require``". Appending
+    a second ``?`` does not add a parameter — it lands inside the value of the
+    last one, so ``channel_binding`` became ``require?sslmode=require``. The
+    container then died deep inside psycopg with ``invalid channel_binding
+    value``, which says nothing about where the mistake was or how to fix it.
+
+    The parsing here is deliberately shallow: it looks for the shapes an
+    operator produces by hand, not for every invalid URL. Anything subtler is
+    the driver's job to report.
+    """
+    problems: list[str] = []
+    if not url:
+        return problems
+
+    if url.count("?") > 1:
+        problems.append(
+            f"{label} contains more than one '?'. A query string was appended to a URL "
+            "that already had one, which puts the addition inside the previous "
+            "parameter's value rather than adding a parameter. Join them with '&': "
+            "'...?sslmode=require&channel_binding=require'."
+        )
+    else:
+        # The same mistake, caught by its result rather than its shape — a
+        # value that swallowed a query string.
+        for key, value in parse_qsl(urlsplit(url).query):
+            if "?" in value:
+                problems.append(
+                    f"{label} has the parameter '{key}' set to {value!r}, which has a "
+                    "query string inside it. Separate parameters with '&', not '?'."
+                )
+
+    # psycopg is the only driver installed. A bare postgresql:// URL sends
+    # SQLAlchemy looking for psycopg2 and fails with a missing-module error
+    # that reads like a broken image rather than a mistyped setting.
+    scheme = urlsplit(url).scheme
+    if scheme in {"postgres", "postgresql"}:
+        problems.append(
+            f"{label} uses '{scheme}://', which selects a driver this image does not "
+            "carry. Change the scheme to 'postgresql+psycopg://' — only the scheme; "
+            "leave the rest of the string exactly as your provider gave it."
+        )
+
+    return problems
 
 
 def production_problems(settings: Settings) -> list[str]:
@@ -175,6 +232,20 @@ def production_problems(settings: Settings) -> list[str]:
 @lru_cache
 def get_settings() -> Settings:
     settings = Settings()
+
+    # A malformed URL is wrong everywhere, so this is not gated on the
+    # environment — the deployment that prompted it was running as `staging`,
+    # where the production checks below never ran at all.
+    malformed = connection_url_problems(settings.database_url, "AMRSS_DATABASE_URL")
+    if settings.migration_database_url:
+        malformed += connection_url_problems(
+            settings.migration_database_url, "AMRSS_MIGRATION_DATABASE_URL"
+        )
+    if malformed:
+        raise RuntimeError(
+            "Refusing to start with an unusable database URL:\n  - " + "\n  - ".join(malformed)
+        )
+
     if settings.is_production:
         problems = production_problems(settings)
         if problems:

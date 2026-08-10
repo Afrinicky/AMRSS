@@ -67,13 +67,31 @@ Create a project and a database at neon.tech. From the connection details, take
 | Pooled | The API's own connections | `-pooler` |
 | Direct | Migrations | no `-pooler` |
 
-Rewrite each for this project's driver and require TLS — change `postgresql://`
-to `postgresql+psycopg://` and append `?sslmode=require`:
+**Change the scheme, and change nothing else.** Neon hands you a string
+shaped like this, already carrying its own TLS parameters:
 
 ```
-postgresql+psycopg://USER:PASSWORD@ep-xxx-pooler.eu-central-1.aws.neon.tech/amrss?sslmode=require
-postgresql+psycopg://USER:PASSWORD@ep-xxx.eu-central-1.aws.neon.tech/amrss?sslmode=require
+postgresql://USER:PASSWORD@ep-xxx-pooler.eu-central-1.aws.neon.tech/amrss?sslmode=require&channel_binding=require
 ```
+
+Replace `postgresql://` with `postgresql+psycopg://`, which selects the driver
+this image actually carries, and leave the rest exactly as Neon gave it:
+
+```
+postgresql+psycopg://USER:PASSWORD@ep-xxx-pooler.eu-central-1.aws.neon.tech/amrss?sslmode=require&channel_binding=require
+postgresql+psycopg://USER:PASSWORD@ep-xxx.eu-central-1.aws.neon.tech/amrss?sslmode=require&channel_binding=require
+```
+
+**Do not append `?sslmode=require`.** It is already there, and a second `?`
+does not add a parameter — it lands *inside the value of the last one*, so
+`channel_binding` becomes `require?sslmode=require` and the container dies with
+`invalid channel_binding value`. An earlier version of this page said to append
+it, and that is exactly what happened. If your provider's string genuinely has
+no `sslmode`, add it with `&` when there are already parameters and `?` only
+when there are none.
+
+The API refuses to start on either mistake now, and names it, rather than
+letting the driver fail with something that reads like a broken image.
 
 Migrations need the direct endpoint because Neon's pooler runs pgbouncer in
 transaction mode, which cannot execute the session-level statements some DDL
