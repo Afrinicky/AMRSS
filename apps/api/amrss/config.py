@@ -44,6 +44,23 @@ class Settings(BaseSettings):
     # Confirmed as a performance requirement at build time; SDD 13.8.
     analytics_refresh_target_minutes: int = 15
 
+    #: What to load into an empty database when the container starts.
+    #:
+    #: Exists because the free tiers this project is demonstrated on give no
+    #: shell: there is no way to run `python -m amrss.seed` after a deploy, so a
+    #: deployment that cannot seed itself cannot be used at all.
+    #:
+    #: - ``none``       load nothing. The default, and correct for production,
+    #:                  where reference data is loaded deliberately and once.
+    #: - ``reference``  the organism, antimicrobial and specimen dictionaries
+    #:                  and the methodology versions. Safe anywhere.
+    #: - ``demo``       the above plus a synthetic regional block with
+    #:                  known-password accounts. Refused in production.
+    #:
+    #: Every mode is idempotent, so a container that restarts re-runs it
+    #: harmlessly — which matters on a free tier that sleeps when idle.
+    bootstrap: Literal["none", "reference", "demo"] = "none"
+
     @property
     def is_production(self) -> bool:
         return self.environment == "production"
