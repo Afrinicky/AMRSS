@@ -1,0 +1,74 @@
+# Packaging for the offline uploader.
+#
+#   npm run package   # unpacked directory, for a quick local check
+#   npm run dist      # installers for the host platform
+#
+# This runs inside a laboratory, on a workstation the laboratory's own IT
+# manages, and it is the only part of AMRSS that ever touches identifiable
+# patient data. Two consequences shape everything below: the build must be
+# reproducible from this repository, and it must be signable — an unsigned
+# installer is one facility IT should refuse, and telling them to click through
+# the warning would be the worst security advice this project could give.
+
+appId: org.amrss.uploader
+productName: AMRSS Uploader
+copyright: AMRSS
+
+directories:
+  output: release
+  buildResources: build
+
+# Ship the compiled application and its runtime dependency, nothing else. The
+# compiled tests would otherwise travel to every laboratory, and the WHONET
+# fixtures they exercise have no business on a clinical workstation.
+files:
+  - dist/main/**/*
+  - dist/core/**/*
+  - dist/renderer/**/*
+  - package.json
+  - "!dist/test/**"
+  - "!**/*.map"
+
+# better-sqlite3 is a native module and must be rebuilt against Electron's ABI
+# rather than Node's. Without this the packaged application starts and then
+# fails on the first database read — after the laboratory has installed it.
+npmRebuild: true
+
+asar: true
+# The native module cannot be executed from inside an asar archive.
+asarUnpack:
+  - "**/node_modules/better-sqlite3/**"
+
+win:
+  target: [nsis]
+  # Set WIN_CSC_LINK and WIN_CSC_KEY_PASSWORD in the build environment to sign.
+  # electron-builder signs automatically when they are present, and produces an
+  # unsigned build when they are not — so an unsigned artefact is a missing
+  # certificate, never a silent misconfiguration.
+  signtoolOptions:
+    publisherName: null
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  # A laboratory workstation is often shared. A per-user install keeps the
+  # uploader's salt file and configuration under the account that owns them.
+
+mac:
+  target: [dmg]
+  category: public.app-category.medical
+  # Notarisation needs APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD and APPLE_TEAM_ID.
+  hardenedRuntime: true
+  gatekeeperAssess: false
+
+linux:
+  target: [AppImage, deb]
+  category: Science
+  maintainer: AMRSS
+
+# No auto-update channel is configured. A clinical workstation should not
+# silently replace software that de-identifies patient data; upgrades are a
+# deliberate act, coordinated with the facility, and the API's
+# minimum_uploader_version is what refuses genuinely stale clients.
+publish: null

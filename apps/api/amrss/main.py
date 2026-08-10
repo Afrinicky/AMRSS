@@ -1,6 +1,6 @@
 from collections.abc import Awaitable, Callable
 
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 
 from amrss import __version__
@@ -12,6 +12,7 @@ from amrss.api.routers import (
     quality,
     reports,
     surveillance,
+    users,
 )
 from amrss.config import get_settings
 
@@ -61,10 +62,42 @@ def create_app() -> FastAPI:
     app.include_router(admin.router, prefix="/api/v1")
     app.include_router(quality.router, prefix="/api/v1")
     app.include_router(reports.router, prefix="/api/v1")
+    app.include_router(users.router, prefix="/api/v1")
 
     @app.get("/health", tags=["operations"])
     def health() -> dict[str, str]:
+        """Liveness: is this process running?
+
+        Deliberately touches nothing. A liveness probe that fails when the
+        database is briefly unavailable makes an orchestrator kill and restart
+        a perfectly healthy process, turning a short outage into a crash loop.
+        """
         return {"status": "ok", "version": __version__}
+
+    @app.get("/health/ready", tags=["operations"])
+    def readiness(response: Response) -> dict[str, str]:
+        """Readiness: can this process actually serve a request?
+
+        Every endpoint that matters reads the database, so an instance that
+        cannot is not ready — and the plain liveness check above would call it
+        healthy, which is how a load balancer keeps sending traffic to an
+        instance that answers 500 to all of it.
+        """
+        from sqlalchemy import text
+
+        from amrss.db import SessionLocal
+
+        try:
+            with SessionLocal() as db:
+                db.execute(text("select 1"))
+        except Exception as exc:  # the reason belongs in the response
+            response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+            return {
+                "status": "unavailable",
+                "version": __version__,
+                "detail": f"database unreachable: {type(exc).__name__}",
+            }
+        return {"status": "ready", "version": __version__}
 
     return app
 

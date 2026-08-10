@@ -1,11 +1,15 @@
 import uuid
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from amrss.models.base import Base, TimestampMixin, pg_enum, pk_column
 from amrss.models.enums import Role
+
+if TYPE_CHECKING:
+    from amrss.models.region import Facility
 
 
 class AppUser(Base, TimestampMixin):
@@ -33,3 +37,12 @@ class AppUser(Base, TimestampMixin):
     failed_login_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     password_changed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    #: Set when an administrator resets a password, cleared when the user
+    #: chooses their own. Between those two points the password is known to
+    #: someone other than its owner, so an action taken under it is not
+    #: attributable — which is the whole basis of the audit trail.
+    must_change_password: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+    #: Read-only convenience for naming a user's facility in the console.
+    #: Lazy by default: most queries touching users never need it.
+    facility: Mapped["Facility | None"] = relationship(viewonly=True)

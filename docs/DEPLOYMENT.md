@@ -2,104 +2,154 @@
 
 Getting the surveillance platform and the offline uploader into service.
 
-The platform is two deployed pieces and one distributed piece:
+The deployment described here is **Vercel** for the dashboard, **Neon** for
+PostgreSQL, and **Fly.io** for the API. Only the third is a choice rather than a
+constraint: the API is an ordinary container and runs unchanged on Render,
+Railway or a virtual machine — `infra/docker/docker-compose.prod.yml` is that
+path. Substitute freely.
 
-| Piece | Where it runs | How it ships |
+| Piece | Where it runs | Why |
 |---|---|---|
-| Surveillance API | Your server or cloud host | Container image |
-| Dashboard | Beside the API, behind the same reverse proxy | Container image |
-| Offline uploader | A workstation inside each participating laboratory | Installer, per platform |
+| Dashboard | Vercel | It is a Next.js app; this is what Vercel is for |
+| Surveillance API | Fly.io, region `jnb` | A container, close to the laboratories, with no request-body limit |
+| Database | Neon | Managed PostgreSQL 16, with backups you did not have to build |
+| Offline uploader | A workstation inside each laboratory | It must never leave the facility |
+
+**The API cannot go on Vercel.** The uploader submits one gzipped batch of up to
+64 MB, and Vercel's serverless functions cap request bodies at roughly 4.5 MB.
+Splitting a batch into chunks would mean changing the component that handles
+identifiable patient data to satisfy a hosting limit, which is the wrong way
+round.
 
 The uploader is the only part that touches identifiable data, and it never
 leaves the facility. See `docs/security.md` for why that boundary exists.
 
----
-
-## 1. What you need before starting
-
-- A host with Docker Engine and Compose **v2.24 or later** (the production
-  overlay uses the `!override` merge tag).
-- PostgreSQL 16. The compose file runs one for you; a managed instance is
-  better for anything real, because it gives you backups you did not have to
-  build.
-- A DNS name and a TLS certificate for the dashboard.
-- A reverse proxy — Caddy, nginx, or your cloud's load balancer.
-
----
-
-## 2. Configure
-
-```bash
-cp infra/docker/.env.example infra/docker/.env
+```
+  Laboratory workstation                Vercel                    Fly.io           Neon
+  ┌──────────────────┐            ┌──────────────┐          ┌─────────────┐   ┌──────────┐
+  │ Uploader         │──batch────────────────────────────▶  │ FastAPI     │──▶│ Postgres │
+  │ (de-identifies)  │            │              │          │             │   │          │
+  └──────────────────┘            │  Dashboard   │──server──▶             │   └──────────┘
+                                  │  (Next.js)   │   side   └─────────────┘
+   Browser ─────────────────────▶ └──────────────┘
 ```
 
-Fill in every value. Generate the secrets rather than inventing them:
-
-```bash
-docker compose -f infra/docker/docker-compose.yml run --rm api \
-  python -m amrss.cli gen-secret
-```
-
-`AMRSS_CORS_ORIGINS` must be the dashboard's public origin as a JSON array —
-`["https://amrss.example.org"]`. The API rejects browser requests from anywhere
-else, so getting this wrong looks like a dashboard that cannot sign in.
-
-Check the configuration before serving traffic:
-
-```bash
-docker compose -f infra/docker/docker-compose.yml \
-               -f infra/docker/docker-compose.prod.yml \
-  run --rm api python -m amrss.cli check-config
-```
-
-The API refuses to start in production while `AMRSS_JWT_SECRET` is the
-development default, so a missed secret fails loudly rather than shipping a
-system whose sessions anyone can forge.
+The browser talks only to Vercel. The session lives in an httpOnly cookie there,
+and the dashboard calls the API from its own server, so no API address and no
+token ever reaches the browser.
 
 ---
 
-## 3. Start
+## 1. Create the database
 
-```bash
-docker compose -f infra/docker/docker-compose.yml \
-               -f infra/docker/docker-compose.prod.yml up -d --build
+In Neon, create a project and a database. Take **both** connection strings from
+the dashboard — they are different hosts and both are needed:
+
+| Neon endpoint | Used for | Looks like |
+|---|---|---|
+| Pooled | The API's own connections | `...-pooler.<region>.aws.neon.tech` |
+| Direct | Migrations | `...<region>.aws.neon.tech` |
+
+Migrations need the direct one. Neon's pooler runs pgbouncer in transaction
+mode, which cannot execute the session-level statements some DDL requires —
+this project's own `ALTER TYPE ... ADD VALUE` migration is one, and it fails
+halfway through a release rather than at the start.
+
+Rewrite both for the driver this project uses, and require TLS:
+
+```
+postgresql+psycopg://USER:PASSWORD@ep-xxx-pooler.eu-central-1.aws.neon.tech/amrss?sslmode=require
+postgresql+psycopg://USER:PASSWORD@ep-xxx.eu-central-1.aws.neon.tech/amrss?sslmode=require
 ```
 
-Migrations run as the API container starts. Alembic is idempotent, so a restart
-finds nothing to apply, and a container can never serve an image against a
-schema older than the code inside it.
+`check-config` refuses a hosted database URL without `sslmode`, and refuses a
+deployment that points migrations at the pooler.
 
-Reference data — the organism, antimicrobial and specimen dictionaries, and the
-provisional methodology versions — is loaded separately:
+---
+
+## 2. Deploy the API
 
 ```bash
-docker compose ... exec api python -m amrss.seed
+fly launch --no-deploy --copy-config --config infra/fly/fly.toml
+
+fly secrets set \
+  AMRSS_DATABASE_URL='postgresql+psycopg://...-pooler.../amrss?sslmode=require' \
+  AMRSS_MIGRATION_DATABASE_URL='postgresql+psycopg://.../amrss?sslmode=require' \
+  AMRSS_JWT_SECRET="$(python -m amrss.cli gen-secret)"
+
+fly deploy --config infra/fly/fly.toml --dockerfile infra/docker/api.Dockerfile
 ```
 
-In production this loads the dictionaries only. The demo block, its synthetic
+Migrations run as the container starts, so an instance can never serve against a
+schema older than the code inside it. Alembic is idempotent; a restart finds
+nothing to apply.
+
+Confirm it before going further — `/health` says the process is up, `/health/ready`
+says it can reach Neon, and only the second one is a real answer:
+
+```bash
+curl https://amrss-api.fly.dev/health/ready     # {"status":"ready", ...}
+fly ssh console -C "python -m amrss.cli check-config"
+```
+
+`AMRSS_ENVIRONMENT=production` makes the API refuse to start on a development
+signing key, a key under 32 characters, a database URL still pointing at the
+development instance, a hosted database without TLS, or a leftover localhost
+CORS origin. A missed secret fails loudly rather than shipping a system whose
+sessions anyone can forge.
+
+Then load the dictionaries — organisms, antimicrobials, specimen types and the
+provisional methodology versions:
+
+```bash
+fly ssh console -C "python -m amrss.seed"
+```
+
+In production this loads reference data only. The demo block, its synthetic
 isolates and its known-password accounts refuse to load when
 `AMRSS_ENVIRONMENT=production`.
 
 ---
 
-## 4. Terminate TLS
+## 3. Deploy the dashboard
 
-Neither container speaks TLS. Both bind to loopback and expect a proxy in front.
+Import the repository into Vercel and set **Root Directory** to `apps/web`.
+Vercel detects Next.js; `apps/web/vercel.json` supplies the region and the
+security headers.
 
-```caddy
-amrss.example.org {
-    reverse_proxy 127.0.0.1:3000
-}
+One environment variable, for Production and Preview both:
+
+```
+AMRSS_API_URL = https://amrss-api.fly.dev
 ```
 
-The API is **not** published in production: only the dashboard reaches it, over
-the container network. Nothing in the browser ever holds an API address or a
-token — the dashboard keeps the session in an httpOnly cookie and calls the API
-server-side.
+It is read per request on the server, never inlined into the bundle —
+`next.config.mjs` deliberately declares no `env:` block, because that setting
+bakes the build-time value into the image and made the runtime variable inert
+once already.
 
-The API runs with `--proxy-headers`. Set `--forwarded-allow-ips` to your proxy's
-address if you change the CMD; without it, every request appears to come from
-the proxy and per-client rate limiting becomes a single global bucket.
+There is no `NEXT_PUBLIC_` variable and there should never be one: the API
+address is not the browser's business.
+
+---
+
+## 4. Close the loop between them
+
+Two settings have to agree, and getting either wrong looks like a broken
+dashboard rather than a misconfiguration:
+
+- **`AMRSS_API_URL` on Vercel** must be the API's public HTTPS origin, with no
+  trailing slash.
+- **`AMRSS_CORS_ORIGINS` on the API** should stay **empty**. The dashboard calls
+  the API from Vercel's servers, so no browser origin needs trusting, and an
+  empty list is the tighter configuration. Set it only if something else calls
+  the API from a browser.
+
+The API is publicly reachable, because Vercel's functions and the laboratories'
+uploaders both need to reach it and neither is on a private network with Fly.
+That is fine — every endpoint but `/health` and sign-in requires a token — but
+it does mean rate limiting and the account lockout are load-bearing rather than
+defence in depth.
 
 ---
 
@@ -109,22 +159,38 @@ A new deployment has no accounts. Nobody can sign in until you make one, and
 there is no default account to delete afterwards — that is deliberate.
 
 ```bash
-docker compose ... exec api python -m amrss.cli create-block \
-    AHA "Ahafo" "Ahafo Regional AMR Committee" \
-    --district "Asunafo North" --district "Asunafo South"
-
-docker compose ... exec api python -m amrss.cli create-user \
-    amr.lead@example.org "Regional AMR Lead" regional_amr_administrator --block AHA
+fly ssh console -C "python -m amrss.cli create-block AHA 'Ahafo' 'Ahafo Regional AMR Committee'"
+fly ssh console --pty -C "python -m amrss.cli create-user admin@example.org 'Platform Administrator' system_administrator"
 ```
 
-The password is prompted for, never passed as an argument, so it does not reach
-your shell history or the process list. Both commands are audited with the
-operating-system account as the actor, so a user created out of band is not
-invisible in the trail.
+Use `--pty` for `create-user`: the password is prompted for rather than passed
+as an argument, so it never reaches your shell history or the process list. Both
+commands are audited with the operating-system account as the actor, so an
+account created out of band is not invisible in the trail.
 
-Everything after this is done in the console: districts, laboratories, their
-enrollment paperwork and their lifecycle all live under **Administration →
-Facility enrollment**. AMRSS ships no facility roster.
+Everything after this is done in the console. Districts, laboratories and their
+enrollment lifecycle live under **Administration → Facility enrollment**;
+accounts live under **Administration → Accounts**. AMRSS ships no facility
+roster and no accounts.
+
+Create one **system administrator** and do the rest from the console. Note who
+holds what:
+
+| Role | Creates accounts | Sees surveillance data |
+|---|---|---|
+| System administrator | Every account, platform-wide | **No** — deliberately |
+| Facility administrator | Their own laboratory's staff only | Their own facility |
+| Regional AMR administrator | No | Yes, across the block |
+
+That first row is the separation SDD 7 is built on: whoever hands out access
+does not also read patient-derived figures. Your first account should therefore
+be a system administrator, and the regional AMR lead is an account that
+administrator then creates.
+
+An administrator who sets a password necessarily knows it, so the account is
+required to change it at first sign-in and says so on every page until it does.
+Deliver initial passwords in person or by another channel — not in the same
+message as the email address.
 
 ---
 
@@ -162,18 +228,38 @@ an antibiogram.
 ## 7. Distribute the uploader
 
 The uploader is an Electron application that reads WHONET SQLite exports,
-de-identifies them at the facility and submits only the result. It is currently
-built and run from source:
+de-identifies them at the facility and submits only the result.
 
 ```bash
-cd apps/uploader && npm ci && npm run dev
+cd apps/uploader
+npm ci
+npm run dist        # installers for the host platform, into release/
 ```
 
-**Packaging it into signed installers is not done.** For a pilot with a handful
-of laboratories, running from source under supervision is workable. Beyond that
-it needs `electron-builder`, a code-signing certificate for each platform, and
-an update channel — unsigned installers are exactly what facility IT will refuse,
-and rightly.
+`npm run dist` produces an NSIS installer on Windows, a DMG on macOS, and an
+AppImage and .deb on Linux. Build each platform on that platform — electron-builder
+cannot cross-compile the native SQLite module, which is rebuilt against
+Electron's ABI rather than Node's. The compiled tests and their WHONET fixtures
+are excluded from the package; they have no business on a clinical workstation.
+
+**Sign the builds before distributing them.** electron-builder signs
+automatically when the credentials are in the environment and produces an
+unsigned artefact when they are not — so an unsigned build means a missing
+certificate, never a silent misconfiguration:
+
+| Platform | Environment |
+|---|---|
+| Windows | `WIN_CSC_LINK` (path or base64 of the .pfx), `WIN_CSC_KEY_PASSWORD` |
+| macOS | `CSC_LINK`, `CSC_KEY_PASSWORD`, plus `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID` for notarisation |
+
+An unsigned installer is one facility IT should refuse, and telling them to
+click through the warning is the worst security advice this project could give.
+Certificates are the one part of this that has to be bought rather than built.
+
+No auto-update channel is configured, deliberately. Software that de-identifies
+patient data should not replace itself silently on a clinical workstation;
+upgrades are coordinated with the facility, and `AMRSS_MINIMUM_UPLOADER_VERSION`
+is what refuses genuinely stale clients at the ingestion API.
 
 Before it reaches any real laboratory, confirm the WHONET column profile against
 that laboratory's own export. The default profile in
@@ -193,8 +279,10 @@ but it needs an operational backup routine.
 ## 8. Before you call it live
 
 - [ ] `check-config` passes with `AMRSS_ENVIRONMENT=production`
-- [ ] HSTS confirmed on a real response from the proxy
-- [ ] Database backups running **and a restore tested**, not just scheduled
+- [ ] `/health/ready` answers `ready`, not just `/health` answering `ok`
+- [ ] HSTS confirmed on a real response from the dashboard
+- [ ] Neon point-in-time restore **tested**, not just enabled — a backup nobody
+      has restored is a belief, not a backup
 - [ ] The audit trail exported to append-only storage on a schedule
 - [ ] Breakpoint table reviewed against the printed tables before it is relied on
 - [ ] Provisional methodology values reviewed and approved (`docs/STANDARDS.md`);
@@ -209,17 +297,43 @@ but it needs an operational backup routine.
 
 Stated plainly, because a deployment plan that hides them is worse than no plan.
 
-- **No user management in the console.** Accounts can only be created from the
-  command line, and there is no way to deactivate one through the interface.
-  `MANAGE_FACILITY_USERS` exists as a permission with nothing implementing it.
-  For more than a handful of users this needs building.
-- **No password reset.** A user who forgets their password needs an
-  administrator with shell access.
-- **No MFA**, which `docs/security.md` lists as a deployment expectation.
-- **Uploader installers are not built or signed** (§7).
-- **Rate limiting is per-process**, so running more than one API worker weakens
-  it. Back it with Redis before scaling out.
+- **No MFA**, which `docs/security.md` lists as a deployment expectation. Until
+  it exists, a stolen password is a stolen session; keep the administrator
+  accounts few and the password floor high.
+- **No self-service password recovery.** By design rather than omission — AMRSS
+  holds no email address it could send a reset link to, and sending one would
+  put a credential into a mailbox this system does not control. A forgotten
+  password is reset by an administrator who can confirm who is asking. That
+  needs an administrator to be reachable, which is an operational commitment,
+  not a technical one.
+- **Uploader installers are built but unsigned** until you supply certificates
+  (§7). Nothing in the repository can fix that for you.
+- **Rate limiting is per-process**, so it weakens as soon as more than one API
+  machine runs. `fly.toml` keeps a single machine for that reason; back the
+  limiter with Redis before scaling out, or the limit multiplies by the machine
+  count.
+- **Scale-to-zero costs the first laboratory of the day a cold start**, and the
+  container runs migrations on the way up. Both are seconds, and an uploader
+  submitting a batch can absorb them — but if that ever stops being true, set
+  `min_machines_running = 1`.
 - **The repository root still carries a second `Dockerfile` and
   `docker-compose.yml`** which build the laboratory service under `src/`, not
-  this platform. Use the files under `infra/docker/` for the surveillance
+  this platform. Use `infra/fly/` or `infra/docker/` for the surveillance
   platform.
+
+---
+
+## Running it somewhere else
+
+Nothing above is load-bearing except the database URLs and
+`AMRSS_API_URL`. The API image is an ordinary container:
+
+- **Render or Railway** — point them at `infra/docker/api.Dockerfile` with the
+  repository root as build context, and set the same secrets.
+- **A virtual machine** — `infra/docker/docker-compose.yml` plus
+  `docker-compose.prod.yml` runs the API, the dashboard and a local PostgreSQL
+  behind your own reverse proxy. Drop the `postgres` service and point
+  `AMRSS_DATABASE_URL` at Neon to keep the managed database.
+
+The one constraint that does not move: whatever hosts the API must accept a
+64 MB request body.

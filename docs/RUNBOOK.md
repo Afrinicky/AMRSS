@@ -116,3 +116,7 @@ Migrations are reviewed as migrations and excluded from lint formatting.
    defect, but it does need an operational backup routine.
 4. **Set `AMRSS_JWT_SECRET`.** The API refuses to start in production with the
    development default.
+5. **Create at least two accounts that can manage users.** The platform refuses
+   to let the last one be deactivated or demoted, but a single administrator who
+   is unreachable is still a single point of failure — a forgotten password then
+   needs shell access to the database.

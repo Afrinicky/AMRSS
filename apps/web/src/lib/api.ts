@@ -59,6 +59,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     throw new ApiError(response.status, detail);
   }
 
+  // A 204 carries no body, and calling .json() on one throws. The password
+  // change is the first endpoint here to answer that way, and every caller of
+  // it failed with a parse error that read as "the password could not be
+  // changed" — after the password had in fact been changed.
+  if (response.status === 204 || response.headers.get("content-length") === "0") {
+    return undefined as T;
+  }
+
   return (await response.json()) as T;
 }
 
@@ -165,6 +173,17 @@ export const api = {
       target,
       reason,
     }),
+  users: () => request<AdminUser[]>("/api/v1/admin/users"),
+  userScopeOptions: () => request<UserScopeOptions>("/api/v1/admin/users/options"),
+  createUser: (payload: UserCreate) => send<AdminUser>("/api/v1/admin/users", "POST", payload),
+  updateUser: (userId: string, payload: UserUpdate) =>
+    send<AdminUser>(`/api/v1/admin/users/${userId}`, "PATCH", payload),
+  resetUserPassword: (userId: string, password: string) =>
+    send<AdminUser>(`/api/v1/admin/users/${userId}/reset-password`, "POST", { password }),
+  unlockUser: (userId: string) =>
+    send<AdminUser>(`/api/v1/admin/users/${userId}/unlock`, "POST"),
+  changeOwnPassword: (current_password: string, new_password: string) =>
+    send<void>("/api/v1/auth/change-password", "POST", { current_password, new_password }),
   auditTrail: (params?: Record<string, string | undefined>) =>
     request<AuditPage>(`/api/v1/admin/audit${queryString(params)}`),
   qualityDashboard: (params?: Record<string, string | undefined>) =>
@@ -189,6 +208,8 @@ function queryString(params?: Record<string, string | undefined>): string {
 // ---- Response shapes -------------------------------------------------------
 
 export interface Profile {
+  /** True while the account uses a password an administrator set. */
+  must_change_password?: boolean;
   email: string;
   full_name: string;
   role: string;
@@ -487,6 +508,48 @@ export interface AdminFacility {
   eqa_status: string;
   available_transitions: FacilityStatus[];
   blocking_activation: string[];
+}
+
+export interface AdminUser {
+  id: string;
+  email: string;
+  full_name: string;
+  role: string;
+  facility_id: string | null;
+  facility_name: string | null;
+  regional_block_id: string | null;
+  is_active: boolean;
+  last_login_at: string | null;
+  /** Inside an automatic lockout window. Distinct from inactive, which is a
+   * decision somebody made. */
+  is_locked: boolean;
+  must_change_password: boolean;
+  permissions: string[];
+  /** Whether this caller may act on this account at all. */
+  editable: boolean;
+}
+
+export interface UserScopeOptions {
+  roles: string[];
+  facilities: Array<{ id: string; name: string }>;
+  blocks: Array<{ id: string; name: string }>;
+}
+
+export interface UserCreate {
+  email: string;
+  full_name: string;
+  role: string;
+  password: string;
+  facility_id?: string | null;
+  regional_block_id?: string | null;
+}
+
+export interface UserUpdate {
+  full_name?: string;
+  role?: string;
+  facility_id?: string | null;
+  regional_block_id?: string | null;
+  is_active?: boolean;
 }
 
 export interface DistrictRef {

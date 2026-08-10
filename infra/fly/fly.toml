@@ -1,0 +1,57 @@
+# Surveillance API on Fly.io.
+#
+#   fly launch --no-deploy --copy-config --config infra/fly/fly.toml
+#   fly secrets set AMRSS_DATABASE_URL=... AMRSS_MIGRATION_DATABASE_URL=... AMRSS_JWT_SECRET=...
+#   fly deploy --config infra/fly/fly.toml --dockerfile infra/docker/api.Dockerfile
+#
+# The API is a container, so nothing here is Fly-specific beyond this file: the
+# same image runs on Render, Railway or a VPS. What Fly gives is a region close
+# to the laboratories and no request-body limit — and that second point is why
+# the API is not on Vercel, whose serverless functions cap request bodies at
+# about 4.5 MB while an uploader batch may reach 64 MB.
+
+app = "amrss-api"
+
+# Johannesburg is Fly's closest region to Ghana. The dashboard on Vercel calls
+# this API server-side, so the round trip that matters is Vercel → here, not
+# browser → here; put both near the people using them.
+primary_region = "jnb"
+
+[build]
+  dockerfile = "../docker/api.Dockerfile"
+
+[env]
+  AMRSS_ENVIRONMENT = "production"
+  # Everything else is a secret and set with `fly secrets set`, so it never
+  # appears in this file or in the repository:
+  #   AMRSS_DATABASE_URL            Neon pooled endpoint, ?sslmode=require
+  #   AMRSS_MIGRATION_DATABASE_URL  Neon direct endpoint, ?sslmode=require
+  #   AMRSS_JWT_SECRET              python -m amrss.cli gen-secret
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  # Scale to zero between uploads. A regional surveillance API is idle most of
+  # the day, and a laboratory submitting a batch can absorb a cold start.
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [http_service.concurrency]
+    type = "requests"
+    soft_limit = 40
+    hard_limit = 80
+
+# Readiness, not liveness: an instance that cannot reach Neon answers 500 to
+# every request that matters, and a check that only proved the process was
+# running would keep it in rotation.
+[[http_service.checks]]
+  interval = "30s"
+  timeout = "5s"
+  grace_period = "20s"
+  method = "GET"
+  path = "/health/ready"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
