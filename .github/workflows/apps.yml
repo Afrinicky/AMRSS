@@ -169,6 +169,16 @@ jobs:
       - name: Build the API image
         run: docker build -f infra/docker/api.Dockerfile -t amrss-api:ci .
 
+      # The image must carry everything it imports. A path-based install of the
+      # shared CLSI engine once left a .pth file pointing at the build stage's
+      # source tree: migrations ran, because Alembic does not import the engine,
+      # and the app died the moment uvicorn loaded it. Checked here rather than
+      # inferred from a readiness timeout two minutes later.
+      - name: The image is self-contained
+        run: |
+          docker run --rm amrss-api:ci python -c \
+            "import amrss.main, amrss.cli, amrss_clsi.interpretation; print('imports resolve inside the image')"
+
       # A user-defined network rather than the host's, so the database is
       # reached by service name. That is how a real deployment addresses it —
       # and `@localhost` is one of the things the production configuration check
