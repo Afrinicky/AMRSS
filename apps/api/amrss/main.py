@@ -64,6 +64,26 @@ def create_app() -> FastAPI:
     app.include_router(reports.router, prefix="/api/v1")
     app.include_router(users.router, prefix="/api/v1")
 
+    @app.get("/", tags=["operations"])
+    def root() -> dict[str, str]:
+        """What this is, for whoever opened the address in a browser.
+
+        Exists because the first thing anyone does with a new deployment is
+        paste its URL into a browser, and answering that with a bare 404 makes
+        a working service look like a broken one.
+
+        It names the service and points at the two things worth visiting. It
+        deliberately reports nothing about configuration — not the environment,
+        not the database, not the origins — because this is the one endpoint
+        that answers before anybody has authenticated.
+        """
+        return {
+            "service": "AMRSS Surveillance API",
+            "version": __version__,
+            "documentation": "/docs",
+            "health": "/health/ready",
+        }
+
     @app.get("/health", tags=["operations"])
     def health() -> dict[str, str]:
         """Liveness: is this process running?

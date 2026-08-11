@@ -70,14 +70,19 @@ USER amrss
 # platform sets one, which Render, Fly and Heroku all do.
 EXPOSE 8000
 
-# Readiness, not liveness: an instance that cannot reach the database answers
-# 500 to every request that matters, and a check that only proves the process
-# is running would keep it in the load balancer's rotation.
+# Liveness, deliberately, and for the same reason as infra/render/render.yaml:
+# a probe that queries the database on a timer keeps a metered database awake
+# for as long as the container runs, which on Neon's free plan exhausts a
+# month's compute allowance answering health checks.
+#
+# Reachability is proven once, at start, by the migrations in entrypoint.sh —
+# a container that cannot reach its database never binds a port. Repeating that
+# check every thirty seconds buys nothing here and costs the allowance.
 #
 # The start period covers migrations, which run before the port opens. It does
 # not need to cover seeding, which no longer does.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
-  CMD python -c "import os,urllib.request;urllib.request.urlopen('http://localhost:'+os.environ.get('PORT','8000')+'/health/ready')"
+  CMD python -c "import os,urllib.request;urllib.request.urlopen('http://localhost:'+os.environ.get('PORT','8000')+'/health')"
 
 # The ordering of migrations, seeding and serving is explained in entrypoint.sh,
 # and one deploy failure is the reason it is a script rather than a one-liner.
