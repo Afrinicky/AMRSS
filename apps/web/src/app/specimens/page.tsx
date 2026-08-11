@@ -1,4 +1,5 @@
-import { ClinicalFraming, FreshnessBanner } from "@/components/context-panels";
+import { ClinicalFraming, FreshnessBanner, formatPeriod } from "@/components/context-panels";
+import { FigureDownload } from "@/components/figure-download";
 import { SpecimenDistributionChart } from "@/components/figures";
 import { FilterBar, scopeParams } from "@/components/filter-bar";
 import { BannerFigure, PageHeading, Shell } from "@/components/shell";
@@ -29,16 +30,18 @@ export default async function SpecimensPage({
     date_to?: string;
   }>;
 }) {
-  const profile = await requireProfile();
+  // Independent calls, run concurrently (see antibiogram/page.tsx).
   const params = await searchParams;
-  const scope = await api.scope();
-
-  const explorer = await api.specimenExplorer({
-    ...scopeParams(params),
-    care_setting: params.care_setting,
-    date_from: params.date_from,
-    date_to: params.date_to,
-  });
+  const [profile, scope, explorer] = await Promise.all([
+    requireProfile(),
+    api.scope(),
+    api.specimenExplorer({
+      ...scopeParams(params),
+      care_setting: params.care_setting,
+      date_from: params.date_from,
+      date_to: params.date_to,
+    }),
+  ]);
 
   // Sterility comes from the dictionary, not from matching site names. A growth
   // from blood or CSF carries weight a wound-swab growth does not, and the share
@@ -91,10 +94,31 @@ export default async function SpecimensPage({
             drawn from blood, and neither the antibiogram nor the organism breakdown shows
             that on its own.
           </p>
-          <SpecimenDistributionChart
-            specimens={explorer.specimens}
-            total={explorer.total_isolates}
-          />
+          <FigureDownload
+            title="Specimen distribution"
+            period={formatPeriod(explorer.freshness)}
+            data={{
+              columns: [
+                "Specimen type",
+                "Infection site",
+                "Sterile site",
+                "Isolates (n)",
+                "% of total",
+              ],
+              rows: explorer.specimens.map((specimen) => [
+                specimen.specimen_type.name,
+                specimen.infection_site,
+                specimen.sterile_site ? "yes" : "no",
+                specimen.isolate_count,
+                specimen.percent_of_total.toFixed(1),
+              ]),
+            }}
+          >
+            <SpecimenDistributionChart
+              specimens={explorer.specimens}
+              total={explorer.total_isolates}
+            />
+          </FigureDownload>
         </section>
 
         <p className="rounded-[--radius-card] border border-line bg-surface-tint px-4 py-3 text-xs text-ink-muted">

@@ -45,14 +45,20 @@ export default async function ComparisonPage({
     date_to?: string;
   }>;
 }) {
-  const profile = await requireProfile();
   const params = await searchParams;
+
+  // Profile joins the reference and scope batch — all three are independent.
+  // The comparison call below cannot join them: it needs the dimension, which
+  // depends on the profile's permissions, so it stays sequential after.
+  const [profile, reference, scope] = await Promise.all([
+    requireProfile(),
+    api.reference(),
+    api.scope(),
+  ]);
 
   const canCompareFacilities = profile.permissions.includes("surveillance:view_cross_facility");
   const dimension =
     params.dimension === "facility" && canCompareFacilities ? "facility" : "district";
-
-  const [reference, scope] = await Promise.all([api.reference(), api.scope()]);
   const organisms = [...reference.organisms].sort((a, b) => a.name.localeCompare(b.name));
 
   let comparison: Comparison | null = null;

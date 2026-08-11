@@ -4,6 +4,7 @@ import {
   formatPeriod,
 } from "@/components/context-panels";
 import { AntibioticProfileChart } from "@/components/figures";
+import { FigureDownload } from "@/components/figure-download";
 import { FilterBar, scopeParams } from "@/components/filter-bar";
 import { BannerFigure, PageHeading, Shell } from "@/components/shell";
 import { api } from "@/lib/api";
@@ -31,16 +32,18 @@ export default async function AntibioticsPage({
     date_to?: string;
   }>;
 }) {
-  const profile = await requireProfile();
+  // Independent calls, run concurrently (see antibiogram/page.tsx).
   const params = await searchParams;
-  const scope = await api.scope();
-
-  const explorer = await api.antibioticExplorer({
-    ...scopeParams(params),
-    care_setting: params.care_setting,
-    date_from: params.date_from,
-    date_to: params.date_to,
-  });
+  const [profile, scope, explorer] = await Promise.all([
+    requireProfile(),
+    api.scope(),
+    api.antibioticExplorer({
+      ...scopeParams(params),
+      care_setting: params.care_setting,
+      date_from: params.date_from,
+      date_to: params.date_to,
+    }),
+  ]);
 
   const period = formatPeriod(explorer.freshness);
   const failing = explorer.profiles.filter((entry) => entry.susceptible_percent < 50).length;
@@ -94,7 +97,32 @@ export default async function AntibioticsPage({
             {explorer.pooling_caveat}
           </p>
 
-          <AntibioticProfileChart profiles={explorer.profiles} period={period} />
+          <FigureDownload
+            title="Susceptibility by antimicrobial agent"
+            period={period}
+            data={{
+              columns: [
+                "Antimicrobial",
+                "Susceptible %",
+                "Intermediate %",
+                "Resistant %",
+                "Interpretable (n)",
+                "Tested (n)",
+                "Organisms",
+              ],
+              rows: explorer.profiles.map((entry) => [
+                entry.antibiotic.name,
+                entry.susceptible_percent.toFixed(1),
+                entry.intermediate_percent.toFixed(1),
+                entry.resistant_percent.toFixed(1),
+                entry.interpretable,
+                entry.tested,
+                entry.organism_count,
+              ]),
+            }}
+          >
+            <AntibioticProfileChart profiles={explorer.profiles} period={period} />
+          </FigureDownload>
         </section>
 
         <ClinicalFraming text={explorer.clinical_framing} />

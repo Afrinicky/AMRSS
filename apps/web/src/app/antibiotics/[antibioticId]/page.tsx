@@ -33,19 +33,23 @@ export default async function AntibioticDetailPage({
     date_to?: string;
   }>;
 }) {
-  const profile = await requireProfile();
   const { antibioticId } = await params;
   const query = await searchParams;
-  const scope = await api.scope();
+
+  // Start all three in flight at once; the detail call keeps its own await
+  // inside the try so a 404 still becomes notFound() (see
+  // organisms/[organismId]/page.tsx).
+  const detailPromise = api.antibioticDetail(antibioticId, {
+    ...scopeParams(query),
+    care_setting: query.care_setting,
+    date_from: query.date_from,
+    date_to: query.date_to,
+  });
+  const [profile, scope] = await Promise.all([requireProfile(), api.scope()]);
 
   let detail;
   try {
-    detail = await api.antibioticDetail(antibioticId, {
-      ...scopeParams(query),
-      care_setting: query.care_setting,
-      date_from: query.date_from,
-      date_to: query.date_to,
-    });
+    detail = await detailPromise;
   } catch (caught) {
     if (caught instanceof ApiError && caught.status === 404) notFound();
     throw caught;

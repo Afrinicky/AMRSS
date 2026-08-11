@@ -1,7 +1,9 @@
 import {
   ClinicalFraming,
   FreshnessBanner,
+  formatPeriod,
 } from "@/components/context-panels";
+import { FigureDownload } from "@/components/figure-download";
 import { OrganismSiteChart } from "@/components/figures";
 import { FilterBar, scopeParams } from "@/components/filter-bar";
 import { BannerFigure, PageHeading, Shell } from "@/components/shell";
@@ -32,17 +34,21 @@ export default async function OrganismsPage({
     date_to?: string;
   }>;
 }) {
-  const profile = await requireProfile();
+  // Independent calls, run concurrently: the data query reads from the URL, not
+  // from the profile or scope, so there is no reason to wait for one before
+  // starting the next (see antibiogram/page.tsx).
   const params = await searchParams;
-  const scope = await api.scope();
-
-  const explorer = await api.organismExplorer({
-    ...scopeParams(params),
-    care_setting: params.care_setting,
-    organism_kingdom: params.organism_kingdom,
-    date_from: params.date_from,
-    date_to: params.date_to,
-  });
+  const [profile, scope, explorer] = await Promise.all([
+    requireProfile(),
+    api.scope(),
+    api.organismExplorer({
+      ...scopeParams(params),
+      care_setting: params.care_setting,
+      organism_kingdom: params.organism_kingdom,
+      date_from: params.date_from,
+      date_to: params.date_to,
+    }),
+  ]);
 
   // One scale across both kingdom charts. Left to renormalise per chart, a
   // 38-isolate Candida bar would be drawn the length of a 318-isolate E. coli
@@ -54,6 +60,7 @@ export default async function OrganismsPage({
     ),
   );
   const kingdoms = ["bacteria", "fungi"] as const;
+  const period = formatPeriod(explorer.freshness);
   const KINGDOM_HEADING = {
     bacteria: "Bacterial isolates",
     fungi: "Fungal and yeast isolates",
@@ -113,11 +120,38 @@ export default async function OrganismsPage({
                 site. Bars share a single scale across the whole figure, so a site with a
                 dozen isolates is never drawn the length of one with three hundred.
               </p>
-              <OrganismSiteChart
-                organisms={rows}
-                total={explorer.total_isolates}
-                scaleMax={scaleMax}
-              />
+              <FigureDownload
+                title={`Organisms by infection site — ${KINGDOM_HEADING[kingdom]}`}
+                period={period}
+                data={{
+                  columns: [
+                    "Organism",
+                    "Infection site",
+                    "Isolates (n)",
+                    "% of organism",
+                    "Organism total (n)",
+                    "% of all isolates",
+                  ],
+                  // One row per organism × site — the shape the chart draws, and
+                  // the one a reader can pivot or re-plot.
+                  rows: rows.flatMap((organism) =>
+                    organism.sites.map((site) => [
+                      organism.organism.name,
+                      site.infection_site,
+                      site.isolate_count,
+                      site.percent_of_organism.toFixed(1),
+                      organism.isolate_count,
+                      organism.percent_of_total.toFixed(1),
+                    ]),
+                  ),
+                }}
+              >
+                <OrganismSiteChart
+                  organisms={rows}
+                  total={explorer.total_isolates}
+                  scaleMax={scaleMax}
+                />
+              </FigureDownload>
             </section>
           );
         })}

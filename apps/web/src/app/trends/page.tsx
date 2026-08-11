@@ -1,4 +1,5 @@
-import { ClinicalFraming, FreshnessBanner } from "@/components/context-panels";
+import { ClinicalFraming, FreshnessBanner, formatPeriod } from "@/components/context-panels";
+import { FigureDownload } from "@/components/figure-download";
 import { Field, FilterBar, filterControlClass, scopeParams } from "@/components/filter-bar";
 import { TrendChart } from "@/components/figures";
 import { BannerFigure, PageHeading, Shell } from "@/components/shell";
@@ -42,11 +43,16 @@ export default async function TrendsPage({
     date_to?: string;
   }>;
 }) {
-  const profile = await requireProfile();
+  // These three are independent of each other and of the URL, so they run
+  // together. The trend query below is the one call that genuinely depends on
+  // another — it needs the reference list to know which organism and agent to
+  // chart when the URL names none — so it stays sequential after them.
   const params = await searchParams;
-  const scope = await api.scope();
-
-  const reference = await api.reference();
+  const [profile, scope, reference] = await Promise.all([
+    requireProfile(),
+    api.scope(),
+    api.reference(),
+  ]);
   const organisms = [...reference.organisms].sort((a, b) => a.name.localeCompare(b.name));
   const antibiotics = [...reference.antibiotics].sort((a, b) => a.name.localeCompare(b.name));
 
@@ -198,12 +204,37 @@ export default async function TrendsPage({
                 are shown as gaps rather than joined up — a line drawn through them would assert
                 a continuity the data does not support.
               </p>
-              <TrendChart
-                points={trend.points}
-                minimumIsolates={trend.minimum_isolates}
-                organism={trend.organism.name}
-                antibiotic={trend.antibiotic.name}
-              />
+              <FigureDownload
+                title={`${trend.organism.name} vs ${trend.antibiotic.name} — susceptibility trend`}
+                period={formatPeriod(trend.freshness)}
+                data={{
+                  columns: [
+                    "Period",
+                    "Susceptible %",
+                    "95% CI lower",
+                    "95% CI upper",
+                    "Interpretable (n)",
+                    "Meets threshold",
+                  ],
+                  rows: trend.points.map((point) => [
+                    point.label,
+                    point.susceptible_percent === null
+                      ? null
+                      : point.susceptible_percent.toFixed(1),
+                    point.confidence_lower === null ? null : point.confidence_lower.toFixed(1),
+                    point.confidence_upper === null ? null : point.confidence_upper.toFixed(1),
+                    point.isolate_count,
+                    point.sufficient ? "yes" : "no",
+                  ]),
+                }}
+              >
+                <TrendChart
+                  points={trend.points}
+                  minimumIsolates={trend.minimum_isolates}
+                  organism={trend.organism.name}
+                  antibiotic={trend.antibiotic.name}
+                />
+              </FigureDownload>
             </section>
 
             {movement !== null ? (

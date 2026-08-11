@@ -37,20 +37,25 @@ export default async function OrganismDetailPage({
     date_to?: string;
   }>;
 }) {
-  const profile = await requireProfile();
   const { organismId } = await params;
   const query = await searchParams;
-  const scope = await api.scope();
+
+  // Start all three in flight at once. The detail call keeps its own await
+  // inside the try below so a 404 still becomes notFound() rather than a
+  // rejected Promise.all, but it is no longer waiting in line behind the
+  // profile and scope round-trips.
+  const detailPromise = api.organismDetail(organismId, {
+    antibiotic_id: query.antibiotic_id,
+    ...scopeParams(query),
+    care_setting: query.care_setting,
+    date_from: query.date_from,
+    date_to: query.date_to,
+  });
+  const [profile, scope] = await Promise.all([requireProfile(), api.scope()]);
 
   let detail;
   try {
-    detail = await api.organismDetail(organismId, {
-      antibiotic_id: query.antibiotic_id,
-      ...scopeParams(query),
-      care_setting: query.care_setting,
-      date_from: query.date_from,
-      date_to: query.date_to,
-    });
+    detail = await detailPromise;
   } catch (caught) {
     if (caught instanceof ApiError && caught.status === 404) notFound();
     throw caught;
