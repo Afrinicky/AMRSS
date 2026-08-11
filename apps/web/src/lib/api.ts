@@ -56,10 +56,16 @@ export class ApiUnavailableError extends Error {
  *
  * That has to be us. Vercel's function budget is the hard ceiling (`maxDuration`
  * in the root layout, 60s), and a timeout Vercel raises becomes a platform 504
- * that the dashboard never gets to dress. A timeout we raise ten seconds
- * earlier becomes a page that explains itself and offers to try again.
+ * that the dashboard never gets to dress. A timeout we raise a little earlier
+ * becomes a page that explains itself and offers to try again.
+ *
+ * Set close to that ceiling on purpose. A cold Render instance can take most of
+ * a minute to answer, and every second shaved off this deadline is a cold start
+ * that errors instead of simply loading slowly the once. Because each page now
+ * issues its calls concurrently, there is only one round-trip to wait on, so
+ * 55s of waiting still leaves room for the render inside the 60s budget.
  */
-const API_TIMEOUT_MS = 50_000;
+const API_TIMEOUT_MS = 55_000;
 
 /** Every outbound call, with the deadline and the not-there case handled once. */
 async function callApi(url: string, init: RequestInit): Promise<Response> {
