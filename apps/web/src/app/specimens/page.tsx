@@ -29,16 +29,18 @@ export default async function SpecimensPage({
     date_to?: string;
   }>;
 }) {
-  const profile = await requireProfile();
+  // Independent calls, run concurrently (see antibiogram/page.tsx).
   const params = await searchParams;
-  const scope = await api.scope();
-
-  const explorer = await api.specimenExplorer({
-    ...scopeParams(params),
-    care_setting: params.care_setting,
-    date_from: params.date_from,
-    date_to: params.date_to,
-  });
+  const [profile, scope, explorer] = await Promise.all([
+    requireProfile(),
+    api.scope(),
+    api.specimenExplorer({
+      ...scopeParams(params),
+      care_setting: params.care_setting,
+      date_from: params.date_from,
+      date_to: params.date_to,
+    }),
+  ]);
 
   // Sterility comes from the dictionary, not from matching site names. A growth
   // from blood or CSF carries weight a wound-swab growth does not, and the share

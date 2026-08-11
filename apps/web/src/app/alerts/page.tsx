@@ -14,8 +14,7 @@ export const metadata = { title: "Alerts and signals" };
  * statistically qualified.
  */
 export default async function AlertsPage() {
-  const profile = await requireProfile();
-  const alerts = await api.alerts();
+  const [profile, alerts] = await Promise.all([requireProfile(), api.alerts()]);
 
   return (
     <Shell profile={profile} current="/alerts">

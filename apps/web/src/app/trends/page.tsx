@@ -42,11 +42,16 @@ export default async function TrendsPage({
     date_to?: string;
   }>;
 }) {
-  const profile = await requireProfile();
+  // These three are independent of each other and of the URL, so they run
+  // together. The trend query below is the one call that genuinely depends on
+  // another — it needs the reference list to know which organism and agent to
+  // chart when the URL names none — so it stays sequential after them.
   const params = await searchParams;
-  const scope = await api.scope();
-
-  const reference = await api.reference();
+  const [profile, scope, reference] = await Promise.all([
+    requireProfile(),
+    api.scope(),
+    api.reference(),
+  ]);
   const organisms = [...reference.organisms].sort((a, b) => a.name.localeCompare(b.name));
   const antibiotics = [...reference.antibiotics].sort((a, b) => a.name.localeCompare(b.name));
 

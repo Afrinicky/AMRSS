@@ -32,17 +32,21 @@ export default async function OrganismsPage({
     date_to?: string;
   }>;
 }) {
-  const profile = await requireProfile();
+  // Independent calls, run concurrently: the data query reads from the URL, not
+  // from the profile or scope, so there is no reason to wait for one before
+  // starting the next (see antibiogram/page.tsx).
   const params = await searchParams;
-  const scope = await api.scope();
-
-  const explorer = await api.organismExplorer({
-    ...scopeParams(params),
-    care_setting: params.care_setting,
-    organism_kingdom: params.organism_kingdom,
-    date_from: params.date_from,
-    date_to: params.date_to,
-  });
+  const [profile, scope, explorer] = await Promise.all([
+    requireProfile(),
+    api.scope(),
+    api.organismExplorer({
+      ...scopeParams(params),
+      care_setting: params.care_setting,
+      organism_kingdom: params.organism_kingdom,
+      date_from: params.date_from,
+      date_to: params.date_to,
+    }),
+  ]);
 
   // One scale across both kingdom charts. Left to renormalise per chart, a
   // 38-isolate Candida bar would be drawn the length of a 318-isolate E. coli

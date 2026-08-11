@@ -31,16 +31,18 @@ export default async function AntibioticsPage({
     date_to?: string;
   }>;
 }) {
-  const profile = await requireProfile();
+  // Independent calls, run concurrently (see antibiogram/page.tsx).
   const params = await searchParams;
-  const scope = await api.scope();
-
-  const explorer = await api.antibioticExplorer({
-    ...scopeParams(params),
-    care_setting: params.care_setting,
-    date_from: params.date_from,
-    date_to: params.date_to,
-  });
+  const [profile, scope, explorer] = await Promise.all([
+    requireProfile(),
+    api.scope(),
+    api.antibioticExplorer({
+      ...scopeParams(params),
+      care_setting: params.care_setting,
+      date_from: params.date_from,
+      date_to: params.date_to,
+    }),
+  ]);
 
   const period = formatPeriod(explorer.freshness);
   const failing = explorer.profiles.filter((entry) => entry.susceptible_percent < 50).length;

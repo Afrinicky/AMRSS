@@ -13,8 +13,7 @@ export const metadata = { title: "Surveillance coverage" };
  * individual laboratories as overdue is administrative.
  */
 export default async function CoveragePage() {
-  const profile = await requireProfile();
-  const coverage = await api.coverage();
+  const [profile, coverage] = await Promise.all([requireProfile(), api.coverage()]);
 
   return (
     <Shell profile={profile} current="/coverage">

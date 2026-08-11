@@ -29,16 +29,21 @@ export default async function AntibiogramPage({
     date_to?: string;
   }>;
 }) {
-  const profile = await requireProfile();
+  // The three calls are independent — the data query reads from the URL, not
+  // from the profile or the scope — so they run concurrently rather than in
+  // series. On a small shared instance that is the difference between one slow
+  // round-trip and three, and it is the whole reason a tab change felt heavy.
   const params = await searchParams;
-  const scope = await api.scope();
-
-  const antibiogram = await api.antibiogram({
-    ...scopeParams(params),
-    care_setting: params.care_setting,
-    date_from: params.date_from,
-    date_to: params.date_to,
-  });
+  const [profile, scope, antibiogram] = await Promise.all([
+    requireProfile(),
+    api.scope(),
+    api.antibiogram({
+      ...scopeParams(params),
+      care_setting: params.care_setting,
+      date_from: params.date_from,
+      date_to: params.date_to,
+    }),
+  ]);
 
   const period = formatPeriod(antibiogram.freshness);
   const kingdoms = ["bacteria", "fungi"] as const;
