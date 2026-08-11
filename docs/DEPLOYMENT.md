@@ -370,6 +370,30 @@ an antibiogram.
 The uploader is an Electron application that reads WHONET SQLite exports,
 de-identifies them at the facility and submits only the result.
 
+### The Windows installer, without a Windows machine
+
+The laboratories run Windows, and you likely do not build on it. You do not need
+to: `.github/workflows/uploader-installers.yml` builds the `.exe` on a
+GitHub-hosted Windows runner. Two ways to get one:
+
+- **Ad-hoc** — Actions tab → **Uploader installers** → **Run workflow**. When it
+  finishes, the installer is under the run's **Artifacts** as
+  `amrss-uploader-windows`.
+- **A release** — push a tag named `uploader-v0.1.0` (matching the version in
+  `apps/uploader/package.json`). The same build runs and, because it is a tag,
+  the installer is attached to a GitHub **Release** — a durable link you can
+  hand to a facility rather than a workflow run that expires.
+
+The runner compiles the app, runs the de-identification tests on Windows, builds
+the NSIS installer, and refuses to publish anything under 20 MB (a build that
+produced a file but not an application). The compiled tests and their WHONET
+fixtures are excluded from the package; they have no business on a clinical
+workstation.
+
+### Building locally
+
+On the target platform itself:
+
 ```bash
 cd apps/uploader
 npm ci
@@ -377,10 +401,10 @@ npm run dist        # installers for the host platform, into release/
 ```
 
 `npm run dist` produces an NSIS installer on Windows, a DMG on macOS, and an
-AppImage and .deb on Linux. Build each platform on that platform — electron-builder
-cannot cross-compile the native SQLite module, which is rebuilt against
-Electron's ABI rather than Node's. The compiled tests and their WHONET fixtures
-are excluded from the package; they have no business on a clinical workstation.
+AppImage and .deb on Linux. Build each platform on that platform —
+electron-builder cannot cross-compile the native SQLite module, which is rebuilt
+against Electron's ABI rather than Node's. (This is why the Windows installer is
+built on a Windows runner above, not cross-built from CI's Linux.)
 
 **Sign the builds before distributing them.** electron-builder signs
 automatically when the credentials are in the environment and produces an
