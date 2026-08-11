@@ -1,132 +1,69 @@
-import {
-  ClinicalFraming,
-  FreshnessBanner,
-  formatPeriod,
-} from "@/components/context-panels";
-import { AntibioticProfileChart } from "@/components/figures";
+import { ClinicalFraming, FreshnessBanner, formatPeriod } from "@/components/context-panels";
 import { FigureDownload } from "@/components/figure-download";
-import { FilterBar, scopeParams } from "@/components/filter-bar";
-import { BannerFigure, PageHeading, Shell } from "@/components/shell";
-import { api } from "@/lib/api";
-import { requireProfile } from "@/lib/session";
+import { AntibioticProfileChart } from "@/components/figures";
+import { PublicShell } from "@/components/public-shell";
+import { PublicUnavailable } from "@/components/public-unavailable";
+import { publicApi } from "@/lib/public-api";
 
-export const metadata = { title: "Antibiotic explorer" };
+export const revalidate = 3600; // one hour; see PUBLIC_REVALIDATE_SECONDS
+export const metadata = { title: "Antibiotics" };
 
-/**
- * Overall resistance and susceptibility per agent (SDD 11.2).
- *
- * The agent-first view: how each antimicrobial is performing across everything
- * it was tested against. It answers "what still works at all", which is a
- * stewardship and formulary question. The organism-specific answer — the one
- * that governs treatment of a particular infection — is the antibiogram, and
- * the caveat on this page says so rather than leaving the reader to infer it.
- */
-export default async function AntibioticsPage({
-  searchParams,
-}: {
-  searchParams: Promise<{
-    district_id?: string;
-    facility_id?: string;
-    care_setting?: string;
-    date_from?: string;
-    date_to?: string;
-  }>;
-}) {
-  // Independent calls, run concurrently (see antibiogram/page.tsx).
-  const params = await searchParams;
-  const [profile, scope, explorer] = await Promise.all([
-    requireProfile(),
-    api.scope(),
-    api.antibioticExplorer({
-      ...scopeParams(params),
-      care_setting: params.care_setting,
-      date_from: params.date_from,
-      date_to: params.date_to,
-    }),
-  ]);
-
+export default async function PublicAntibioticsPage() {
+  let explorer;
+  try {
+    explorer = await publicApi.antibiotics();
+  } catch {
+    return <PublicUnavailable current="/antibiotics" />;
+  }
   const period = formatPeriod(explorer.freshness);
-  const failing = explorer.profiles.filter((entry) => entry.susceptible_percent < 50).length;
 
   return (
-    <Shell profile={profile} current="/antibiotics">
-      <PageHeading
-        title="Antibiotic explorer"
-        description="Resistance and susceptibility patterns for each antimicrobial agent, pooled across the organisms it was tested against."
-        aside={
-          <>
-            <BannerFigure
-              label="Agents charted"
-              value={explorer.profiles.length}
-              detail={`n ≥ ${explorer.minimum_isolates} each`}
-            />
-            <BannerFigure
-              label="Below 50% susceptible"
-              value={failing}
-              detail="Agents in this period"
-            />
-          </>
-        }
-      />
-
+    <PublicShell current="/antibiotics">
       <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-ink">Antibiotics</h1>
+          <p className="mt-1 max-w-2xl text-sm text-ink-muted">
+            Overall susceptibility to each antimicrobial agent, pooled across organisms in the
+            region.
+          </p>
+        </div>
+
         <FreshnessBanner freshness={explorer.freshness} />
 
-        <FilterBar
-          scope={scope}
-          districtId={params.district_id}
-          facilityId={params.facility_id}
-          careSetting={params.care_setting}
-          dateFrom={params.date_from}
-          dateTo={params.date_to}
-        />
+        <p className="rounded-[--radius-card] border border-sir-i/40 bg-sir-i/5 px-4 py-2.5 text-xs text-ink">
+          {explorer.pooling_caveat}
+        </p>
 
-        <section aria-labelledby="profile-heading">
-          <h2 id="profile-heading" className="heading-rule mb-1 text-lg font-semibold text-ink">
-            Antimicrobial resistance and susceptibility patterns
-          </h2>
-          <p className="mb-3 max-w-3xl text-sm text-ink-muted">
-            Agents are ordered least-susceptible first, so the ones that have stopped working
-            appear at the top. Only agents with at least {explorer.minimum_isolates} interpretable
-            results are charted.
-          </p>
-
-          {/* The caveat sits with the chart, not in a footnote: a pooled bar is
-              easy to read as an organism-specific fact. */}
-          <p className="mb-3 rounded-[--radius-card] border border-sir-i/40 bg-sir-i/5 px-4 py-2.5 text-xs text-ink">
-            {explorer.pooling_caveat}
-          </p>
-
-          <FigureDownload
-            title="Susceptibility by antimicrobial agent"
-            period={period}
-            data={{
-              columns: [
-                "Antimicrobial",
-                "Susceptible %",
-                "Intermediate %",
-                "Resistant %",
-                "Interpretable (n)",
-                "Tested (n)",
-                "Organisms",
-              ],
-              rows: explorer.profiles.map((entry) => [
-                entry.antibiotic.name,
-                entry.susceptible_percent.toFixed(1),
-                entry.intermediate_percent.toFixed(1),
-                entry.resistant_percent.toFixed(1),
-                entry.interpretable,
-                entry.tested,
-                entry.organism_count,
-              ]),
-            }}
-          >
-            <AntibioticProfileChart profiles={explorer.profiles} period={period} />
-          </FigureDownload>
-        </section>
+        <FigureDownload
+          title="Susceptibility by antimicrobial agent"
+          period={period}
+          allowExcel={false}
+          data={{
+            columns: [
+              "Antimicrobial",
+              "Susceptible %",
+              "Intermediate %",
+              "Resistant %",
+              "Interpretable (n)",
+              "Tested (n)",
+              "Organisms",
+            ],
+            rows: explorer.profiles.map((entry) => [
+              entry.antibiotic.name,
+              entry.susceptible_percent.toFixed(1),
+              entry.intermediate_percent.toFixed(1),
+              entry.resistant_percent.toFixed(1),
+              entry.interpretable,
+              entry.tested,
+              entry.organism_count,
+            ]),
+          }}
+        >
+          <AntibioticProfileChart profiles={explorer.profiles} period={period} />
+        </FigureDownload>
 
         <ClinicalFraming text={explorer.clinical_framing} />
       </div>
-    </Shell>
+    </PublicShell>
   );
 }

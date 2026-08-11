@@ -4,5 +4,5 @@ import { clearSession } from "@/lib/session";
 
 export async function POST(request: Request) {
   await clearSession();
-  return NextResponse.redirect(new URL("/signin", request.url), { status: 303 });
+  return NextResponse.redirect(new URL("/", request.url), { status: 303 });
 }

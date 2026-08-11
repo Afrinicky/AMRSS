@@ -23,11 +23,14 @@ const ADMIN_CONSOLE = [
 
 const USER_ADMIN = ["user:manage", "user:manage_facility"];
 
+// Everything the shell links to lives under /console now — the signed-in half
+// of the platform. The public dashboard is a separate, login-free tree at the
+// root, so these paths all carry the prefix.
 export function landingPathFor(profile: Profile): string {
-  if (SURVEILLANCE.some((p) => profile.permissions.includes(p))) return "/";
-  if (USER_ADMIN.some((p) => profile.permissions.includes(p))) return "/admin/users";
-  if (profile.permissions.includes("audit:read")) return "/admin/audit";
-  return "/account/password";
+  if (SURVEILLANCE.some((p) => profile.permissions.includes(p))) return "/console";
+  if (USER_ADMIN.some((p) => profile.permissions.includes(p))) return "/console/admin/users";
+  if (profile.permissions.includes("audit:read")) return "/console/admin/audit";
+  return "/console/account/password";
 }
 
 /** Navigation is filtered by permission, but the API enforces access
@@ -40,18 +43,18 @@ export function landingPathFor(profile: Profile): string {
  * were shown unconditionally — so the two roles that hold no surveillance
  * permission at all were offered nine links that answer 403. */
 const NAV: Array<{ href: string; label: string; permission: string | string[] | null }> = [
-  { href: "/", label: "Overview", permission: SURVEILLANCE },
-  { href: "/antibiogram", label: "Antibiogram", permission: SURVEILLANCE },
-  { href: "/organisms", label: "Organisms", permission: SURVEILLANCE },
-  { href: "/antibiotics", label: "Antibiotics", permission: SURVEILLANCE },
-  { href: "/specimens", label: "Specimens", permission: SURVEILLANCE },
-  { href: "/trends", label: "Trends", permission: SURVEILLANCE },
-  { href: "/comparison", label: "Comparison", permission: "surveillance:view_regional" },
-  { href: "/alerts", label: "Alerts", permission: SURVEILLANCE },
-  { href: "/coverage", label: "Coverage", permission: "surveillance:view_regional" },
-  { href: "/reports", label: "Reports", permission: "surveillance:view_regional" },
-  { href: "/admin", label: "Administration", permission: ADMIN_CONSOLE },
-  { href: "/admin/users", label: "Accounts", permission: USER_ADMIN },
+  { href: "/console", label: "Overview", permission: SURVEILLANCE },
+  { href: "/console/antibiogram", label: "Antibiogram", permission: SURVEILLANCE },
+  { href: "/console/organisms", label: "Organisms", permission: SURVEILLANCE },
+  { href: "/console/antibiotics", label: "Antibiotics", permission: SURVEILLANCE },
+  { href: "/console/specimens", label: "Specimens", permission: SURVEILLANCE },
+  { href: "/console/trends", label: "Trends", permission: SURVEILLANCE },
+  { href: "/console/comparison", label: "Comparison", permission: "surveillance:view_regional" },
+  { href: "/console/alerts", label: "Alerts", permission: SURVEILLANCE },
+  { href: "/console/coverage", label: "Coverage", permission: "surveillance:view_regional" },
+  { href: "/console/reports", label: "Reports", permission: "surveillance:view_regional" },
+  { href: "/console/admin", label: "Administration", permission: ADMIN_CONSOLE },
+  { href: "/console/admin/users", label: "Accounts", permission: USER_ADMIN },
 ];
 
 const ROLE_LABELS: Record<string, string> = {
@@ -99,7 +102,7 @@ export function Shell({
           tree, not two. */}
       <header className="brand-gradient brand-edge-bottom culture-field">
         <div className="mx-auto flex max-w-[1440px] flex-wrap items-center gap-x-8 gap-y-3 px-4 py-3 sm:px-6">
-          <Link href="/" className="order-1 flex items-center gap-2.5">
+          <Link href="/console" className="order-1 flex items-center gap-2.5">
             <CultureMark />
             <span className="flex items-baseline gap-2">
               <span className="text-lg font-semibold tracking-tight text-on-brand">
@@ -145,7 +148,7 @@ export function Shell({
               </div>
             </div>
             <Link
-              href="/account/password"
+              href="/console/account/password"
               className="hidden rounded-lg border border-white/25 px-3 py-2 text-sm text-on-brand-muted transition-colors hover:bg-white/10 hover:text-on-brand sm:block"
             >
               Password
@@ -170,7 +173,7 @@ export function Shell({
         {profile.must_change_password && current !== "/account/password" ? (
           <p className="mb-6 rounded-[--radius-card] border border-accent-strong/45 bg-accent/10 px-4 py-3 text-sm text-ink">
             This account is using a password an administrator set.{" "}
-            <Link href="/account/password" className="font-medium text-brand-700 underline">
+            <Link href="/console/account/password" className="font-medium text-brand-700 underline">
               Choose your own
             </Link>{" "}
             — until you do, actions recorded against this account cannot be attributed to you

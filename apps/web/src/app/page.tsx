@@ -1,133 +1,116 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 
-import {
-  ClinicalFraming,
-  FreshnessBanner,
-  formatPeriod,
-} from "@/components/context-panels";
-import { Shell, landingPathFor } from "@/components/shell";
-import { Ring } from "@/components/statistic";
-import { api } from "@/lib/api";
-import { requireProfile } from "@/lib/session";
+import { ClinicalFraming, FreshnessBanner, formatPeriod } from "@/components/context-panels";
+import { FigureDownload } from "@/components/figure-download";
+import { AntibioticProfileChart } from "@/components/figures";
+import { PublicShell } from "@/components/public-shell";
+import { PublicUnavailable } from "@/components/public-unavailable";
+import { publicApi } from "@/lib/public-api";
+
+export const revalidate = 3600; // one hour; see PUBLIC_REVALIDATE_SECONDS
+
+export const metadata = {
+  title: "Regional antimicrobial resistance",
+  description:
+    "The public regional antimicrobial resistance picture — which organisms are being isolated and which agents still work against them.",
+};
 
 /**
- * The clinician-facing default view.
+ * The public front door.
  *
- * Deliberately not a dense analytics wall. It answers "what are we seeing now?"
- * — the most common organisms, the agents that still work against them, and any
- * signal worth a second look — and routes into deeper exploration from there
- * (SDD 11.2).
+ * Statically generated and served from the edge, so it opens instantly for
+ * anyone, whatever state the surveillance service is in — the whole reason the
+ * public dashboard is split from the signed-in console. It shows the regional
+ * aggregate and nothing finer, and points the people who do more than read
+ * towards a login.
  */
-export default async function OverviewPage() {
-  const profile = await requireProfile();
-
-  // A system administrator and an auditor hold no surveillance permission at
-  // all — deliberately, so that technical and accountability roles cannot read
-  // patient-derived data. Calling the antibiogram for them raised a 403 and
-  // showed an error page at sign-in; they now land where they can work.
-  const landing = landingPathFor(profile);
-  if (landing !== "/") redirect(landing);
-
-  const [antibiogram, alerts] = await Promise.all([api.antibiogram(), api.alerts()]);
+export default async function PublicOverviewPage() {
+  let antibiogram, antibiotics;
+  try {
+    [antibiogram, antibiotics] = await Promise.all([
+      publicApi.antibiogram(),
+      publicApi.antibiotics(),
+    ]);
+  } catch {
+    return <PublicUnavailable current="/" />;
+  }
 
   const period = formatPeriod(antibiogram.freshness);
   const topOrganisms = antibiogram.rows.slice(0, 6);
   const antibioticName = new Map(antibiogram.antibiotics.map((a) => [a.id, a.name]));
 
   return (
-    <Shell profile={profile} current="/">
+    <PublicShell current="/">
       <div className="space-y-6">
-        {/* Green hero: the "what are we seeing now?" answer, with coverage as a
-            ring because it is a true proportion of a whole. */}
         <section className="brand-gradient brand-edge-bottom culture-field overflow-hidden rounded-[--radius-card]">
-          <div className="flex flex-wrap items-center justify-between gap-8 px-4 py-6 sm:px-6">
-            <div className="min-w-[16rem] flex-1">
-              <h1 className="text-2xl font-semibold tracking-tight text-on-brand">
-                Regional resistance overview
-              </h1>
-              <p className="mt-1.5 max-w-2xl text-sm text-on-brand-muted">
-                Current susceptibility patterns across contributing laboratories, updated on
-                every accepted upload.
-              </p>
-              <dl className="mt-5 flex flex-wrap gap-x-8 gap-y-3">
-                <HeroFigure
-                  label="Isolates in period"
-                  value={antibiogram.raw_isolate_count.toLocaleString()}
-                  detail={`${antibiogram.antibiogram_eligible_count.toLocaleString()} antibiogram-eligible`}
-                />
-                <HeroFigure
-                  label="Organisms reported"
-                  value={String(antibiogram.rows.length)}
-                  detail={`${antibiogram.rows.filter((r) => r.organism_kingdom === "fungi").length} fungal`}
-                />
-                <HeroFigure
-                  label="Reporting threshold"
-                  value={`n ≥ ${antibiogram.minimum_isolates}`}
-                  detail="Before a combination is reported"
-                />
-              </dl>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-6">
-              <Ring
-                tone="on-brand"
-                value={antibiogram.freshness.completeness_percent ?? 0}
-                caption="Regional coverage"
-                sublabel={`${antibiogram.freshness.facilities_contributing} of ${antibiogram.freshness.facilities_expected} facilities reporting`}
+          <div className="px-4 py-8 sm:px-8">
+            <h1 className="max-w-3xl text-2xl font-semibold tracking-tight text-on-brand sm:text-3xl">
+              Regional antimicrobial resistance
+            </h1>
+            <p className="mt-2 max-w-2xl text-sm text-on-brand-muted">
+              Which organisms are being isolated across contributing laboratories, and which
+              antimicrobials still work against them. Updated as laboratories report.
+            </p>
+            <dl className="mt-6 flex flex-wrap gap-x-10 gap-y-4">
+              <HeroFigure
+                label="Isolates in period"
+                value={antibiogram.raw_isolate_count.toLocaleString()}
+                detail={`${antibiogram.antibiogram_eligible_count.toLocaleString()} antibiogram-eligible`}
               />
-              <div className="rounded-xl border border-white/20 bg-white/10 px-4 py-3">
-                <div className="accent-text text-xs font-medium uppercase tracking-wide">
-                  Emerging signals
-                </div>
-                <div className="tabular mt-1 text-2xl font-semibold text-on-brand">
-                  {alerts.emerging_signals.length}
-                </div>
-                <div className="text-xs text-on-brand-muted">Require expert review</div>
-              </div>
-            </div>
+              <HeroFigure
+                label="Organisms reported"
+                value={String(antibiogram.rows.length)}
+                detail={`${antibiogram.antibiotics.length} agents`}
+              />
+              <HeroFigure
+                label="Contributing laboratories"
+                value={String(antibiogram.freshness.facilities_contributing)}
+                detail={`of ${antibiogram.freshness.facilities_expected} expected`}
+              />
+              <HeroFigure
+                label="Reporting threshold"
+                value={`n ≥ ${antibiogram.minimum_isolates}`}
+                detail="before a combination is reported"
+              />
+            </dl>
           </div>
         </section>
 
         <FreshnessBanner freshness={antibiogram.freshness} />
 
-        {alerts.emerging_signals.length > 0 ? (
-          <section aria-labelledby="signals-heading">
-            <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-              <h2 id="signals-heading" className="heading-rule text-lg font-semibold text-ink">
-                Current resistance signals
-              </h2>
-              <Link href="/alerts" className="text-sm font-medium text-brand-700">
-                View all alerts →
-              </Link>
-            </div>
-            <ul className="space-y-3">
-              {alerts.emerging_signals.slice(0, 3).map((signal) => (
-                <li
-                  key={`${signal.organism.id}-${signal.antibiotic.id}`}
-                  className="rounded-[--radius-card] border border-sir-r/30 bg-sir-r/5 p-4"
-                >
-                  <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <p className="font-medium text-ink">
-                      <em>{signal.organism.name}</em> — {signal.antibiotic.name}
-                    </p>
-                    <span className="rounded-full bg-sir-r/10 px-2.5 py-0.5 text-xs font-medium text-sir-r">
-                      {signal.status_label}
-                    </span>
-                  </div>
-                  <p className="tabular mt-2 text-sm text-ink-muted">
-                    Susceptibility fell from {signal.baseline_susceptible_percent.toFixed(0)}% (n=
-                    {signal.baseline_n}) to {signal.current_susceptible_percent.toFixed(0)}% (n=
-                    {signal.current_n}) —{" "}
-                    <strong className="text-sir-r">
-                      {signal.change_percentage_points.toFixed(0)} percentage points
-                    </strong>
-                  </p>
-                </li>
-              ))}
-            </ul>
-          </section>
-        ) : null}
+        <section aria-labelledby="agents-heading">
+          <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+            <h2 id="agents-heading" className="heading-rule text-lg font-semibold text-ink">
+              Susceptibility by antimicrobial agent
+            </h2>
+            <Link href="/antibiotics" className="text-sm font-medium text-brand-700">
+              Explore agents →
+            </Link>
+          </div>
+          <FigureDownload
+            title="Susceptibility by antimicrobial agent"
+            period={period}
+            allowExcel={false}
+            data={{
+              columns: [
+                "Antimicrobial",
+                "Susceptible %",
+                "Intermediate %",
+                "Resistant %",
+                "Interpretable (n)",
+              ],
+              rows: antibiotics.profiles.map((entry) => [
+                entry.antibiotic.name,
+                entry.susceptible_percent.toFixed(1),
+                entry.intermediate_percent.toFixed(1),
+                entry.resistant_percent.toFixed(1),
+                entry.interpretable,
+              ]),
+            }}
+          >
+            <AntibioticProfileChart profiles={antibiotics.profiles} period={period} />
+          </FigureDownload>
+        </section>
 
         <section aria-labelledby="organisms-heading">
           <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
@@ -141,14 +124,8 @@ export default async function OverviewPage() {
 
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {topOrganisms.map((row) => {
-              // Agents are shown in the antibiogram's own dictionary order, never
-              // ranked by susceptibility. Leading with "highest susceptibility"
-              // would make a broad-spectrum agent the headline for most organisms
-              // — a de facto prescribing prompt, which v1 must not give
-              // (SDD 5.8), and one that works against stewardship.
               const reportable = row.cells.filter((cell) => cell.state === "reportable");
               const excerpt = reportable.slice(0, 4);
-
               return (
                 <article
                   key={row.organism.id}
@@ -163,35 +140,23 @@ export default async function OverviewPage() {
                   <p className="tabular mt-1 text-xs text-ink-muted">
                     {row.isolate_count.toLocaleString()} antibiogram-eligible isolates
                   </p>
-
                   {excerpt.length > 0 ? (
-                    <div className="mt-3 border-t border-line pt-3">
-                      <p className="text-[11px] font-medium uppercase tracking-wide text-ink-muted">
-                        Percent susceptible
-                      </p>
-                      <ul className="mt-2 space-y-1.5">
-                        {excerpt.map((cell) => (
-                          <li key={cell.antibiotic_id} className="flex items-center gap-2">
-                            <span className="min-w-0 flex-1 truncate text-xs text-ink">
-                              {antibioticName.get(cell.antibiotic_id)}
-                            </span>
-                            <SusceptibilityBar percent={cell.susceptible_percent ?? 0} />
-                            <span className="tabular w-20 text-right text-xs text-ink">
-                              {(cell.susceptible_percent ?? 0).toFixed(0)}%
-                              <span className="ml-1 text-ink-muted">n={cell.interpretable}</span>
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                      <p className="mt-2 text-[11px] text-ink-muted">
-                        {reportable.length} agent{reportable.length === 1 ? "" : "s"} reported ·{" "}
-                        {period}
-                      </p>
-                    </div>
+                    <ul className="mt-3 space-y-1.5 border-t border-line pt-3">
+                      {excerpt.map((cell) => (
+                        <li key={cell.antibiotic_id} className="flex items-center gap-2">
+                          <span className="min-w-0 flex-1 truncate text-xs text-ink">
+                            {antibioticName.get(cell.antibiotic_id)}
+                          </span>
+                          <SusceptibilityBar percent={cell.susceptible_percent ?? 0} />
+                          <span className="tabular w-16 text-right text-xs text-ink">
+                            {(cell.susceptible_percent ?? 0).toFixed(0)}%
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
                   ) : (
                     <p className="mt-3 border-t border-line pt-3 text-xs text-ink-muted">
-                      No combination for this organism reaches the reporting threshold in the
-                      selected period.
+                      No combination reaches the reporting threshold in this period.
                     </p>
                   )}
                 </article>
@@ -202,7 +167,7 @@ export default async function OverviewPage() {
 
         <ClinicalFraming text={antibiogram.clinical_framing} />
       </div>
-    </Shell>
+    </PublicShell>
   );
 }
 
@@ -210,18 +175,21 @@ function HeroFigure({ label, value, detail }: { label: string; value: string; de
   return (
     <div>
       <dt className="accent-text text-xs font-medium uppercase tracking-wide">{label}</dt>
-      <dd className="tabular mt-0.5 text-xl font-semibold text-on-brand">{value}</dd>
+      <dd className="tabular mt-0.5 text-2xl font-semibold text-on-brand">{value}</dd>
       <dd className="text-xs text-on-brand-muted">{detail}</dd>
     </div>
   );
 }
 
-/** Length encodes the value; colour is a redundant cue, never the only one. */
 function SusceptibilityBar({ percent }: { percent: number }) {
   const tone =
-    percent >= 70 ? "var(--color-sir-s)" : percent >= 50 ? "var(--color-sir-i)" : "var(--color-sir-r)";
+    percent >= 70
+      ? "var(--color-sir-s)"
+      : percent >= 50
+        ? "var(--color-sir-i)"
+        : "var(--color-sir-r)";
   return (
-    <span aria-hidden className="h-1.5 w-16 shrink-0 overflow-hidden rounded-full bg-surface-muted">
+    <span aria-hidden className="h-1.5 w-14 shrink-0 overflow-hidden rounded-full bg-surface-muted">
       <span
         className="block h-full rounded-full"
         style={{ width: `${Math.max(2, percent)}%`, backgroundColor: tone }}

@@ -9,6 +9,7 @@ from amrss.api.routers import (
     auth,
     breakpoints,
     ingestion,
+    public,
     quality,
     reports,
     surveillance,
@@ -58,6 +59,7 @@ def create_app() -> FastAPI:
     app.include_router(auth.router, prefix="/api/v1")
     app.include_router(ingestion.router, prefix="/api/v1")
     app.include_router(surveillance.router, prefix="/api/v1")
+    app.include_router(public.router, prefix="/api/v1")
     app.include_router(breakpoints.router, prefix="/api/v1")
     app.include_router(admin.router, prefix="/api/v1")
     app.include_router(quality.router, prefix="/api/v1")
