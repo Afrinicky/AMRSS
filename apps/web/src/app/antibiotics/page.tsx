@@ -4,6 +4,7 @@ import {
   formatPeriod,
 } from "@/components/context-panels";
 import { AntibioticProfileChart } from "@/components/figures";
+import { FigureDownload } from "@/components/figure-download";
 import { FilterBar, scopeParams } from "@/components/filter-bar";
 import { BannerFigure, PageHeading, Shell } from "@/components/shell";
 import { api } from "@/lib/api";
@@ -96,7 +97,32 @@ export default async function AntibioticsPage({
             {explorer.pooling_caveat}
           </p>
 
-          <AntibioticProfileChart profiles={explorer.profiles} period={period} />
+          <FigureDownload
+            title="Susceptibility by antimicrobial agent"
+            period={period}
+            data={{
+              columns: [
+                "Antimicrobial",
+                "Susceptible %",
+                "Intermediate %",
+                "Resistant %",
+                "Interpretable (n)",
+                "Tested (n)",
+                "Organisms",
+              ],
+              rows: explorer.profiles.map((entry) => [
+                entry.antibiotic.name,
+                entry.susceptible_percent.toFixed(1),
+                entry.intermediate_percent.toFixed(1),
+                entry.resistant_percent.toFixed(1),
+                entry.interpretable,
+                entry.tested,
+                entry.organism_count,
+              ]),
+            }}
+          >
+            <AntibioticProfileChart profiles={explorer.profiles} period={period} />
+          </FigureDownload>
         </section>
 
         <ClinicalFraming text={explorer.clinical_framing} />

@@ -1,4 +1,5 @@
-import { ClinicalFraming, FreshnessBanner } from "@/components/context-panels";
+import { ClinicalFraming, FreshnessBanner, formatPeriod } from "@/components/context-panels";
+import { FigureDownload } from "@/components/figure-download";
 import { SpecimenDistributionChart } from "@/components/figures";
 import { FilterBar, scopeParams } from "@/components/filter-bar";
 import { BannerFigure, PageHeading, Shell } from "@/components/shell";
@@ -93,10 +94,31 @@ export default async function SpecimensPage({
             drawn from blood, and neither the antibiogram nor the organism breakdown shows
             that on its own.
           </p>
-          <SpecimenDistributionChart
-            specimens={explorer.specimens}
-            total={explorer.total_isolates}
-          />
+          <FigureDownload
+            title="Specimen distribution"
+            period={formatPeriod(explorer.freshness)}
+            data={{
+              columns: [
+                "Specimen type",
+                "Infection site",
+                "Sterile site",
+                "Isolates (n)",
+                "% of total",
+              ],
+              rows: explorer.specimens.map((specimen) => [
+                specimen.specimen_type.name,
+                specimen.infection_site,
+                specimen.sterile_site ? "yes" : "no",
+                specimen.isolate_count,
+                specimen.percent_of_total.toFixed(1),
+              ]),
+            }}
+          >
+            <SpecimenDistributionChart
+              specimens={explorer.specimens}
+              total={explorer.total_isolates}
+            />
+          </FigureDownload>
         </section>
 
         <p className="rounded-[--radius-card] border border-line bg-surface-tint px-4 py-3 text-xs text-ink-muted">
