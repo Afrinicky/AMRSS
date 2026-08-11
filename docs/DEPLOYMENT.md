@@ -222,9 +222,31 @@ failures across ninety seconds is no longer a cold start.
 
 ## 3. Dashboard — Vercel
 
-Import the repository at vercel.com and set **Root Directory** to `apps/web`.
-Vercel detects Next.js on its own; `apps/web/vercel.json` supplies the region
-and the security headers.
+Import the repository at vercel.com. **Before clicking Deploy, set Root
+Directory to `apps/web`.** On the import screen it sits under the project name,
+behind an *Edit* link, and it is easy to walk straight past.
+
+Getting it wrong does not produce a broken dashboard — it produces a build that
+never looks at the dashboard at all:
+
+```
+Error: No FastAPI entrypoint found in default locations, but found potential
+entrypoints:
+  apps/api/amrss/main.py (variable: app)
+```
+
+Left at the repository root, Vercel finds the surveillance API's Python and
+decides this is a FastAPI project. It is not wrong about what it found; it is
+looking in the wrong place. This is a monorepo, and `apps/web` is the only part
+of it Vercel should ever build. The API belongs on Render (§2) and cannot run
+on Vercel at all — the 64 MB uploader batch exceeds what its functions accept.
+
+If a project has already been created with the wrong root, fix it rather than
+starting again: **Settings → Build and Deployment → Root Directory →
+`apps/web`**, then set **Framework Preset** to Next.js if it has not corrected
+itself, then redeploy from the Deployments tab. With the root set correctly,
+`apps/web/vercel.json` supplies the framework, the region and the security
+headers.
 
 Add one environment variable, to Production **and** Preview:
 
