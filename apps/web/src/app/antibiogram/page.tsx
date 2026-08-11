@@ -10,7 +10,7 @@ import { PublicShell } from "@/components/public-shell";
 import { PublicUnavailable } from "@/components/public-unavailable";
 import { publicApi } from "@/lib/public-api";
 
-export const revalidate = 3600; // one hour; see PUBLIC_REVALIDATE_SECONDS
+export const revalidate = 600; // 10 min; see PUBLIC_REVALIDATE_SECONDS
 export const metadata = { title: "Antibiogram" };
 
 export default async function PublicAntibiogramPage() {

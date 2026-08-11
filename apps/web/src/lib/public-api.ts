@@ -23,24 +23,49 @@ import type {
   Trend,
 } from "@/lib/api";
 
-/** One hour. The figures change only when a laboratory uploads, and every page
- *  states the true data date in its freshness banner, so an hour of edge-cache
- *  staleness is invisible and buys instant loads. */
-export const PUBLIC_REVALIDATE_SECONDS = 3600;
+/** Ten minutes. The figures change only when a laboratory uploads, and every
+ *  page states the true data date in its freshness banner, so this much
+ *  edge-cache staleness is invisible — and it doubles as a self-heal: if a page
+ *  was ever built while the API was unreachable and cached the "being prepared"
+ *  fallback, the next visit after this window regenerates it with real data. */
+export const PUBLIC_REVALIDATE_SECONDS = 600;
 
 function publicApiUrl(): string {
   return process.env.AMRSS_API_URL ?? "http://localhost:8000";
 }
 
 async function publicGet<T>(path: string): Promise<T> {
-  const response = await fetch(`${publicApiUrl()}/api/v1/public${path}`, {
-    next: { revalidate: PUBLIC_REVALIDATE_SECONDS },
-    headers: { "content-type": "application/json" },
-  });
-  if (!response.ok) {
-    throw new Error(`Public API ${path} responded ${response.status}`);
+  const url = `${publicApiUrl()}/api/v1/public${path}`;
+
+  // Retry, because of when this runs. These pages are pre-rendered at build and
+  // re-rendered on revalidation, and at either moment the free-tier API may be
+  // asleep and take most of a minute to wake. A single attempt would give up on
+  // a waking service and bake the fallback for a whole revalidation window; a
+  // few attempts across a couple of minutes wait it out and capture real data.
+  const attempts = 3;
+  // Long enough that a single attempt can absorb a full cold start rather than
+  // giving up just as the instance is about to answer.
+  const perAttemptTimeoutMs = 55_000;
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      const response = await fetch(url, {
+        next: { revalidate: PUBLIC_REVALIDATE_SECONDS },
+        headers: { "content-type": "application/json" },
+        signal: AbortSignal.timeout(perAttemptTimeoutMs),
+      });
+      if (response.ok) return (await response.json()) as T;
+      lastError = new Error(`Public API ${path} responded ${response.status}`);
+    } catch (error) {
+      lastError = error;
+    }
+    if (attempt < attempts - 1) {
+      await new Promise((resolve) => setTimeout(resolve, 6_000 * (attempt + 1)));
+    }
   }
-  return (await response.json()) as T;
+
+  throw lastError;
 }
 
 function queryString(params?: Record<string, string | undefined>): string {
