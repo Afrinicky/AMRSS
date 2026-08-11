@@ -218,6 +218,21 @@ has been quiet that long, re-enable it from the Actions tab.
 A red Heartbeat run is also the closest thing to free uptime monitoring: three
 failures across ninety seconds is no longer a cold start.
 
+**In practice GitHub throttles this hard** — an every-ten-minutes schedule can
+run only once or twice an hour, which is wider than the fifteen-minute sleep
+window, so the service still naps between pings. If cold starts are actually
+being felt (a slow first load, or the "could not be loaded" page), add a second
+pinger that GitHub does not schedule:
+
+- **cron-job.org** (free, genuinely every 1–5 minutes) or **UptimeRobot** (free,
+  every 5 minutes). Point either at `https://YOUR-SERVICE.onrender.com/health`
+  — liveness, not readiness, for the same reason the workflow uses it: it must
+  not hold the database awake.
+
+Five minutes is comfortably inside the fifteen-minute sleep window, so an
+external pinger keeps the instance warm through the day where the GitHub
+schedule alone cannot. The two together cost nothing and overlap harmlessly.
+
 ---
 
 ## 3. Dashboard — Vercel
