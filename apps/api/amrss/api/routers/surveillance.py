@@ -23,7 +23,7 @@ from amrss.analytics import coverage as coverage_engine
 from amrss.analytics import methodology as methodology_engine
 from amrss.analytics import profiles as profiles_engine
 from amrss.api.deps import CurrentPrincipal, DbSession
-from amrss.api.scope_resolution import resolve
+from amrss.api.scope_resolution import ResolvedScope, resolve
 from amrss.models import (
     CanonicalAntibiotic,
     CanonicalOrganism,
@@ -150,7 +150,18 @@ def get_antibiogram(
         date_from=date_from,
         date_to=date_to,
     )
+    return antibiogram_response(db, scope)
 
+
+def antibiogram_response(db: Session, scope: ResolvedScope) -> AntibiogramResponse:
+    """Build the antibiogram from an already-resolved scope.
+
+    Split from the handler so the public, unauthenticated endpoint can reach the
+    identical computation and response through a regional scope of its own —
+    without a second code path that could drift from this one on suppression or
+    counting. What a caller is *allowed* to see is decided before this point, in
+    the scope; this only renders what the scope permits.
+    """
     methodology = methodology_engine.resolve(db, regional_block_id=scope.regional_block_id)
     records = query.load_isolates(db, scope.filters)
     result = antibiogram_engine.compute(
@@ -315,7 +326,20 @@ def get_trend(
         date_from=date_from,
         date_to=date_to,
     )
+    return trend_response(
+        db, scope, organism_id=organism_id, antibiotic_id=antibiotic_id, bucket=bucket
+    )
 
+
+def trend_response(
+    db: Session,
+    scope: ResolvedScope,
+    *,
+    organism_id: uuid.UUID,
+    antibiotic_id: uuid.UUID,
+    bucket: trends.TimeBucket,
+) -> TrendResponse:
+    """A susceptibility series from a resolved scope; shared with the public endpoint."""
     organism = db.get(CanonicalOrganism, organism_id)
     antibiotic = db.get(CanonicalAntibiotic, antibiotic_id)
     if organism is None or antibiotic is None:
@@ -660,6 +684,12 @@ class ReferenceResponse(BaseModel):
 @router.get("/reference", response_model=ReferenceResponse, tags=["reference"])
 def get_reference(db: DbSession, principal: CurrentPrincipal) -> ReferenceResponse:
     """Canonical dictionary, for populating filters in any client."""
+    return reference_response(db)
+
+
+def reference_response(db: Session) -> ReferenceResponse:
+    """The canonical dictionaries — organism, antimicrobial and specimen names.
+    Public knowledge, so the public endpoint returns them without a principal."""
     return ReferenceResponse(
         organisms=[
             {
@@ -759,6 +789,13 @@ def get_antibiotic_explorer(
         date_from=date_from,
         date_to=date_to,
     )
+    return antibiotic_explorer_response(db, scope)
+
+
+def antibiotic_explorer_response(
+    db: Session, scope: ResolvedScope
+) -> AntibioticExplorerResponse:
+    """Per-agent profiles from a resolved scope; shared with the public endpoint."""
     methodology = methodology_engine.resolve(db, regional_block_id=scope.regional_block_id)
     records = query.load_isolates(db, scope.filters)
     profiles = profiles_engine.by_antibiotic(
@@ -848,6 +885,11 @@ def get_organism_explorer(
         date_from=date_from,
         date_to=date_to,
     )
+    return organism_explorer_response(db, scope)
+
+
+def organism_explorer_response(db: Session, scope: ResolvedScope) -> OrganismExplorerResponse:
+    """Organisms by site from a resolved scope; shared with the public endpoint."""
     methodology = methodology_engine.resolve(db, regional_block_id=scope.regional_block_id)
     records = query.load_isolates(db, scope.filters)
 
@@ -952,6 +994,11 @@ def get_specimen_explorer(
         date_from=date_from,
         date_to=date_to,
     )
+    return specimen_explorer_response(db, scope)
+
+
+def specimen_explorer_response(db: Session, scope: ResolvedScope) -> SpecimenExplorerResponse:
+    """Specimen distribution from a resolved scope; shared with the public endpoint."""
     methodology = methodology_engine.resolve(db, regional_block_id=scope.regional_block_id)
     records = query.load_isolates(db, scope.filters)
 

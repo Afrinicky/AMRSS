@@ -7,6 +7,8 @@ not — the exact failure SDD 7 warns about when it requires enforcement at the 
 layer rather than in the UI.
 """
 
+from __future__ import annotations
+
 import uuid
 from dataclasses import dataclass
 from datetime import date, timedelta
@@ -17,12 +19,78 @@ from sqlalchemy.orm import Session
 
 from amrss.analytics.antibiogram import AggregationLevel
 from amrss.analytics.query import SurveillanceFilter
-from amrss.models import District, Facility
+from amrss.models import District, Facility, RegionalBlock
 from amrss.models.enums import CareSetting, OrganismKingdom
 from amrss.security.permissions import Permission
 from amrss.security.scope import Principal, resolve_block_id
 
 DEFAULT_PERIOD_DAYS = 365
+
+
+def default_public_block_id(db: Session) -> uuid.UUID | None:
+    """The regional block the public dashboard speaks for.
+
+    A public deployment shows one region's aggregate. Where a single block is
+    active — every deployment so far — that is the one; if several are active the
+    earliest-activated is chosen, deterministically, rather than silently pooling
+    regions that report separately. ``None`` (no block yet) yields an empty but
+    valid picture rather than an error.
+    """
+    return db.scalar(
+        select(RegionalBlock.id)
+        .where(RegionalBlock.status == "active")
+        .order_by(RegionalBlock.activated_at.asc().nulls_last(), RegionalBlock.code.asc())
+    )
+
+
+def public_regional_scope(
+    db: Session,
+    *,
+    care_setting: CareSetting | None = None,
+    organism_kingdom: OrganismKingdom | None = None,
+    organism_ids: list[uuid.UUID] | None = None,
+    specimen_type_ids: list[uuid.UUID] | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+) -> ResolvedScope:
+    """The scope the unauthenticated public dashboard sees, and the only one.
+
+    It is regional and nothing finer — there is no facility or district parameter
+    to pass — so no arrangement of query strings can make a public request return
+    a single facility's numbers. Suppression is always on and only
+    quality-verified facilities contribute, exactly as the signed-in regional
+    view computes them; publishing a figure the authenticated aggregate would
+    have withheld is precisely what this must never do.
+    """
+    if date_to is None:
+        date_to = date.today()
+    if date_from is None:
+        date_from = date_to - timedelta(days=DEFAULT_PERIOD_DAYS)
+    if date_from > date_to:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="date_from is after date_to.",
+        )
+
+    block_id = default_public_block_id(db)
+    return ResolvedScope(
+        filters=SurveillanceFilter(
+            regional_block_id=block_id,
+            district_ids=None,
+            facility_ids=None,
+            organism_ids=organism_ids,
+            specimen_type_ids=specimen_type_ids,
+            care_setting=care_setting,
+            organism_kingdom=organism_kingdom,
+            age_bands=None,
+            date_from=date_from,
+            date_to=date_to,
+        ),
+        level=AggregationLevel.REGIONAL,
+        regional_block_id=block_id,
+        apply_suppression=True,
+        verified_only=True,
+    )
 
 
 @dataclass(frozen=True)
