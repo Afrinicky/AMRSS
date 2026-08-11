@@ -792,9 +792,7 @@ def get_antibiotic_explorer(
     return antibiotic_explorer_response(db, scope)
 
 
-def antibiotic_explorer_response(
-    db: Session, scope: ResolvedScope
-) -> AntibioticExplorerResponse:
+def antibiotic_explorer_response(db: Session, scope: ResolvedScope) -> AntibioticExplorerResponse:
     """Per-agent profiles from a resolved scope; shared with the public endpoint."""
     methodology = methodology_engine.resolve(db, regional_block_id=scope.regional_block_id)
     records = query.load_isolates(db, scope.filters)
