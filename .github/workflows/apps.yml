@@ -224,6 +224,10 @@ jobs:
           curl -fsS http://localhost:8000/health | grep -q '"ok"'
           curl -fsS http://localhost:8000/health/ready | grep -q '"ready"'
 
+          # The base address answers, because that is what someone handed a URL
+          # opens first, and a 404 there makes a working service look broken.
+          curl -fsS http://localhost:8000/ | grep -q 'AMRSS Surveillance API'
+
       - name: Bootstrap, exactly as docs/DEPLOYMENT.md says to
         run: |
           docker exec api python -m amrss.cli check-config

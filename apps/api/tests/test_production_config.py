@@ -225,3 +225,30 @@ def test_a_malformed_migration_url_is_refused_too(monkeypatch):
     with pytest.raises(RuntimeError, match="AMRSS_MIGRATION_DATABASE_URL"):
         get_settings()
     get_settings.cache_clear()
+
+
+# ---- The address someone pastes into a browser -----------------------------
+
+
+def test_the_root_answers_something_useful():
+    """A bare 404 at the base URL makes a working deployment look broken — the
+    first thing anyone does with a new service is open its address."""
+    from fastapi.testclient import TestClient
+
+    from amrss.main import app
+
+    body = TestClient(app).get("/").json()
+    assert body["service"] == "AMRSS Surveillance API"
+    assert body["health"] == "/health/ready"
+
+
+def test_the_root_discloses_nothing_about_configuration():
+    """It answers before anyone has authenticated, so it must not describe the
+    deployment — not the environment, the database, or the trusted origins."""
+    from fastapi.testclient import TestClient
+
+    from amrss.main import app
+
+    text = TestClient(app).get("/").text.lower()
+    for leak in ("postgres", "database", "secret", "environment", "origin", "neon"):
+        assert leak not in text, f"root endpoint leaked {leak!r}"

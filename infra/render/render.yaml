@@ -27,10 +27,26 @@ services:
     # outside apps/api (ADR-0005).
     dockerContext: .
 
-    # Readiness, not liveness. An instance that cannot reach Neon answers 500 to
-    # every request that matters, and Render would otherwise call the deploy a
-    # success and route traffic to it.
-    healthCheckPath: /health/ready
+    # Liveness, and this is a correction rather than an oversight: it used to be
+    # /health/ready, and that would have taken the database down mid-month.
+    #
+    # Render polls this path about every five seconds, forever. /health/ready
+    # opens a database connection, so polling it means Neon never sees five idle
+    # minutes and never autosuspends — its compute runs all month. Neon's free
+    # plan meters compute rather than queries: 100 CU-hours, which at its
+    # smallest compute size is roughly 400 hours of being awake. A month is
+    # about 730. The database would have suspended itself around the sixteenth,
+    # having spent the entire allowance answering health checks nobody read.
+    #
+    # Nothing is lost by checking liveness here, because database reachability
+    # is already proven earlier and more strictly: entrypoint.sh runs migrations
+    # before it binds a port, so a container that cannot reach Neon never starts
+    # serving and Render never marks the deploy live.
+    #
+    # /health/ready still exists and is still the honest answer to "can this
+    # instance actually serve?" — it is simply asked by people and by CI, on
+    # purpose, rather than twelve times a minute forever.
+    healthCheckPath: /health
 
     envVars:
       # Not production: this deployment carries synthetic data and known-password

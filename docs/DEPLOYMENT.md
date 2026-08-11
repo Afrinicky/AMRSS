@@ -143,12 +143,23 @@ Wait for the first deploy — three or four minutes, most of it building the
 image — then check it is genuinely up rather than merely running:
 
 ```bash
-curl https://amrss-api.onrender.com/health/ready
+curl https://YOUR-SERVICE.onrender.com/health/ready
 # {"status":"ready","version":"0.1.0"}
 ```
 
 `/health` answering `ok` only means the process started. `/health/ready` means
-it reached Neon, and that is the one to trust.
+it reached Neon, and that is the one to trust. Opening the base address in a
+browser also answers now, with the service name and version.
+
+**Take the hostname from the dashboard, not from this page.** Render appends a
+suffix when the name is already taken in its region, so a second attempt at
+`amrss-api` becomes something like `amrss-api-yklb.onrender.com`. That exact
+hostname is what §2.1 and §3 need, and a stale one is why the dashboard would
+show an unreachable API while Render shows the service as live.
+
+If a first attempt failed and left a second service behind, delete the failed
+one. It is not serving, but both draw on the same 750 free instance-hours, and
+two services with near-identical names is a mistake waiting to happen.
 
 ### 2.1 Stop it going to sleep
 
@@ -162,7 +173,7 @@ repository **variable** (Settings → Secrets and variables → Actions →
 **Variables** → New):
 
 ```
-AMRSS_API_URL = https://amrss-api.onrender.com
+AMRSS_API_URL = https://YOUR-SERVICE.onrender.com
 ```
 
 `.github/workflows/heartbeat.yml` then pings the API every ten minutes from
@@ -183,6 +194,19 @@ month's compute allowance answering health checks nobody reads — the database
 would then be suspended partway through the month. Outside the window the API
 is allowed to sleep: at 03:00 nobody is waiting, and those hours are better
 kept than spent.
+
+**Render's own health check has the same appetite, and it was pointed at the
+wrong endpoint until this was caught in a live deployment.** Render polls
+`healthCheckPath` roughly every five seconds for as long as the service runs.
+Aimed at `/health/ready`, that is a database query twelve times a minute
+forever: Neon never sees five idle minutes, never autosuspends, and burns
+around 180 CU-hours in a month against an allowance of 100 — so the database
+would suspend itself around the sixteenth, with nothing in the logs but
+successful health checks. `render.yaml` now points it at `/health`.
+
+Nothing is lost by that. Database reachability is proven earlier and more
+strictly than a probe could: migrations run before the port opens, so a
+container that cannot reach Neon never serves at all.
 
 Two honest caveats. GitHub delays scheduled workflows when its runners are
 busy, so a cold start becomes rare rather than impossible — the dashboard is
@@ -205,7 +229,7 @@ and the security headers.
 Add one environment variable, to Production **and** Preview:
 
 ```
-AMRSS_API_URL = https://amrss-api.onrender.com
+AMRSS_API_URL = https://YOUR-SERVICE.onrender.com
 ```
 
 No trailing slash. It is read per request on the server, never inlined into the
