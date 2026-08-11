@@ -78,6 +78,13 @@ function queryString(params?: Record<string, string | undefined>): string {
   return rendered ? `?${rendered}` : "";
 }
 
+/** An infection site and the specimen types that feed it, from the dictionary. */
+export interface InfectionSite {
+  site: string;
+  sterile_site: boolean;
+  specimen_type_ids: string[];
+}
+
 export const publicApi = {
   antibiogram: () => publicGet<Antibiogram>("/antibiogram"),
   organisms: () => publicGet<OrganismExplorer>("/organisms"),
@@ -86,4 +93,8 @@ export const publicApi = {
   reference: () => publicGet<Reference>("/reference"),
   trend: (params: Record<string, string | undefined>) =>
     publicGet<Trend>(`/trend${queryString(params)}`),
+  empiricSites: () => publicGet<{ sites: InfectionSite[] }>("/empiric/sites"),
+  // The empiric evidence for a site is the antibiogram over that site's
+  // specimens — the same Antibiogram shape, scoped to the site.
+  empiric: (site: string) => publicGet<Antibiogram>(`/empiric?site=${encodeURIComponent(site)}`),
 };

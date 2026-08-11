@@ -11,6 +11,7 @@ import Link from "next/link";
 
 const PUBLIC_NAV = [
   { href: "/", label: "Overview" },
+  { href: "/empiric", label: "Empiric guidance" },
   { href: "/antibiogram", label: "Antibiogram" },
   { href: "/organisms", label: "Organisms" },
   { href: "/antibiotics", label: "Antibiotics" },

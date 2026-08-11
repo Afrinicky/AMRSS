@@ -25,10 +25,15 @@ only behind the console's login.
 import uuid
 from datetime import date
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException, status
 
 from amrss.analytics import trends
 from amrss.api.deps import DbSession
+from amrss.api.empiric_sites import (
+    InfectionSitesResponse,
+    list_infection_sites,
+    specimen_type_ids_for_site,
+)
 from amrss.api.routers.surveillance import (
     AntibiogramResponse,
     AntibioticExplorerResponse,
@@ -136,3 +141,31 @@ def public_trend(
 @router.get("/reference", response_model=ReferenceResponse)
 def public_reference(db: DbSession) -> ReferenceResponse:
     return reference_response(db)
+
+
+@router.get("/empiric/sites", response_model=InfectionSitesResponse)
+def public_empiric_sites(db: DbSession) -> InfectionSitesResponse:
+    return InfectionSitesResponse(sites=list_infection_sites(db))
+
+
+@router.get("/empiric", response_model=AntibiogramResponse)
+def public_empiric(
+    db: DbSession,
+    site: str,
+    care_setting: CareSetting | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+) -> AntibiogramResponse:
+    # The empiric evidence for a site is the regional antibiogram over that
+    # site's specimens — no facility scope, suppression on, as everywhere public.
+    specimen_type_ids = specimen_type_ids_for_site(db, site)
+    if specimen_type_ids is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unknown infection site")
+    scope = public_regional_scope(
+        db,
+        specimen_type_ids=specimen_type_ids,
+        care_setting=care_setting,
+        date_from=date_from,
+        date_to=date_to,
+    )
+    return antibiogram_response(db, scope)

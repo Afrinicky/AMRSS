@@ -240,7 +240,18 @@ export const api = {
     request<Comparison>(`/api/v1/surveillance/comparison${queryString(params)}`),
   trend: (params: Record<string, string | undefined>) =>
     request<Trend>(`/api/v1/surveillance/trend${queryString(params)}`),
+  empiricSites: () =>
+    request<{ sites: InfectionSite[] }>("/api/v1/surveillance/empiric/sites"),
+  empiric: (params: Record<string, string | undefined>) =>
+    request<Antibiogram>(`/api/v1/surveillance/empiric${queryString(params)}`),
 };
+
+/** An infection site and the specimen types that feed it, from the dictionary. */
+export interface InfectionSite {
+  site: string;
+  sterile_site: boolean;
+  specimen_type_ids: string[];
+}
 
 function queryString(params?: Record<string, string | undefined>): string {
   if (!params) return "";

@@ -23,6 +23,11 @@ from amrss.analytics import coverage as coverage_engine
 from amrss.analytics import methodology as methodology_engine
 from amrss.analytics import profiles as profiles_engine
 from amrss.api.deps import CurrentPrincipal, DbSession
+from amrss.api.empiric_sites import (
+    InfectionSitesResponse,
+    list_infection_sites,
+    specimen_type_ids_for_site,
+)
 from amrss.api.scope_resolution import ResolvedScope, resolve
 from amrss.models import (
     CanonicalAntibiotic,
@@ -245,6 +250,48 @@ def antibiogram_response(db: Session, scope: ResolvedScope) -> AntibiogramRespon
         pending_interpretation_count=result.pending_interpretation_count,
         methodology=provenance.describe(result, methodology, scope.filters),
     )
+
+
+# ---- Empiric therapy by infection site -------------------------------------
+#
+# The clinician's question: no culture yet, an infection of a known site — what
+# does the regional data say still works against the organisms usually seen
+# there? The answer is the ordinary antibiogram, computed over just the specimens
+# that belong to that site, so it can never diverge from the antibiogram read
+# anywhere else. It is evidence to weigh alongside local guidelines and
+# stewardship advice, never a prescription, and the dashboard says so.
+
+
+@router.get("/empiric/sites", response_model=InfectionSitesResponse, tags=["reference"])
+def get_empiric_sites(db: DbSession, principal: CurrentPrincipal) -> InfectionSitesResponse:
+    return InfectionSitesResponse(sites=list_infection_sites(db))
+
+
+@router.get("/empiric", response_model=AntibiogramResponse)
+def get_empiric(
+    db: DbSession,
+    principal: CurrentPrincipal,
+    site: str,
+    district_id: uuid.UUID | None = None,
+    facility_id: uuid.UUID | None = None,
+    care_setting: CareSetting | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+) -> AntibiogramResponse:
+    specimen_type_ids = specimen_type_ids_for_site(db, site)
+    if specimen_type_ids is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unknown infection site")
+    scope = resolve(
+        db,
+        principal,
+        district_id=district_id,
+        facility_id=facility_id,
+        specimen_type_ids=specimen_type_ids,
+        care_setting=care_setting,
+        date_from=date_from,
+        date_to=date_to,
+    )
+    return antibiogram_response(db, scope)
 
 
 def _contributing_facilities(records: list, verified_only: bool) -> set[uuid.UUID]:
