@@ -115,8 +115,29 @@ signing key, and `AMRSS_BOOTSTRAP=demo`.
 
 That last one matters. Render's free tier gives **no shell**, so there is no way
 to run a seed command after deploying. The container therefore seeds itself on
-start: migrations, then the dictionaries, then a synthetic regional block. All
-of it is idempotent, which it has to be on a tier that sleeps and restarts.
+start, and it does so *after* it starts serving:
+
+1. **Migrations run first and block.** Serving against a schema older than the
+   code is a correctness failure, and they take seconds.
+2. **The port opens.** This is the point Render is watching for.
+3. **Seeding runs in the background.** A few thousand synthetic isolates take
+   about half a minute on a decent machine and several minutes on a free
+   instance — which is why it must not hold the port shut.
+
+That order was learned the hard way. When seeding ran before the port opened,
+Render's port scan gave up while the container was still healthily loading
+data, and failed the deploy:
+
+```
+==> Port scan timeout reached, no open ports detected.
+Bootstrap (demo): synthetic regional block loaded.
+INFO:  Uvicorn running on http://0.0.0.0:8000
+```
+
+The consequence worth knowing: **for the first few minutes the dashboard will
+be up but nearly empty**, then fill in. That happens once, on the first deploy.
+Every later restart finds the data already there and skips it in seconds, which
+matters on a tier that sleeps.
 
 Wait for the first deploy — three or four minutes, most of it building the
 image — then check it is genuinely up rather than merely running:

@@ -268,9 +268,78 @@ jobs:
             echo "correctly refused: ${bad%%=*}"
           done
 
+      # A malformed URL must stop the container at its first command, not deep
+      # inside the driver. This is the shape that failed a real deploy: a Neon
+      # string with a second '?' appended, which lands inside the previous
+      # parameter's value instead of adding a parameter.
+      - name: A doubled query string must be refused by name
+        run: |
+          bad='postgresql+psycopg://amrss:ci@db:5432/amrss?sslmode=require&channel_binding=require?sslmode=require'
+          if output=$(docker run --rm --network amrss \
+            -e AMRSS_DATABASE_URL="$bad" \
+            -e AMRSS_JWT_SECRET="$(head -c 48 /dev/urandom | base64 | tr -d '\n')" \
+            -e AMRSS_CORS_ORIGINS='[]' \
+            -e AMRSS_ENVIRONMENT=staging \
+            amrss-api:ci python -m amrss.cli check-config 2>&1); then
+            echo "::error::A URL with two '?' was accepted."; exit 1
+          fi
+          echo "$output" | grep -q "AMRSS_DATABASE_URL" \
+            || { echo "::error::Refusal did not name the setting."; echo "$output"; exit 1; }
+          echo "correctly refused, by name"
+
+      # The deploy that taught us this: migrations *and* the demonstration seed
+      # both ran before uvicorn bound a port, so on a fraction of a CPU nothing
+      # was listening for about seven minutes. Render failed the deploy on its
+      # port scan while the application was still healthily seeding.
+      #
+      # The seed is backgrounded now. The assertion is relative rather than a
+      # stopwatch — the port must open *before the seed finishes*, which is the
+      # actual invariant and does not depend on how fast this runner is.
+      - name: The port opens before seeding finishes
+        run: |
+          docker exec db psql -U amrss -d amrss -c 'create database amrss_boot'
+          docker run -d --name api-boot --network amrss -p 10000:10000 \
+            -e PORT=10000 \
+            -e AMRSS_DATABASE_URL='postgresql+psycopg://amrss:ci@db:5432/amrss_boot' \
+            -e AMRSS_JWT_SECRET="$(head -c 48 /dev/urandom | base64 | tr -d '\n')" \
+            -e AMRSS_ENVIRONMENT=staging \
+            -e AMRSS_BOOTSTRAP=demo \
+            -e AMRSS_CORS_ORIGINS='[]' \
+            amrss-api:ci
+
+          # PORT is honoured, not just 8000: every platform this runs on assigns
+          # one, and a service that ignores it is a service that never appears.
+          opened=""
+          for _ in $(seq 90); do
+            if curl -fsS http://localhost:10000/health | grep -q '"ok"'; then
+              opened=yes; break
+            fi
+            sleep 1
+          done
+          [ -n "$opened" ] || { echo "::error::Nothing ever listened on \$PORT."; docker logs api-boot; exit 1; }
+
+          if docker logs api-boot 2>&1 | grep -q 'synthetic regional block loaded'; then
+            echo "::error::The seed finished before the port opened — it is blocking start-up again."
+            docker logs api-boot; exit 1
+          fi
+          echo "port open while the seed is still running"
+
+          # And the backgrounded seed must actually complete, not be lost.
+          for _ in $(seq 90); do
+            if docker logs api-boot 2>&1 | grep -q 'synthetic regional block loaded'; then
+              echo "background seed completed"; exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::The backgrounded seed never completed."; docker logs api-boot; exit 1
+
       - name: API logs
         if: always()
         run: docker logs api
+
+      - name: Start-up ordering logs
+        if: always()
+        run: docker logs api-boot || true
 
   web:
     name: Dashboard — types and build
