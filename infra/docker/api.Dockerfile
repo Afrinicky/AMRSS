@@ -62,25 +62,23 @@ COPY --chown=amrss:amrss apps/api/alembic ./alembic
 COPY --chown=amrss:amrss apps/api/alembic.ini ./
 # The breakpoint template ships; no breakpoint values do.
 COPY --chown=amrss:amrss data/breakpoints/clsi_m100.template.csv ./data/breakpoints/
+COPY --chown=amrss:amrss --chmod=0755 infra/docker/entrypoint.sh ./entrypoint.sh
 
 USER amrss
+
+# Documentation only, and only for the default: the process binds $PORT when the
+# platform sets one, which Render, Fly and Heroku all do.
 EXPOSE 8000
 
 # Readiness, not liveness: an instance that cannot reach the database answers
 # 500 to every request that matters, and a check that only proves the process
 # is running would keep it in the load balancer's rotation.
-HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-  CMD python -c "import urllib.request;urllib.request.urlopen('http://localhost:8000/health/ready')"
-
-# Migrations run at start rather than in a separate step, so a deployment can
-# never serve an image against a schema older than the code in it. Alembic is
-# idempotent: a container that restarts finds nothing to apply.
 #
-# --proxy-headers is required because TLS terminates upstream; without it every
-# request appears to come from the proxy and rate limiting becomes global.
-# Set --forwarded-allow-ips to the proxy's address in your deployment.
-# `bootstrap` does nothing unless AMRSS_BOOTSTRAP asks for something, and what
-# it does is idempotent. It is in the start-up path because the free tiers this
-# is demonstrated on give no shell — a deployment that cannot seed itself there
-# cannot be used at all.
-CMD ["sh", "-c", "alembic upgrade head && python -m amrss.cli bootstrap && exec uvicorn amrss.main:app --host 0.0.0.0 --port 8000 --proxy-headers --no-server-header"]
+# The start period covers migrations, which run before the port opens. It does
+# not need to cover seeding, which no longer does.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+  CMD python -c "import os,urllib.request;urllib.request.urlopen('http://localhost:'+os.environ.get('PORT','8000')+'/health/ready')"
+
+# The ordering of migrations, seeding and serving is explained in entrypoint.sh,
+# and one deploy failure is the reason it is a script rather than a one-liner.
+CMD ["./entrypoint.sh"]
