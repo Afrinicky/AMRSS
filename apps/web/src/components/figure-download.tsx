@@ -153,6 +153,19 @@ function triggerDownload(blob: Blob, filename: string): void {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+/** A blob as bare base64 (no `data:` prefix), which is what ExcelJS wants. */
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const result = String(reader.result);
+      resolve(result.slice(result.indexOf(",") + 1));
+    };
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+}
+
 function slugify(title: string): string {
   return (
     title
@@ -199,39 +212,83 @@ export function FigureDownload({
     );
   }
 
-  async function downloadPng(): Promise<void> {
+  /** Rasterise the live chart to a PNG, resolved styles and provenance and all.
+   *  Shared by the PNG download and the Excel workbook, so the picture in the
+   *  spreadsheet is byte-for-byte the picture on the button. */
+  async function rasterise(): Promise<{ blob: Blob; width: number; height: number } | null> {
     const svg = liveSvg();
-    if (!svg) return;
+    if (!svg) return null;
+    const exported = buildExportSvg(svg, { title, period, source });
+    const width = Number(exported.getAttribute("width"));
+    const height = Number(exported.getAttribute("height"));
+    const markup = new XMLSerializer().serializeToString(exported);
+    const svgUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(markup)}`;
+
+    const scale = 3; // crisp when enlarged in a slide or on paper
+    const image = new Image();
+    image.width = width;
+    image.height = height;
+    await new Promise<void>((resolve, reject) => {
+      image.onload = () => resolve();
+      image.onerror = () => reject(new Error("SVG could not be rasterised"));
+      image.src = svgUrl;
+    });
+
+    const canvas = document.createElement("canvas");
+    canvas.width = width * scale;
+    canvas.height = height * scale;
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("Canvas is unavailable");
+    context.scale(scale, scale);
+    context.drawImage(image, 0, 0);
+
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
+    // The embedded image is sized to the export's own dimensions, not the 3×
+    // canvas, so Excel shows it at natural size rather than enormous.
+    return blob ? { blob, width, height } : null;
+  }
+
+  async function downloadPng(): Promise<void> {
     setBusy(true);
     try {
-      const exported = buildExportSvg(svg, { title, period, source });
-      const width = Number(exported.getAttribute("width"));
-      const height = Number(exported.getAttribute("height"));
-      const markup = new XMLSerializer().serializeToString(exported);
-      const svgUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(markup)}`;
+      const png = await rasterise();
+      if (png) triggerDownload(png.blob, `${slugify(title)}.png`);
+    } finally {
+      setBusy(false);
+    }
+  }
 
-      const scale = 3; // crisp when enlarged in a slide or on paper
-      const image = new Image();
-      image.width = width;
-      image.height = height;
-      await new Promise<void>((resolve, reject) => {
-        image.onload = () => resolve();
-        image.onerror = () => reject(new Error("SVG could not be rasterised"));
-        image.src = svgUrl;
+  async function downloadXlsx(): Promise<void> {
+    if (!data) return;
+    setBusy(true);
+    try {
+      // The chart travels as an image because Excel's own charts cannot be
+      // authored faithfully from here; the data sheet lets a reader rebuild a
+      // native one. A failed rasterisation is not fatal — the workbook is still
+      // worth having with the table alone.
+      const png = await rasterise().catch(() => null);
+      const image = png
+        ? {
+            base64: await blobToBase64(png.blob),
+            width: png.width,
+            height: png.height,
+          }
+        : undefined;
+
+      const response = await fetch("/api/figure/xlsx", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          title,
+          period,
+          source,
+          columns: data.columns,
+          rows: data.rows,
+          image,
+        }),
       });
-
-      const canvas = document.createElement("canvas");
-      canvas.width = width * scale;
-      canvas.height = height * scale;
-      const context = canvas.getContext("2d");
-      if (!context) throw new Error("Canvas is unavailable");
-      context.scale(scale, scale);
-      context.drawImage(image, 0, 0);
-
-      const blob = await new Promise<Blob | null>((resolve) =>
-        canvas.toBlob(resolve, "image/png"),
-      );
-      if (blob) triggerDownload(blob, `${slugify(title)}.png`);
+      if (!response.ok) throw new Error(`Workbook request failed (${response.status})`);
+      triggerDownload(await response.blob(), `${slugify(title)}.xlsx`);
     } finally {
       setBusy(false);
     }
@@ -303,14 +360,24 @@ export function FigureDownload({
                   hint="For slides and documents — high resolution"
                 />
                 {data ? (
-                  <MenuItem
-                    onClick={() => {
-                      setOpen(false);
-                      downloadCsv();
-                    }}
-                    label="Data (CSV)"
-                    hint="The numbers behind the figure"
-                  />
+                  <>
+                    <MenuItem
+                      onClick={() => {
+                        setOpen(false);
+                        void downloadXlsx();
+                      }}
+                      label="Workbook (Excel)"
+                      hint="The data and the chart, in one .xlsx"
+                    />
+                    <MenuItem
+                      onClick={() => {
+                        setOpen(false);
+                        downloadCsv();
+                      }}
+                      label="Data (CSV)"
+                      hint="The numbers behind the figure"
+                    />
+                  </>
                 ) : null}
               </div>
             </>
