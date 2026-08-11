@@ -42,6 +42,13 @@ export interface FigureDownloadProps {
   source?: string;
   /** The numbers, when the figure has a table behind it. Omit to hide CSV. */
   data?: FigureData;
+  /** Whether to offer the Excel workbook. It is built by a server route that
+   *  requires a session, so the public dashboard — which has none — turns it off
+   *  and offers SVG, PNG and CSV, all of which are produced in the browser. */
+  allowExcel?: boolean;
+  /** Whether the figure has an image to export. A table has none, so it sets
+   *  this false and offers only the data. */
+  image?: boolean;
   children: React.ReactNode;
 }
 
@@ -188,6 +195,8 @@ export function FigureDownload({
   period,
   source = "AMRSS — Antimicrobial Resistance Surveillance System",
   data,
+  allowExcel = true,
+  image = true,
   children,
 }: FigureDownloadProps) {
   const content = useRef<HTMLDivElement>(null);
@@ -343,32 +352,38 @@ export function FigureDownload({
                 role="menu"
                 className="absolute right-0 z-20 mt-1 w-56 overflow-hidden rounded-lg border border-line bg-surface shadow-lg"
               >
-                <MenuItem
-                  onClick={() => {
-                    setOpen(false);
-                    downloadSvg();
-                  }}
-                  label="Vector image (SVG)"
-                  hint="For publication — scales without loss"
-                />
-                <MenuItem
-                  onClick={() => {
-                    setOpen(false);
-                    void downloadPng();
-                  }}
-                  label="Image (PNG)"
-                  hint="For slides and documents — high resolution"
-                />
-                {data ? (
+                {image ? (
                   <>
                     <MenuItem
                       onClick={() => {
                         setOpen(false);
-                        void downloadXlsx();
+                        downloadSvg();
                       }}
-                      label="Workbook (Excel)"
-                      hint="The data and the chart, in one .xlsx"
+                      label="Vector image (SVG)"
+                      hint="For publication — scales without loss"
                     />
+                    <MenuItem
+                      onClick={() => {
+                        setOpen(false);
+                        void downloadPng();
+                      }}
+                      label="Image (PNG)"
+                      hint="For slides and documents — high resolution"
+                    />
+                  </>
+                ) : null}
+                {data ? (
+                  <>
+                    {allowExcel ? (
+                      <MenuItem
+                        onClick={() => {
+                          setOpen(false);
+                          void downloadXlsx();
+                        }}
+                        label="Workbook (Excel)"
+                        hint="The data and the chart, in one .xlsx"
+                      />
+                    ) : null}
                     <MenuItem
                       onClick={() => {
                         setOpen(false);

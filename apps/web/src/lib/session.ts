@@ -14,7 +14,7 @@ export async function requireProfile(): Promise<Profile> {
     return await api.profile();
   } catch (error) {
     if (error instanceof ApiError && (error.status === 401 || error.status === 423)) {
-      redirect("/signin");
+      redirect("/console/signin");
     }
     throw error;
   }
