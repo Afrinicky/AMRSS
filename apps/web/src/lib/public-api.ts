@@ -40,13 +40,16 @@ async function publicGet<T>(path: string): Promise<T> {
 
   // Retry, because of when this runs. These pages are pre-rendered at build and
   // re-rendered on revalidation, and at either moment the free-tier API may be
-  // asleep and take most of a minute to wake. A single attempt would give up on
-  // a waking service and bake the fallback for a whole revalidation window; a
-  // few attempts across a couple of minutes wait it out and capture real data.
-  const attempts = 3;
-  // Long enough that a single attempt can absorb a full cold start rather than
-  // giving up just as the instance is about to answer.
-  const perAttemptTimeoutMs = 55_000;
+  // briefly slow. A `prebuild` step (scripts/warm-api.mjs) wakes the API once
+  // before the build so these fetches land on a warm instance, so the retry here
+  // only has to absorb an ordinary hiccup — not a full cold start. That matters:
+  // the total budget below stays comfortably under the host's per-page render
+  // limit (60s on Vercel), so a page can never hang past it. If every attempt
+  // fails, the page catches and renders its unavailable state, and ISR heals it
+  // within a revalidation window once the API is reachable again.
+  const attempts = 2;
+  const perAttemptTimeoutMs = 24_000;
+  const backoffMs = 5_000;
   let lastError: unknown;
 
   for (let attempt = 0; attempt < attempts; attempt += 1) {
@@ -62,7 +65,7 @@ async function publicGet<T>(path: string): Promise<T> {
       lastError = error;
     }
     if (attempt < attempts - 1) {
-      await new Promise((resolve) => setTimeout(resolve, 6_000 * (attempt + 1)));
+      await new Promise((resolve) => setTimeout(resolve, backoffMs));
     }
   }
 
