@@ -1,3 +1,5 @@
+import { EmpiricFigure } from "@/components/figures";
+import { FigureDownload } from "@/components/figure-download";
 import type { EmpiricResponse } from "@/lib/api";
 
 /**
@@ -14,6 +16,10 @@ import type { EmpiricResponse } from "@/lib/api";
  * in. The per-organism antibiogram is kept underneath as the working, for the
  * reader who wants to see where a coverage number comes from.
  *
+ * The whole figure travels: the download beside it produces an Excel workbook
+ * with the coverage chart embedded and a sheet each for coverage, prevalence and
+ * the per-organism detail — the form a stewardship committee or a paper needs.
+ *
  * The framing around all of it is firm by design: this is regional surveillance
  * evidence to weigh alongside local guidelines, stewardship advice and the
  * patient in front of you — never a prescription on its own.
@@ -23,10 +29,13 @@ export function EmpiricGuidance({
   empiric,
   siteLabel,
   sterileSite,
+  period,
 }: {
   empiric: EmpiricResponse;
   siteLabel: string;
   sterileSite: boolean;
+  /** Coverage period, stamped into every downloaded figure and sheet. */
+  period?: string;
 }) {
   const { prevalence, coverage, antibiogram, total_isolates } = empiric;
   const antibioticName = new Map(antibiogram.antibiotics.map((a) => [a.id, a.name]));
@@ -46,6 +55,42 @@ export function EmpiricGuidance({
     );
   }
 
+  // The workbook the download builds: the coverage table is the primary sheet,
+  // with prevalence and the per-organism detail alongside it, and the chart is
+  // embedded as an image. Full rankings here, not the figure's top-ten.
+  const coverageData = {
+    columns: ["Antimicrobial", "Estimated coverage %", "Isolates covered (est.)", "Organisms contributing"],
+    rows: coverage.map((entry) => [
+      entry.antibiotic.name,
+      entry.coverage_percent.toFixed(1),
+      entry.isolates_covered,
+      entry.organisms_contributing,
+    ]),
+  };
+  const prevalenceData = {
+    columns: ["Organism", "Kingdom", "Isolates", "% of site"],
+    rows: prevalence.map((share) => [
+      share.organism.name,
+      share.organism_kingdom === "fungi" ? "Fungi" : "Bacteria",
+      share.isolate_count,
+      share.percent_of_site.toFixed(1),
+    ]),
+  };
+  const byOrganismData = {
+    columns: ["Organism", "Antimicrobial", "Susceptible %", "Interpretable (n)"],
+    rows: organisms.flatMap((row) =>
+      row.cells
+        .filter((cell) => cell.state === "reportable")
+        .sort((a, b) => (b.susceptible_percent ?? 0) - (a.susceptible_percent ?? 0))
+        .map((cell) => [
+          row.organism.name,
+          antibioticName.get(cell.antibiotic_id) ?? cell.antibiotic_id,
+          cell.susceptible_percent === null ? null : cell.susceptible_percent.toFixed(1),
+          cell.interpretable,
+        ]),
+    ),
+  };
+
   return (
     <div className="space-y-6">
       <GuidanceCaveat />
@@ -57,9 +102,23 @@ export function EmpiricGuidance({
         </p>
       ) : null}
 
-      <div className="grid gap-6 lg:grid-cols-5">
-        <CoveragePanel coverage={coverage} totalIsolates={total_isolates} siteLabel={siteLabel} />
-        <PrevalencePanel prevalence={prevalence} siteLabel={siteLabel} />
+      <div className="flex justify-end">
+        <FigureDownload
+          title={`Empiric guidance — ${siteLabel}`}
+          period={period}
+          data={coverageData}
+          extraSheets={[
+            { name: "Prevalence", data: prevalenceData },
+            { name: "By organism", data: byOrganismData },
+          ]}
+        >
+          <EmpiricFigure
+            coverage={coverage}
+            prevalence={prevalence}
+            siteLabel={siteLabel}
+            totalIsolates={total_isolates}
+          />
+        </FigureDownload>
       </div>
 
       <OrganismDetail organisms={organisms} antibioticName={antibioticName} siteLabel={siteLabel} />
@@ -77,109 +136,7 @@ export function EmpiricGuidance({
 }
 
 /**
- * The headline answer: which single agent covers the most cases at this site,
- * ranked best-first. This is the number a prescriber reaches for when the
- * organism is not yet known, so it leads and is given the most weight on the
- * page — a bar for the estimate and, underneath, the working it rests on.
- */
-function CoveragePanel({
-  coverage,
-  totalIsolates,
-  siteLabel,
-}: {
-  coverage: EmpiricResponse["coverage"];
-  totalIsolates: number;
-  siteLabel: string;
-}) {
-  return (
-    <section className="min-w-0 lg:col-span-3 rounded-[--radius-card] border border-line bg-surface p-4 sm:p-5">
-      <div className="flex items-baseline justify-between gap-2">
-        <h2 className="text-sm font-semibold text-ink">Best empiric coverage</h2>
-        <span className="tabular text-[11px] text-ink-muted">
-          across {totalIsolates.toLocaleString()} isolates
-        </span>
-      </div>
-      <p className="mt-1 text-xs text-ink-muted">
-        Estimated share of {siteLabel} cases each agent would cover, not knowing the organism.
-      </p>
-
-      {coverage.length === 0 ? (
-        <p className="mt-4 border-t border-line pt-4 text-xs text-ink-muted">
-          No agent reaches the reporting threshold across enough of this site&rsquo;s organisms to
-          estimate coverage.
-        </p>
-      ) : (
-        <ol className="mt-4 space-y-2.5 border-t border-line pt-4">
-          {coverage.map((entry, index) => (
-            <li key={entry.antibiotic.id}>
-              <div className="flex items-baseline gap-2">
-                <span className="tabular w-4 shrink-0 text-xs text-ink-muted">{index + 1}</span>
-                <span className="min-w-0 flex-1 truncate text-sm text-ink">
-                  {entry.antibiotic.name}
-                </span>
-                <span className="tabular shrink-0 text-sm font-semibold text-ink">
-                  {entry.coverage_percent.toFixed(0)}%
-                </span>
-              </div>
-              <div className="mt-1 flex items-center gap-2 pl-6">
-                <CoverageBar percent={entry.coverage_percent} />
-                <span className="tabular shrink-0 text-[11px] text-ink-muted">
-                  ~{entry.isolates_covered.toLocaleString()} covered ·{" "}
-                  {entry.organisms_contributing} organism
-                  {entry.organisms_contributing === 1 ? "" : "s"}
-                </span>
-              </div>
-            </li>
-          ))}
-        </ol>
-      )}
-    </section>
-  );
-}
-
-/**
- * The other half of the empiric question: which organisms is the patient most
- * likely to have? Commonest-first, with each organism's share of the site, so a
- * prescriber can see what the coverage figures are weighted towards.
- */
-function PrevalencePanel({
-  prevalence,
-  siteLabel,
-}: {
-  prevalence: EmpiricResponse["prevalence"];
-  siteLabel: string;
-}) {
-  return (
-    <section className="min-w-0 lg:col-span-2 rounded-[--radius-card] border border-line bg-surface p-4 sm:p-5">
-      <h2 className="text-sm font-semibold text-ink">Commonly isolated</h2>
-      <p className="mt-1 text-xs text-ink-muted">Organisms most often grown from {siteLabel}.</p>
-
-      <ul className="mt-4 space-y-2.5 border-t border-line pt-4">
-        {prevalence.map((share) => (
-          <li key={share.organism.id}>
-            <div className="flex items-baseline justify-between gap-2">
-              <span className="min-w-0 flex-1 truncate text-sm italic text-ink">
-                {share.organism.name}
-              </span>
-              <span className="tabular shrink-0 text-sm font-medium text-ink">
-                {share.percent_of_site.toFixed(0)}%
-              </span>
-            </div>
-            <div className="mt-1 flex items-center gap-2">
-              <PrevalenceBar percent={share.percent_of_site} fungal={share.organism_kingdom === "fungi"} />
-              <span className="tabular shrink-0 text-[11px] text-ink-muted">
-                {share.isolate_count.toLocaleString()}
-              </span>
-            </div>
-          </li>
-        ))}
-      </ul>
-    </section>
-  );
-}
-
-/**
- * The working underneath the two headline panels: for each organism, the agents
+ * The working underneath the headline figure: for each organism, the agents
  * ranked by how susceptible its isolates were. This is where a prescriber checks
  * "if it is this bug, what works?" and sees the per-organism rates the coverage
  * estimate is built from.
@@ -271,39 +228,6 @@ function GuidanceCaveat() {
         Where a culture and sensitivity result exists, it takes precedence over this.
       </p>
     </div>
-  );
-}
-
-/** Empiric coverage: length is the estimate, colour a redundant band cue. Higher
- *  bands than S/I/R here — an empiric target is usually 80%+ coverage. */
-function CoverageBar({ percent }: { percent: number }) {
-  const tone =
-    percent >= 80
-      ? "var(--color-sir-s)"
-      : percent >= 60
-        ? "var(--color-sir-i)"
-        : "var(--color-sir-r)";
-  return (
-    <span aria-hidden className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-surface-muted">
-      <span
-        className="block h-full rounded-full"
-        style={{ width: `${Math.max(2, percent)}%`, backgroundColor: tone }}
-      />
-    </span>
-  );
-}
-
-/** Prevalence share. Neutral brand tone for bacteria, a distinct tone for fungi
- *  so a fungal pathogen at a site is not mistaken for a bacterial one. */
-function PrevalenceBar({ percent, fungal }: { percent: number; fungal: boolean }) {
-  const tone = fungal ? "var(--color-sir-i)" : "var(--color-brand-600)";
-  return (
-    <span aria-hidden className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-surface-muted">
-      <span
-        className="block h-full rounded-full"
-        style={{ width: `${Math.max(2, percent)}%`, backgroundColor: tone }}
-      />
-    </span>
   );
 }
 

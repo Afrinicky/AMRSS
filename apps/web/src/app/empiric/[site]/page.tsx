@@ -2,7 +2,6 @@ import { notFound } from "next/navigation";
 
 import { FreshnessBanner, formatPeriod } from "@/components/context-panels";
 import { EmpiricGuidance } from "@/components/empiric-guidance";
-import { FigureDownload } from "@/components/figure-download";
 import { PublicShell } from "@/components/public-shell";
 import { PublicUnavailable } from "@/components/public-unavailable";
 import { SiteTabs } from "@/components/site-tabs";
@@ -11,6 +10,10 @@ import { publicApi } from "@/lib/public-api";
 import { siteSlug } from "@/lib/sites";
 
 export const revalidate = 600; // 10 min; see PUBLIC_REVALIDATE_SECONDS
+// Raise the per-invocation limit from the Hobby default (10s) so a runtime
+// ISR revalidation has room to wait out a cold start or a heavy antibiogram
+// computing on the free tier, rather than timing out and baking the fallback.
+export const maxDuration = 60;
 
 // Pre-build one page per infection site, so each opens instantly from the edge.
 export async function generateStaticParams() {
@@ -79,36 +82,11 @@ export default async function EmpiricSitePage({
 
         <FreshnessBanner freshness={antibiogram.freshness} />
 
-        <div className="flex justify-end">
-          <FigureDownload
-            title={`Empiric guidance — ${match.site}`}
-            period={period}
-            allowExcel={false}
-            image={false}
-            data={{
-              columns: ["Organism", "Antimicrobial", "Susceptible %", "Interpretable (n)"],
-              rows: antibiogram.rows.flatMap((row) =>
-                row.cells
-                  .filter((cell) => cell.state === "reportable")
-                  .sort((a, b) => (b.susceptible_percent ?? 0) - (a.susceptible_percent ?? 0))
-                  .map((cell) => [
-                    row.organism.name,
-                    antibiogram.antibiotics.find((a) => a.id === cell.antibiotic_id)?.name ??
-                      cell.antibiotic_id,
-                    cell.susceptible_percent === null ? null : cell.susceptible_percent.toFixed(1),
-                    cell.interpretable,
-                  ]),
-              ),
-            }}
-          >
-            <span className="sr-only">Empiric guidance data for {match.site}</span>
-          </FigureDownload>
-        </div>
-
         <EmpiricGuidance
           empiric={empiric}
           siteLabel={match.site}
           sterileSite={match.sterile_site}
+          period={period}
         />
       </div>
     </PublicShell>

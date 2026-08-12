@@ -12,7 +12,14 @@
  * exposed to assistive technology.
  */
 
-import type { AntibioticProfile, OrganismSites, SpecimenCount, TrendPoint } from "@/lib/api";
+import type {
+  AgentCoverage,
+  AntibioticProfile,
+  OrganismPrevalence,
+  OrganismSites,
+  SpecimenCount,
+  TrendPoint,
+} from "@/lib/api";
 
 const ROW_HEIGHT = 26;
 const ROW_GAP = 6;
@@ -872,6 +879,209 @@ export function TrendChart({
           </table>
         </div>
       </details>
+    </figure>
+  );
+}
+
+// --- Empiric guidance figure -------------------------------------------------
+
+const EMPIRIC_PLOT_WIDTH = 420;
+const EMPIRIC_BAR_HEIGHT = 20;
+const EMPIRIC_BAR_GAP = 8;
+const EMPIRIC_SECTION_GAP = 20;
+const EMPIRIC_HEADER_HEIGHT = 26;
+const EMPIRIC_RIGHT_GUTTER = 168;
+const EMPIRIC_WIDTH = LABEL_WIDTH + EMPIRIC_PLOT_WIDTH + EMPIRIC_RIGHT_GUTTER;
+// A figure shows the leaders, not the whole roster; the full ranking is one
+// click away in the tables the download and the panels below already carry.
+const EMPIRIC_MAX_ROWS = 10;
+
+/** Coverage is honest against a full 100%: an agent that covers 54% of a site
+ *  is drawn just past half, not stretched to fill the plot, because "how close
+ *  to covering everything" is the judgement a prescriber is making. */
+function coverageTone(percent: number): string {
+  if (percent >= 80) return "var(--color-sir-s)";
+  if (percent >= 60) return "var(--color-sir-i)";
+  return "var(--color-sir-r)";
+}
+
+/**
+ * The empiric picture for a site in one figure: which agent covers the most
+ * cases (top), and which organisms are commonly isolated (bottom).
+ *
+ * One inline SVG so it prints, needs no JavaScript, and travels intact into the
+ * downloaded workbook as a single image. The two questions share a figure
+ * because a prescriber reads them together — the coverage on top is weighted by
+ * exactly the prevalence shown beneath it.
+ */
+export function EmpiricFigure({
+  coverage,
+  prevalence,
+  siteLabel,
+  totalIsolates,
+}: {
+  coverage: AgentCoverage[];
+  prevalence: OrganismPrevalence[];
+  siteLabel: string;
+  totalIsolates: number;
+}) {
+  const agents = coverage.slice(0, EMPIRIC_MAX_ROWS);
+  const organisms = prevalence.slice(0, EMPIRIC_MAX_ROWS);
+  // Prevalence bars scale to the commonest organism so the shape is legible even
+  // when the leader is a minority of a mixed site; the label always states the
+  // true percentage, so nothing is overstated by the scaling.
+  const prevalenceMax = Math.max(...organisms.map((o) => o.percent_of_site), 1);
+
+  const row = EMPIRIC_BAR_HEIGHT + EMPIRIC_BAR_GAP;
+  const coverageBlock = EMPIRIC_HEADER_HEIGHT + agents.length * row;
+  const prevalenceBlock = EMPIRIC_HEADER_HEIGHT + organisms.length * row;
+  const height = coverageBlock + EMPIRIC_SECTION_GAP + prevalenceBlock;
+
+  const prevalenceTop = coverageBlock + EMPIRIC_SECTION_GAP;
+
+  return (
+    <figure className="rounded-[--radius-card] border border-line bg-surface p-4">
+      <div className="overflow-x-auto">
+        <svg
+          viewBox={`0 0 ${EMPIRIC_WIDTH} ${height}`}
+          width="100%"
+          style={{ minWidth: 560, maxWidth: "100%" }}
+          role="img"
+          aria-label={`Empiric guidance for ${siteLabel}: agents ranked by estimated coverage, and organisms by how often they are isolated, across ${totalIsolates} isolates.`}
+        >
+          {/* Coverage section */}
+          <text x={0} y={16} fontSize="13" fontWeight="600" fill="var(--color-ink)">
+            Best empiric coverage
+          </text>
+          <text
+            x={EMPIRIC_WIDTH}
+            y={16}
+            textAnchor="end"
+            fontSize="11"
+            fill="var(--color-ink-muted)"
+          >
+            across {totalIsolates.toLocaleString()} isolates
+          </text>
+          <line
+            x1={0}
+            x2={EMPIRIC_WIDTH}
+            y1={EMPIRIC_HEADER_HEIGHT - 4}
+            y2={EMPIRIC_HEADER_HEIGHT - 4}
+            stroke="var(--color-line)"
+            strokeWidth="1"
+          />
+          {agents.map((agent, index) => {
+            const top = EMPIRIC_HEADER_HEIGHT + index * row;
+            const width = Math.max(2, (agent.coverage_percent / 100) * EMPIRIC_PLOT_WIDTH);
+            return (
+              <g key={agent.antibiotic.id}>
+                <text
+                  x={LABEL_WIDTH - VALUE_GUTTER}
+                  y={top + EMPIRIC_BAR_HEIGHT / 2}
+                  textAnchor="end"
+                  dominantBaseline="central"
+                  fontSize="11.5"
+                  fill="var(--color-ink)"
+                >
+                  {agent.antibiotic.name}
+                </text>
+                <rect
+                  x={LABEL_WIDTH}
+                  y={top}
+                  width={width}
+                  height={EMPIRIC_BAR_HEIGHT}
+                  fill={coverageTone(agent.coverage_percent)}
+                  rx="2"
+                />
+                <text
+                  x={LABEL_WIDTH + width + VALUE_GUTTER}
+                  y={top + EMPIRIC_BAR_HEIGHT / 2}
+                  dominantBaseline="central"
+                  fontSize="11"
+                  fill="var(--color-ink)"
+                >
+                  {agent.coverage_percent.toFixed(0)}%
+                  <tspan fill="var(--color-ink-muted)">
+                    {"  "}~{agent.isolates_covered.toLocaleString()} covered
+                  </tspan>
+                </text>
+              </g>
+            );
+          })}
+
+          {/* Prevalence section */}
+          <text
+            x={0}
+            y={prevalenceTop + 16}
+            fontSize="13"
+            fontWeight="600"
+            fill="var(--color-ink)"
+          >
+            Commonly isolated
+          </text>
+          <line
+            x1={0}
+            x2={EMPIRIC_WIDTH}
+            y1={prevalenceTop + EMPIRIC_HEADER_HEIGHT - 4}
+            y2={prevalenceTop + EMPIRIC_HEADER_HEIGHT - 4}
+            stroke="var(--color-line)"
+            strokeWidth="1"
+          />
+          {organisms.map((organism, index) => {
+            const top = prevalenceTop + EMPIRIC_HEADER_HEIGHT + index * row;
+            const width = Math.max(
+              2,
+              (organism.percent_of_site / prevalenceMax) * EMPIRIC_PLOT_WIDTH,
+            );
+            const fill =
+              organism.organism_kingdom === "fungi"
+                ? "var(--color-sir-i)"
+                : "var(--color-brand-600)";
+            return (
+              <g key={organism.organism.id}>
+                <text
+                  x={LABEL_WIDTH - VALUE_GUTTER}
+                  y={top + EMPIRIC_BAR_HEIGHT / 2}
+                  textAnchor="end"
+                  dominantBaseline="central"
+                  fontSize="11.5"
+                  fontStyle="italic"
+                  fill="var(--color-ink)"
+                >
+                  {organism.organism.name}
+                </text>
+                <rect
+                  x={LABEL_WIDTH}
+                  y={top}
+                  width={width}
+                  height={EMPIRIC_BAR_HEIGHT}
+                  fill={fill}
+                  rx="2"
+                />
+                <text
+                  x={LABEL_WIDTH + width + VALUE_GUTTER}
+                  y={top + EMPIRIC_BAR_HEIGHT / 2}
+                  dominantBaseline="central"
+                  fontSize="11"
+                  fill="var(--color-ink)"
+                >
+                  {organism.percent_of_site.toFixed(0)}%
+                  <tspan fill="var(--color-ink-muted)">
+                    {"  "}
+                    {organism.isolate_count.toLocaleString()} isolates
+                  </tspan>
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+
+      <p className="mt-3 text-xs text-ink-muted">
+        Coverage is estimated for each agent as its susceptibility within each organism, weighted by
+        how often that organism is isolated here (WISCA), against a full 100%. Prevalence bars are
+        scaled to the commonest organism; each label states the true share.
+      </p>
     </figure>
   );
 }

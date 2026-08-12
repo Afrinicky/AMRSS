@@ -6,6 +6,10 @@ import { publicApi } from "@/lib/public-api";
 import { siteSlug } from "@/lib/sites";
 
 export const revalidate = 600; // 10 min; see PUBLIC_REVALIDATE_SECONDS
+// Raise the per-invocation limit from the Hobby default (10s) so a runtime
+// ISR revalidation has room to wait out a cold start or a heavy antibiogram
+// computing on the free tier, rather than timing out and baking the fallback.
+export const maxDuration = 60;
 export const metadata = {
   title: "Empiric guidance by infection site",
   description:

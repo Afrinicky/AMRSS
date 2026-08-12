@@ -38,38 +38,26 @@ function publicApiUrl(): string {
 async function publicGet<T>(path: string): Promise<T> {
   const url = `${publicApiUrl()}/api/v1/public${path}`;
 
-  // Retry, because of when this runs. These pages are pre-rendered at build and
-  // re-rendered on revalidation, and at either moment the free-tier API may be
-  // briefly slow. A `prebuild` step (scripts/warm-api.mjs) wakes the API once
-  // before the build so these fetches land on a warm instance, so the retry here
-  // only has to absorb an ordinary hiccup — not a full cold start. That matters:
-  // the total budget below stays comfortably under the host's per-page render
-  // limit (60s on Vercel), so a page can never hang past it. If every attempt
-  // fails, the page catches and renders its unavailable state, and ISR heals it
-  // within a revalidation window once the API is reachable again.
-  const attempts = 2;
-  const perAttemptTimeoutMs = 24_000;
-  const backoffMs = 5_000;
-  let lastError: unknown;
-
-  for (let attempt = 0; attempt < attempts; attempt += 1) {
-    try {
-      const response = await fetch(url, {
-        next: { revalidate: PUBLIC_REVALIDATE_SECONDS },
-        headers: { "content-type": "application/json" },
-        signal: AbortSignal.timeout(perAttemptTimeoutMs),
-      });
-      if (response.ok) return (await response.json()) as T;
-      lastError = new Error(`Public API ${path} responded ${response.status}`);
-    } catch (error) {
-      lastError = error;
-    }
-    if (attempt < attempts - 1) {
-      await new Promise((resolve) => setTimeout(resolve, backoffMs));
-    }
+  // One attempt, with a budget wide enough to absorb a slow response but capped
+  // safely under the host's per-invocation limit (60s on Vercel, which every
+  // public page raises to via `export const maxDuration = 60`). A single long
+  // attempt beats several short ones here: the thing that makes a response slow
+  // on the free tier is a cold start or a heavy antibiogram computing on a
+  // fraction of a CPU, and that is one wait to sit through, not a transient blip
+  // to retry past. The `prebuild` warm-up wakes the API before the build so
+  // build-time fetches land warm; at runtime the heartbeat keeps it warm. If the
+  // fetch still fails, the page catches and renders its unavailable state, and
+  // ISR heals it on the next revalidation once the API answers again.
+  const timeoutMs = 50_000;
+  const response = await fetch(url, {
+    next: { revalidate: PUBLIC_REVALIDATE_SECONDS },
+    headers: { "content-type": "application/json" },
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+  if (!response.ok) {
+    throw new Error(`Public API ${path} responded ${response.status}`);
   }
-
-  throw lastError;
+  return (await response.json()) as T;
 }
 
 function queryString(params?: Record<string, string | undefined>): string {
