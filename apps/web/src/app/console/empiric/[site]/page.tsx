@@ -21,8 +21,8 @@ export default async function ConsoleEmpiricSite({
   const match = sites.find((entry) => siteSlug(entry.site) === slug);
   if (!match) notFound();
 
-  const antibiogram = await api.empiric({ site: match.site });
-  const period = formatPeriod(antibiogram.freshness);
+  const empiric = await api.empiric({ site: match.site });
+  const period = formatPeriod(empiric.antibiogram.freshness);
 
   return (
     <Shell profile={profile} current="/console/empiric">
@@ -33,9 +33,9 @@ export default async function ConsoleEmpiricSite({
 
       <div className="mt-6 space-y-6">
         <SiteTabs sites={sites} current={match.site} basePath="/console/empiric" />
-        <FreshnessBanner freshness={antibiogram.freshness} />
+        <FreshnessBanner freshness={empiric.antibiogram.freshness} />
         <EmpiricGuidance
-          antibiogram={antibiogram}
+          empiric={empiric}
           siteLabel={match.site}
           sterileSite={match.sterile_site}
         />

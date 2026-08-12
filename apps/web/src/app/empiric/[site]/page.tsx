@@ -52,13 +52,14 @@ export default async function EmpiricSitePage({
   }
   if (!match) notFound();
 
-  let antibiogram;
+  let empiric;
   try {
-    antibiogram = await publicApi.empiric(match.site);
+    empiric = await publicApi.empiric(match.site);
   } catch {
     return <PublicUnavailable current="/empiric" />;
   }
 
+  const antibiogram = empiric.antibiogram;
   const period = formatPeriod(antibiogram.freshness);
 
   return (
@@ -105,7 +106,7 @@ export default async function EmpiricSitePage({
         </div>
 
         <EmpiricGuidance
-          antibiogram={antibiogram}
+          empiric={empiric}
           siteLabel={match.site}
           sterileSite={match.sterile_site}
         />

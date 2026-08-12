@@ -85,6 +85,15 @@ def list_infection_sites(db: Session) -> list[InfectionSite]:
     return sites
 
 
+def resolve_site(db: Session, site: str) -> InfectionSite | None:
+    """The full site record — specimen types and sterile flag — or ``None`` if
+    the name is not one the dictionary knows."""
+    for entry in list_infection_sites(db):
+        if entry.site == site:
+            return entry
+    return None
+
+
 def specimen_type_ids_for_site(db: Session, site: str) -> list[uuid.UUID] | None:
     """The specimen types under one site, or ``None`` if the site is unknown.
 

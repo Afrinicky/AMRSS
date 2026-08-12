@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 
 from amrss.analytics import alerts as alerts_engine
 from amrss.analytics import antibiogram as antibiogram_engine
-from amrss.analytics import breakdowns, provenance, query, signals, trends
+from amrss.analytics import breakdowns, empiric, provenance, query, signals, trends
 from amrss.analytics import coverage as coverage_engine
 from amrss.analytics import methodology as methodology_engine
 from amrss.analytics import profiles as profiles_engine
@@ -26,7 +26,7 @@ from amrss.api.deps import CurrentPrincipal, DbSession
 from amrss.api.empiric_sites import (
     InfectionSitesResponse,
     list_infection_sites,
-    specimen_type_ids_for_site,
+    resolve_site,
 )
 from amrss.api.scope_resolution import ResolvedScope, resolve
 from amrss.models import (
@@ -256,10 +256,98 @@ def antibiogram_response(db: Session, scope: ResolvedScope) -> AntibiogramRespon
 #
 # The clinician's question: no culture yet, an infection of a known site — what
 # does the regional data say still works against the organisms usually seen
-# there? The answer is the ordinary antibiogram, computed over just the specimens
-# that belong to that site, so it can never diverge from the antibiogram read
-# anywhere else. It is evidence to weigh alongside local guidelines and
-# stewardship advice, never a prescription, and the dashboard says so.
+# there? Three things answer it, and this endpoint returns all three:
+#
+#   - which organisms are commonly isolated at the site, and how often;
+#   - for each organism, which agents were active (the ordinary antibiogram,
+#     scoped to the site, so it never diverges from the antibiogram elsewhere);
+#   - and the empiric answer: with the organism unknown, which single agent
+#     covers the most cases — each organism's susceptibility weighted by how
+#     often it is seen here (a WISCA).
+#
+# It is evidence to weigh alongside local guidelines and stewardship advice,
+# never a prescription, and the dashboard says so.
+
+
+class OrganismPrevalenceResponse(BaseModel):
+    organism: DictionaryRef
+    organism_kingdom: OrganismKingdom
+    isolate_count: int
+    percent_of_site: float
+
+
+class AgentCoverageResponse(BaseModel):
+    antibiotic: DictionaryRef
+    #: Estimated share of all isolates at the site this agent would cover, each
+    #: organism's susceptibility weighted by its prevalence (WISCA).
+    coverage_percent: float
+    isolates_covered: int
+    #: How many of the site's organisms had a reportable rate for this agent.
+    organisms_contributing: int
+
+
+class EmpiricResponse(BaseModel):
+    site: str
+    sterile_site: bool
+    total_isolates: int
+    #: Organisms at the site, commonest first — what a prescriber is treating.
+    prevalence: list[OrganismPrevalenceResponse]
+    #: Agents ranked by estimated empiric coverage, best first — the answer to
+    #: "which one, not knowing the organism".
+    coverage: list[AgentCoverageResponse]
+    #: The per-organism detail, and with it the freshness and methodology.
+    antibiogram: AntibiogramResponse
+
+
+def empiric_response(
+    db: Session, scope: ResolvedScope, *, site: str, sterile_site: bool
+) -> EmpiricResponse:
+    ab = antibiogram_response(db, scope)
+    # The coverage engine is id-agnostic and works on strings; the ids here are
+    # UUIDs, so they are stringified at this boundary and the response models are
+    # looked up by the same string keys.
+    agent_ref = {str(agent.id): agent for agent in ab.antibiotics}
+    organism_row = {str(row.organism.id): row for row in ab.rows}
+
+    rows = [
+        empiric.EmpiricRow(
+            organism_id=str(row.organism.id),
+            isolate_count=row.isolate_count,
+            susceptible_fraction={
+                str(cell.antibiotic_id): cell.susceptible_percent / 100
+                for cell in row.cells
+                if cell.state == "reportable" and cell.susceptible_percent is not None
+            },
+        )
+        for row in ab.rows
+    ]
+    summary = empiric.summarise(rows)
+
+    return EmpiricResponse(
+        site=site,
+        sterile_site=sterile_site,
+        total_isolates=summary.total_isolates,
+        prevalence=[
+            OrganismPrevalenceResponse(
+                organism=organism_row[share.organism_id].organism,
+                organism_kingdom=organism_row[share.organism_id].organism_kingdom,
+                isolate_count=share.isolate_count,
+                percent_of_site=share.percent_of_site,
+            )
+            for share in summary.prevalence
+        ],
+        coverage=[
+            AgentCoverageResponse(
+                antibiotic=agent_ref[entry.antibiotic_id],
+                coverage_percent=entry.coverage_percent,
+                isolates_covered=entry.isolates_covered,
+                organisms_contributing=entry.organisms_contributing,
+            )
+            for entry in summary.coverage
+            if entry.antibiotic_id in agent_ref
+        ],
+        antibiogram=ab,
+    )
 
 
 @router.get("/empiric/sites", response_model=InfectionSitesResponse, tags=["reference"])
@@ -267,7 +355,7 @@ def get_empiric_sites(db: DbSession, principal: CurrentPrincipal) -> InfectionSi
     return InfectionSitesResponse(sites=list_infection_sites(db))
 
 
-@router.get("/empiric", response_model=AntibiogramResponse)
+@router.get("/empiric", response_model=EmpiricResponse)
 def get_empiric(
     db: DbSession,
     principal: CurrentPrincipal,
@@ -277,21 +365,21 @@ def get_empiric(
     care_setting: CareSetting | None = None,
     date_from: date | None = None,
     date_to: date | None = None,
-) -> AntibiogramResponse:
-    specimen_type_ids = specimen_type_ids_for_site(db, site)
-    if specimen_type_ids is None:
+) -> EmpiricResponse:
+    resolved = resolve_site(db, site)
+    if resolved is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unknown infection site")
     scope = resolve(
         db,
         principal,
         district_id=district_id,
         facility_id=facility_id,
-        specimen_type_ids=specimen_type_ids,
+        specimen_type_ids=resolved.specimen_type_ids,
         care_setting=care_setting,
         date_from=date_from,
         date_to=date_to,
     )
-    return antibiogram_response(db, scope)
+    return empiric_response(db, scope, site=resolved.site, sterile_site=resolved.sterile_site)
 
 
 def _contributing_facilities(records: list, verified_only: bool) -> set[uuid.UUID]:

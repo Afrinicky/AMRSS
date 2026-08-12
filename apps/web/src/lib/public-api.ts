@@ -17,6 +17,7 @@
 import type {
   Antibiogram,
   AntibioticExplorer,
+  EmpiricResponse,
   OrganismExplorer,
   Reference,
   SpecimenExplorer,
@@ -94,7 +95,8 @@ export const publicApi = {
   trend: (params: Record<string, string | undefined>) =>
     publicGet<Trend>(`/trend${queryString(params)}`),
   empiricSites: () => publicGet<{ sites: InfectionSite[] }>("/empiric/sites"),
-  // The empiric evidence for a site is the antibiogram over that site's
-  // specimens — the same Antibiogram shape, scoped to the site.
-  empiric: (site: string) => publicGet<Antibiogram>(`/empiric?site=${encodeURIComponent(site)}`),
+  // The empiric evidence for a site: organism prevalence and WISCA coverage
+  // over that site's specimens, plus the per-organism antibiogram behind them.
+  empiric: (site: string) =>
+    publicGet<EmpiricResponse>(`/empiric?site=${encodeURIComponent(site)}`),
 };
