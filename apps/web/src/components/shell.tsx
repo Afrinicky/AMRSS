@@ -44,6 +44,7 @@ export function landingPathFor(profile: Profile): string {
  * permission at all were offered nine links that answer 403. */
 const NAV: Array<{ href: string; label: string; permission: string | string[] | null }> = [
   { href: "/console", label: "Overview", permission: SURVEILLANCE },
+  { href: "/console/empiric", label: "Empiric guidance", permission: SURVEILLANCE },
   { href: "/console/antibiogram", label: "Antibiogram", permission: SURVEILLANCE },
   { href: "/console/organisms", label: "Organisms", permission: SURVEILLANCE },
   { href: "/console/antibiotics", label: "Antibiotics", permission: SURVEILLANCE },

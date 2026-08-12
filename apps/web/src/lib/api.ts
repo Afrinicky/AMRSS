@@ -240,7 +240,51 @@ export const api = {
     request<Comparison>(`/api/v1/surveillance/comparison${queryString(params)}`),
   trend: (params: Record<string, string | undefined>) =>
     request<Trend>(`/api/v1/surveillance/trend${queryString(params)}`),
+  empiricSites: () =>
+    request<{ sites: InfectionSite[] }>("/api/v1/surveillance/empiric/sites"),
+  empiric: (params: Record<string, string | undefined>) =>
+    request<EmpiricResponse>(`/api/v1/surveillance/empiric${queryString(params)}`),
 };
+
+/** An infection site and the specimen types that feed it, from the dictionary. */
+export interface InfectionSite {
+  site: string;
+  sterile_site: boolean;
+  specimen_type_ids: string[];
+}
+
+/** One organism's share of isolates at a site — commonest first in the API. */
+export interface OrganismPrevalence {
+  organism: DictionaryRef;
+  organism_kingdom: "bacteria" | "fungi";
+  isolate_count: number;
+  percent_of_site: number;
+}
+
+/**
+ * One agent's estimated empiric coverage at a site (WISCA): each organism's
+ * susceptibility weighted by how often it is isolated there. Ranked best first.
+ */
+export interface AgentCoverage {
+  antibiotic: DictionaryRef;
+  coverage_percent: number;
+  isolates_covered: number;
+  organisms_contributing: number;
+}
+
+/**
+ * The empiric-therapy view for a site: which organisms are commonly isolated,
+ * which single agent covers the most cases, and the per-organism antibiogram
+ * behind both.
+ */
+export interface EmpiricResponse {
+  site: string;
+  sterile_site: boolean;
+  total_isolates: number;
+  prevalence: OrganismPrevalence[];
+  coverage: AgentCoverage[];
+  antibiogram: Antibiogram;
+}
 
 function queryString(params?: Record<string, string | undefined>): string {
   if (!params) return "";
