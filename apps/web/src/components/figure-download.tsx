@@ -42,6 +42,11 @@ export interface FigureDownloadProps {
   source?: string;
   /** The numbers, when the figure has a table behind it. Omit to hide CSV. */
   data?: FigureData;
+  /** Further tables for the Excel workbook, each its own named sheet — e.g.
+   *  prevalence and per-organism detail alongside a primary coverage table.
+   *  They travel only into the workbook; the CSV stays the single primary
+   *  table, since a CSV file cannot hold more than one. */
+  extraSheets?: { name: string; data: FigureData }[];
   /** Whether to offer the Excel workbook. It is built by a server route that
    *  requires a session, so the public dashboard — which has none — turns it off
    *  and offers SVG, PNG and CSV, all of which are produced in the browser. */
@@ -195,6 +200,7 @@ export function FigureDownload({
   period,
   source = "AMRSS — Antimicrobial Resistance Surveillance System",
   data,
+  extraSheets,
   allowExcel = true,
   image = true,
   children,
@@ -293,6 +299,11 @@ export function FigureDownload({
           source,
           columns: data.columns,
           rows: data.rows,
+          extraSheets: extraSheets?.map((sheet) => ({
+            name: sheet.name,
+            columns: sheet.data.columns,
+            rows: sheet.data.rows,
+          })),
           image,
         }),
       });

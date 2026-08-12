@@ -1,18 +1,18 @@
 import ExcelJS from "exceljs";
-import { cookies } from "next/headers";
-
-import { SESSION_COOKIE } from "@/lib/api";
 
 /**
- * Builds an Excel workbook from a figure: the data on one sheet, the chart
- * itself embedded on another.
+ * Builds an Excel workbook from a figure: the data on one or more sheets, the
+ * chart itself embedded on another.
  *
  * Why a server route rather than the browser. The workbook library is heavy and
  * belongs in Node, not in every visitor's bundle, and this keeps it out of the
  * client entirely — the page posts the numbers it already has plus a picture of
  * the chart it already drew, and gets a file back. The route reads no
  * surveillance data of its own; it only formats what the caller sent, so it
- * cannot disclose anything the caller could not already see.
+ * cannot disclose anything the caller could not already see. That is also why it
+ * needs no session: there is nothing here to protect, and the public dashboard —
+ * which has no session — must be able to take its figures away too. The size
+ * bounds below are the abuse guard the login used to be.
  *
  * On "graphs and charts as well": Excel's own chart engine cannot be authored
  * faithfully from outside Excel, so the figure travels as a high-resolution
@@ -23,12 +23,21 @@ import { SESSION_COOKIE } from "@/lib/api";
 
 export const runtime = "nodejs";
 
+interface SheetPayload {
+  name: string;
+  columns: string[];
+  rows: (string | number | null)[][];
+}
+
 interface FigurePayload {
   title: string;
   period?: string;
   source?: string;
   columns: string[];
   rows: (string | number | null)[][];
+  /** Further tables, each its own sheet — e.g. prevalence and per-organism
+   *  detail alongside the primary coverage table. */
+  extraSheets?: SheetPayload[];
   image?: { base64: string; width: number; height: number };
 }
 
@@ -43,15 +52,52 @@ function badRequest(message: string): Response {
   return Response.json({ detail: message }, { status: 400 });
 }
 
-export async function POST(request: Request): Promise<Response> {
-  // Not an anonymous endpoint. It returns only what the caller supplies, so this
-  // is abuse-prevention rather than data protection, but a public compute
-  // endpoint is a public compute endpoint.
-  const store = await cookies();
-  if (!store.get(SESSION_COOKIE)?.value) {
-    return Response.json({ detail: "Not authenticated" }, { status: 401 });
+/** Sanitise a sheet name to Excel's rules: 31 chars, none of `\ / ? * [ ] :`. */
+function sheetName(name: string, fallback: string): string {
+  const cleaned = name.replace(/[\\/?*[\]:]/g, " ").trim().slice(0, 31);
+  return cleaned || fallback;
+}
+
+/** One data worksheet: a provenance block, a styled header, the rows, and
+ *  column widths sized to the content. Shared by the primary table and every
+ *  extra sheet so they all look and read the same. */
+function addDataSheet(
+  workbook: ExcelJS.Workbook,
+  name: string,
+  columns: string[],
+  rows: (string | number | null)[][],
+  meta: [string, string][],
+): void {
+  const sheet = workbook.addWorksheet(name);
+  for (const [label, value] of meta) {
+    const row = sheet.addRow([label, value]);
+    row.getCell(1).font = { bold: true };
+  }
+  sheet.addRow([]);
+
+  const header = sheet.addRow(columns);
+  header.font = { bold: true, color: { argb: "FFFFFFFF" } };
+  header.eachCell((cell) => {
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1F7A4D" } };
+    cell.alignment = { vertical: "middle" };
+  });
+
+  for (const row of rows) {
+    // null becomes a blank cell rather than the string "null".
+    sheet.addRow(row.map((value) => (value === null ? null : value)));
   }
 
+  columns.forEach((column, index) => {
+    const longestValue = rows.reduce(
+      (widest, row) => Math.max(widest, String(row[index] ?? "").length),
+      column.length,
+    );
+    sheet.getColumn(index + 1).width = Math.min(48, Math.max(12, longestValue + 2));
+  });
+  sheet.views = [{ state: "frozen", ySplit: meta.length + 2 }];
+}
+
+export async function POST(request: Request): Promise<Response> {
   let payload: FigurePayload;
   try {
     payload = (await request.json()) as FigurePayload;
@@ -59,7 +105,7 @@ export async function POST(request: Request): Promise<Response> {
     return badRequest("Body is not JSON.");
   }
 
-  const { title, period, source, columns, rows, image } = payload;
+  const { title, period, source, columns, rows, extraSheets, image } = payload;
   if (typeof title !== "string" || !Array.isArray(columns) || !Array.isArray(rows)) {
     return badRequest("Expected title, columns and rows.");
   }
@@ -69,6 +115,19 @@ export async function POST(request: Request): Promise<Response> {
   if (rows.length > MAX_ROWS) {
     return badRequest(`rows must be at most ${MAX_ROWS}.`);
   }
+  const sheets = Array.isArray(extraSheets) ? extraSheets : [];
+  for (const sheet of sheets) {
+    if (
+      typeof sheet?.name !== "string" ||
+      !Array.isArray(sheet.columns) ||
+      !Array.isArray(sheet.rows) ||
+      sheet.columns.length === 0 ||
+      sheet.columns.length > MAX_COLUMNS ||
+      sheet.rows.length > MAX_ROWS
+    ) {
+      return badRequest("Each extra sheet needs a name, columns and rows within bounds.");
+    }
+  }
   if (image && image.base64.length * 0.75 > MAX_IMAGE_BYTES) {
     return badRequest("image is too large.");
   }
@@ -77,42 +136,23 @@ export async function POST(request: Request): Promise<Response> {
   workbook.creator = "AMRSS";
   workbook.created = new Date();
 
-  const data = workbook.addWorksheet("Data");
-
-  // A provenance block above the table, mirroring the CSV header, so the sheet
-  // is self-describing when it is opened a year from now detached from the app.
+  // A provenance block above every table, mirroring the CSV header, so a sheet is
+  // self-describing when it is opened a year from now detached from the app.
   const meta: [string, string][] = [
     ["Figure", title],
     ...(period ? ([["Coverage period", period]] as [string, string][]) : []),
     ["Source", source ?? "AMRSS — Antimicrobial Resistance Surveillance System"],
     ["Downloaded", new Date().toISOString().slice(0, 10)],
   ];
-  for (const [label, value] of meta) {
-    const row = data.addRow([label, value]);
-    row.getCell(1).font = { bold: true };
-  }
-  data.addRow([]);
 
-  const header = data.addRow(columns);
-  header.font = { bold: true, color: { argb: "FFFFFFFF" } };
-  header.eachCell((cell) => {
-    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1F7A4D" } };
-    cell.alignment = { vertical: "middle" };
+  const usedNames = new Set<string>(["Data"]);
+  addDataSheet(workbook, "Data", columns, rows, meta);
+  sheets.forEach((sheet, index) => {
+    let name = sheetName(sheet.name, `Sheet ${index + 2}`);
+    while (usedNames.has(name)) name = sheetName(`${name} ${index + 2}`, `Sheet ${index + 2}`);
+    usedNames.add(name);
+    addDataSheet(workbook, name, sheet.columns, sheet.rows, meta);
   });
-
-  for (const row of rows) {
-    // null becomes a blank cell rather than the string "null".
-    data.addRow(row.map((value) => (value === null ? null : value)));
-  }
-
-  columns.forEach((name, index) => {
-    const longestValue = rows.reduce(
-      (widest, row) => Math.max(widest, String(row[index] ?? "").length),
-      name.length,
-    );
-    data.getColumn(index + 1).width = Math.min(48, Math.max(12, longestValue + 2));
-  });
-  data.views = [{ state: "frozen", ySplit: meta.length + 2 }];
 
   if (image?.base64) {
     const chart = workbook.addWorksheet("Chart");

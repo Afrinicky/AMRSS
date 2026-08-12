@@ -38,6 +38,7 @@ export default async function ConsoleEmpiricSite({
           empiric={empiric}
           siteLabel={match.site}
           sterileSite={match.sterile_site}
+          period={period}
         />
       </div>
     </Shell>
