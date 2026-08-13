@@ -11,6 +11,7 @@ scattered ``if status ==`` branches that each drift on their own schedule.
 
 from dataclasses import dataclass
 
+from amrss.analytics.query import invalidate_record_cache
 from amrss.models import Facility
 from amrss.models.enums import FacilityStatus
 
@@ -120,6 +121,10 @@ def apply_transition(facility: Facility, target: FacilityStatus) -> FacilityStat
             raise ActivationBlockedError(missing)
 
     facility.status = target
+    # Only ACTIVE facilities feed the aggregates, so crossing that line changes
+    # the eligible population as surely as an upload does.
+    if FacilityStatus.ACTIVE in (current, target):
+        invalidate_record_cache()
     return current
 
 

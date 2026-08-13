@@ -1024,7 +1024,9 @@ def get_organism_explorer(
 def organism_explorer_response(db: Session, scope: ResolvedScope) -> OrganismExplorerResponse:
     """Organisms by site from a resolved scope; shared with the public endpoint."""
     methodology = methodology_engine.resolve(db, regional_block_id=scope.regional_block_id)
-    records = query.load_isolates(db, scope.filters)
+    # Isolate counts by organism and infection site; no susceptibility is read,
+    # so the panels are loaded and discarded. See the specimen explorer above.
+    records = query.load_isolates(db, scope.filters, with_panels=False)
 
     specimen_types = {s.id: s for s in db.scalars(select(CanonicalSpecimenType))}
     site_of = {
@@ -1133,7 +1135,9 @@ def get_specimen_explorer(
 def specimen_explorer_response(db: Session, scope: ResolvedScope) -> SpecimenExplorerResponse:
     """Specimen distribution from a resolved scope; shared with the public endpoint."""
     methodology = methodology_engine.resolve(db, regional_block_id=scope.regional_block_id)
-    records = query.load_isolates(db, scope.filters)
+    # Counts isolates per specimen type and never reads a susceptibility, so the
+    # AST panels are pure cost here — the larger half of the load, discarded.
+    records = query.load_isolates(db, scope.filters, with_panels=False)
 
     counts, total = profiles_engine.by_specimen(
         records,

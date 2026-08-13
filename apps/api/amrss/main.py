@@ -2,6 +2,7 @@ from collections.abc import Awaitable, Callable
 
 from fastapi import FastAPI, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 
 from amrss import __version__
 from amrss.api.routers import (
@@ -35,6 +36,14 @@ def create_app() -> FastAPI:
         version=__version__,
         docs_url="/docs" if not settings.is_production else None,
     )
+
+    # Surveillance responses are JSON full of repeated organism and antimicrobial
+    # names, so they compress to a fraction of their size — the regional
+    # antibiogram goes from about 36 KB to under 5 KB. Worth it because the
+    # dashboard reads this API across the public internet (Vercel in Frankfurt to
+    # wherever the API is hosted), where bytes are latency. The 1 KB floor leaves
+    # the small responses alone, where framing would cost more than it saves.
+    app.add_middleware(GZipMiddleware, minimum_size=1024)
 
     app.add_middleware(
         CORSMiddleware,

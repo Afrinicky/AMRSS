@@ -3,6 +3,7 @@ from datetime import date
 
 import pytest
 
+from amrss.analytics import query as query_engine
 from amrss.analytics.methodology import MethodologySet, ResolvedMethodology
 from amrss.analytics.records import IsolateRecord
 from amrss.models.enums import (
@@ -25,6 +26,23 @@ DISTRICT_1 = uuid.UUID("00000000-0000-0000-0000-0000000000d1")
 SPECIMEN_URINE = uuid.UUID("00000000-0000-0000-0000-0000000000e1")
 SPECIMEN_BLOOD = uuid.UUID("00000000-0000-0000-0000-0000000000e2")
 SPECIMEN_CSF = uuid.UUID("00000000-0000-0000-0000-0000000000e3")
+
+
+@pytest.fixture(autouse=True)
+def _no_analytics_cache(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Load isolates fresh in every test.
+
+    The production cache reuses a loaded population for a minute, which is right
+    for a dashboard and wrong for a test: these tests seed rows and query them in
+    the same breath, so a cached population would answer with the previous test's
+    data and the failure would look like an analytics bug rather than a fixture
+    one. Disabled by TTL rather than by deleting the mechanism, so the caching
+    path itself still runs and its own tests can opt back in.
+    """
+    from amrss.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "analytics_cache_ttl_seconds", 0)
+    query_engine.invalidate_record_cache()
 
 
 def make_methodology(**overrides: object) -> MethodologySet:
