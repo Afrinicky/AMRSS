@@ -26,6 +26,7 @@ from sqlalchemy.orm import Session
 from amrss import audit
 from amrss.analytics import methodology
 from amrss.analytics import methodology as methodology_engine
+from amrss.analytics.query import invalidate_record_cache
 from amrss.audit import AuditAction
 from amrss.ingestion import qc
 from amrss.ingestion.payload import UploadPayload
@@ -312,6 +313,8 @@ def ingest(
         batch.decided_at = datetime.now(UTC)
         facility.last_accepted_upload_at = batch.uploaded_at
         action = AuditAction.UPLOAD_ACCEPTED
+        # New isolates are now eligible; anything loaded before this is stale.
+        invalidate_record_cache()
 
     audit.record(
         db,
@@ -501,6 +504,12 @@ def transition(
     batch.decided_at = datetime.now(UTC)
     batch.decided_by_id = principal.user_id
     batch.decision_reason = reason
+
+    # Any move into or out of ACCEPTED changes which isolates the aggregates may
+    # count — a retraction most of all, which has to stop being reported now
+    # rather than whenever a cache window happens to close.
+    if BatchStatus.ACCEPTED in (before, to_status):
+        invalidate_record_cache()
 
     if to_status is BatchStatus.ACCEPTED:
         facility = db.get(Facility, batch.facility_id)

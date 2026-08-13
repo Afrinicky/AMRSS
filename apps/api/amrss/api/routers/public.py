@@ -25,7 +25,7 @@ only behind the console's login.
 import uuid
 from datetime import date
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 
 from amrss.analytics import trends
 from amrss.api.deps import DbSession
@@ -53,7 +53,30 @@ from amrss.api.routers.surveillance import (
 from amrss.api.scope_resolution import public_regional_scope
 from amrss.models.enums import CareSetting, OrganismKingdom
 
-router = APIRouter(prefix="/public", tags=["public"])
+
+def _cacheable(response: Response) -> None:
+    """Let anything between here and the reader hold on to a public response.
+
+    Safe on this router and only on this router: every endpoint below is the
+    regional aggregate served to an anonymous caller, identical for everyone, with
+    no cookie and no token in the request. The signed-in console must never get
+    these headers — its answers are scoped to the caller — which is why this is
+    attached to the public router rather than applied globally.
+
+    The three directives do different jobs. ``max-age`` is for a browser or the
+    dashboard's own fetch cache. ``s-maxage`` is for a shared cache and is longer,
+    matching the ten-minute window the public pages already revalidate on.
+    ``stale-while-revalidate`` is the one that matters most on a free tier: it
+    lets a cache serve the previous answer instantly and refresh behind the
+    reader, so a visitor arriving while the API is waking gets last hour's figures
+    at once rather than watching a cold start.
+    """
+    response.headers["Cache-Control"] = (
+        "public, max-age=60, s-maxage=600, stale-while-revalidate=3600"
+    )
+
+
+router = APIRouter(prefix="/public", tags=["public"], dependencies=[Depends(_cacheable)])
 
 
 @router.get("/antibiogram", response_model=AntibiogramResponse)

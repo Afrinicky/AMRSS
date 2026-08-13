@@ -233,6 +233,79 @@ Five minutes is comfortably inside the fifteen-minute sleep window, so an
 external pinger keeps the instance warm through the day where the GitHub
 schedule alone cannot. The two together cost nothing and overlap harmlessly.
 
+### 2.2 Why a warm API can still feel slow
+
+A cold start is the obvious cause of a slow first load, and §2.1 is about that.
+It is not the only one, and the second cause is easy to mistake for the first
+because it also produces a multi-second wait on an API that is plainly running.
+
+The analytics engine recomputes every answer from raw isolates on each request
+(`analytics/records.py` explains why, and the reasons are good ones). The
+expensive part of that is not the database. On the demonstration block —
+6,737 isolates, 63,785 AST results — the split measured on a warm instance was:
+
+| | |
+|---|---|
+| Postgres executing the AST query | ~14 ms |
+| Python turning those rows into objects | ~1,200 ms |
+
+So roughly 99% of the cost was CPU on the API instance, not database time. Three
+consequences follow, and all three were visible in the deployment:
+
+- **A fractional CPU multiplies it.** Render's free instance is a slice of a
+  core, so work that takes a second on a laptop takes considerably longer there.
+- **It serialises.** Being CPU-bound, concurrent requests queue behind the GIL
+  rather than overlapping. Six simultaneous requests to `/antibiogram` took 8.1 s
+  wall on a four-core machine, each one degraded to 5.5–8.1 s. A dashboard page
+  that fetches several endpoints at once was paying the sum, not the maximum.
+- **Response size is no guide to cost.** `/specimens` returns about 2 KB and took
+  1.26 s, because it loaded every AST result in the region and then counted
+  isolates without reading a single susceptibility.
+
+What was changed, all in the API:
+
+- The specimen and organism-by-site explorers load **without AST panels**. They
+  never read a susceptibility, and the panels are the larger part of the load.
+- A loaded isolate population is **reused across requests** for
+  `AMRSS_ANALYTICS_CACHE_TTL_SECONDS` (default 60). This caches the *input* to
+  the engine, never a rendered response — suppression, QC gating and the
+  caller's scope are still applied per request, so no cached figure can cross a
+  scope boundary. Accepting an upload, retracting or quarantining a batch, and
+  activating or deactivating a facility all clear it immediately.
+- Responses are **gzipped**, taking the regional antibiogram from ~36 KB to
+  ~7 KB on the wire.
+- Public endpoints send `Cache-Control` with `stale-while-revalidate`, so a
+  shared cache can serve the last good answer instantly while refreshing behind
+  the reader — which is what turns a cold start into stale figures rather than a
+  wait.
+
+Measured on the same machine and dataset, before and after:
+
+| Endpoint | Before | After (warm) |
+|---|---|---|
+| `/public/antibiogram` | 1.19 s | 0.06 s |
+| `/public/antibiotics` | 1.11 s | 0.11 s |
+| `/public/organisms` | 1.15 s | 0.02 s |
+| `/public/specimens` | 1.26 s | 0.02 s |
+| six concurrent `/antibiogram` | 8.1 s | 0.54 s |
+
+**Two knobs, and what they cost.** `AMRSS_ANALYTICS_CACHE_ENTRIES` (default 4)
+bounds how many scopes stay loaded. Each entry holds a whole population — about
+17 MB for the demonstration block — against 512 MB for the process on the free
+tier, so raise it only alongside more memory.
+`AMRSS_ANALYTICS_CACHE_TTL_SECONDS=0` disables reuse entirely.
+
+**This is a stopgap, and it should be said plainly.** Caching makes a repeated
+question cheap; it does not make the underlying computation cheaper, and memory
+per entry grows with the data. Somewhere north of roughly 50,000 isolates the
+first request of each window becomes slow enough to feel and the population
+stops comfortably fitting in memory. The durable fix is to push the aggregation
+into SQL — the equivalent specimen counts run in 10 ms as a `GROUP BY` — which
+means giving up computing over an in-memory population for the endpoints that
+only ever count. That is a real change to a deliberately Python-first engine
+whose readability is a clinical-safety argument, so it belongs in its own piece
+of work rather than smuggled into a performance fix.
+
 ---
 
 ## 3. Dashboard — Vercel

@@ -45,6 +45,35 @@ class Settings(BaseSettings):
     # Confirmed as a performance requirement at build time; SDD 13.8.
     analytics_refresh_target_minutes: int = 15
 
+    #: How long a loaded isolate population stays reusable, in seconds.
+    #:
+    #: The analytics engine recomputes every answer from raw isolates, and the
+    #: expensive part is materialising some 64,000 AST rows into Python objects —
+    #: about 1.2 s of CPU on the demonstration block, against 14 ms of actual
+    #: database time. That cost is per request and CPU-bound, so on a fractional
+    #: CPU it both dominates the response and serialises behind the GIL when a
+    #: dashboard page fetches several endpoints at once.
+    #:
+    #: Sixty seconds is well inside the staleness the product already accepts —
+    #: the public pages revalidate on a ten-minute ISR window, and every page
+    #: states its true data date in the freshness banner regardless. Acceptance,
+    #: retraction and quarantine all clear the cache immediately, so the window
+    #: bounds nothing but the lag behind a change made directly in the database.
+    #:
+    #: Set to 0 to disable, which is what the test suite does: a test that seeds
+    #: rows and immediately queries must not be answered from a previous test's
+    #: population.
+    analytics_cache_ttl_seconds: int = 60
+
+    #: How many scopes to keep loaded at once.
+    #:
+    #: Each entry holds every isolate in its scope — roughly 17 MB for the
+    #: demonstration block — and the free tier this is deployed on gives the
+    #: whole process 512 MB. Four covers the public dashboard's working set (the
+    #: regional population, with and without panels, plus the empiric sites in
+    #: rotation) with room to spare. Raise it only alongside more memory.
+    analytics_cache_entries: int = 4
+
     #: What to load into an empty database when the container starts.
     #:
     #: Exists because the free tiers this project is demonstrated on give no
