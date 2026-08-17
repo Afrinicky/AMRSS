@@ -234,6 +234,12 @@ export const api = {
     send<AdminUser>(`/api/v1/admin/users/${userId}/reset-password`, "POST", { password }),
   unlockUser: (userId: string) =>
     send<AdminUser>(`/api/v1/admin/users/${userId}/unlock`, "POST"),
+  deleteUser: (userId: string, confirm: string) =>
+    send<PurgeResult>(`/api/v1/admin/users/${userId}/delete`, "POST", { confirm }),
+  deleteDistrict: (districtId: string, confirm: string) =>
+    send<PurgeResult>(`/api/v1/admin/districts/${districtId}/delete`, "POST", { confirm }),
+  deleteBlock: (blockId: string, confirm: string) =>
+    send<PurgeResult>(`/api/v1/admin/blocks/${blockId}/delete`, "POST", { confirm }),
   changeOwnPassword: (current_password: string, new_password: string) =>
     send<void>("/api/v1/auth/change-password", "POST", { current_password, new_password }),
   auditTrail: (params?: Record<string, string | undefined>) =>

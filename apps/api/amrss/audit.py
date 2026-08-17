@@ -66,7 +66,13 @@ class AuditAction(StrEnum):
     USER_CREATED = "user.created"
     USER_UPDATED = "user.updated"
     USER_DEACTIVATED = "user.deactivated"
+    USER_DELETED = "user.deleted"
     PERMISSION_CHANGED = "user.permission_changed"
+
+    #: Irreversible removal of a district or an empty regional block. Deleting a
+    #: facility with data is FACILITY_DELETED; these two are the geography above it.
+    DISTRICT_DELETED = "district.deleted"
+    BLOCK_DELETED = "block.deleted"
 
 
 def record(

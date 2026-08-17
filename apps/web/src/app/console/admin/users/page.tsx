@@ -5,7 +5,14 @@ import { api } from "@/lib/api";
 import { requireProfile } from "@/lib/session";
 import type { AdminUser, UserScopeOptions } from "@/lib/api";
 
-import { createUser, resetUserPassword, setUserActive, unlockUser, updateUser } from "./actions";
+import {
+  createUser,
+  deleteUser,
+  resetUserPassword,
+  setUserActive,
+  unlockUser,
+  updateUser,
+} from "./actions";
 
 export const metadata = { title: "Accounts" };
 
@@ -578,6 +585,41 @@ function ManageAccount({
             ) : null}
           </div>
         </div>
+
+        {/* Deletion lives at the foot of an already-collapsed panel, behind a
+            typed confirmation — out of the way until deliberately opened. */}
+        {!isSelf ? (
+          <details className="rounded-lg border border-sir-r/40 bg-sir-r/5">
+            <summary className="cursor-pointer px-3 py-2 text-sm font-medium text-sir-r">
+              Delete this account
+            </summary>
+            <form action={deleteUser} className="flex flex-wrap items-end gap-2 border-t border-sir-r/30 p-3">
+              <input type="hidden" name="user_id" value={user.id} />
+              <div>
+                <label htmlFor={`del-${user.id}`} className={LABEL}>
+                  Type <span className="font-mono text-ink">{user.username ?? user.email}</span> to
+                  confirm
+                </label>
+                <input
+                  id={`del-${user.id}`}
+                  name="confirm"
+                  autoComplete="off"
+                  className={`${FIELD} sm:w-64`}
+                />
+              </div>
+              <button
+                type="submit"
+                className="rounded-lg bg-sir-r px-3 py-2 text-sm font-medium text-white hover:opacity-90"
+              >
+                Delete account
+              </button>
+              <p className="w-full text-xs text-ink-muted">
+                Removes the login for good. Their audit history is kept and stays attributed to
+                their name. Prefer deactivating unless the account was created in error.
+              </p>
+            </form>
+          </details>
+        ) : null}
       </div>
     </details>
   );

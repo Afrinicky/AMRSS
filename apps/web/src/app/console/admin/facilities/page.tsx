@@ -15,6 +15,8 @@ import type { AdminFacility, DistrictRef, FacilityStatus } from "@/lib/api";
 
 import {
   createDistrict,
+  deleteBlock,
+  deleteDistrict,
   deleteFacility,
   enrollFacility,
   resetData,
@@ -256,7 +258,9 @@ export default async function FacilitiesPage({
           </>
         )}
 
-        {canPurge ? <DangerZone facilities={facilities} /> : null}
+        {canPurge ? (
+          <DangerZone facilities={facilities} districts={districts} blocks={blocks} />
+        ) : null}
 
         <p className="rounded-[--radius-card] border border-line bg-surface-tint px-4 py-3 text-xs text-ink-muted">
           Only <strong className="font-medium text-ink">active</strong> facilities contribute to
@@ -635,9 +639,104 @@ function ManageFacility({
  * of everything else in this console, which never loses a record. The two
  * choices are stated plainly: keep the facility roster, or remove it too.
  */
-function DangerZone({ facilities }: { facilities: AdminFacility[] }) {
+function DangerZone({
+  facilities,
+  districts,
+  blocks,
+}: {
+  facilities: AdminFacility[];
+  districts: DistrictRef[];
+  blocks: { id: string; name: string }[];
+}) {
+  const emptyDistricts = districts.filter((d) => d.facility_count === 0);
   return (
-    <section aria-labelledby="danger-heading" className="rounded-[--radius-card] border border-sir-r/45 bg-sir-r/5 p-4">
+    <details className="rounded-[--radius-card] border border-sir-r/45 bg-sir-r/5">
+      <summary className="cursor-pointer px-4 py-3 text-lg font-semibold text-sir-r">
+        Danger zone — delete and reset
+      </summary>
+      <div className="space-y-6 border-t border-sir-r/30 p-4">
+        <DeleteGeography emptyDistricts={emptyDistricts} blocks={blocks} />
+        <ResetSystem facilities={facilities} />
+      </div>
+    </details>
+  );
+}
+
+/** Removing a district or a block. Both refuse a non-empty target at the API;
+ * the district picker only offers empty ones so the common path succeeds. */
+function DeleteGeography({
+  emptyDistricts,
+  blocks,
+}: {
+  emptyDistricts: DistrictRef[];
+  blocks: { id: string; name: string }[];
+}) {
+  return (
+    <div className="grid gap-4 md:grid-cols-2">
+      <form action={deleteDistrict} className="space-y-2 rounded-lg border border-sir-r/30 p-3">
+        <h3 className="text-sm font-medium text-sir-r">Delete a district</h3>
+        {emptyDistricts.length === 0 ? (
+          <p className="text-xs text-ink-muted">
+            Every district still has facilities. A district can be deleted only once its facilities
+            are gone.
+          </p>
+        ) : (
+          <>
+            <select name="district_id" required className={FIELD}>
+              <option value="">Choose an empty district</option>
+              {emptyDistricts.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}
+                </option>
+              ))}
+            </select>
+            <input
+              name="confirm"
+              autoComplete="off"
+              placeholder="Type the district name to confirm"
+              className={FIELD}
+            />
+            <button
+              type="submit"
+              className="rounded-lg bg-sir-r px-3 py-2 text-sm font-medium text-white hover:opacity-90"
+            >
+              Delete district
+            </button>
+          </>
+        )}
+      </form>
+
+      <form action={deleteBlock} className="space-y-2 rounded-lg border border-sir-r/30 p-3">
+        <h3 className="text-sm font-medium text-sir-r">Delete a regional block</h3>
+        <select name="block_id" required className={FIELD}>
+          <option value="">Choose a block</option>
+          {blocks.map((b) => (
+            <option key={b.id} value={b.id}>
+              {b.name}
+            </option>
+          ))}
+        </select>
+        <input
+          name="confirm"
+          autoComplete="off"
+          placeholder="Type the block code to confirm"
+          className={FIELD}
+        />
+        <button
+          type="submit"
+          className="rounded-lg bg-sir-r px-3 py-2 text-sm font-medium text-white hover:opacity-90"
+        >
+          Delete block
+        </button>
+        <p className="text-xs text-ink-muted">Refused while the block still has districts.</p>
+      </form>
+    </div>
+  );
+}
+
+function ResetSystem({ facilities }: { facilities: AdminFacility[] }) {
+  return (
+    <section aria-labelledby="danger-heading">
       <h2 id="danger-heading" className="text-lg font-semibold text-sir-r">
         Reset the system
       </h2>

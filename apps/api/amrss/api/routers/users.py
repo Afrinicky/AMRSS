@@ -36,6 +36,7 @@ from sqlalchemy import Select, func, select
 from sqlalchemy.orm import Session
 
 from amrss import audit
+from amrss.admin import purge
 from amrss.api.deps import CurrentPrincipal, DbSession, client_context
 from amrss.audit import AuditAction
 from amrss.models import AppUser, District, Facility, RegionalBlock
@@ -645,3 +646,59 @@ def unlock(
     db.commit()
     db.refresh(user)
     return _response(user, editable=True)
+
+
+class UserDeletion(BaseModel):
+    #: Must equal the account's email or username. Deleting the wrong account is
+    #: the failure worth a keystroke to prevent.
+    confirm: str = Field(min_length=1, max_length=256)
+
+
+@router.post("/{user_id}/delete", status_code=status.HTTP_200_OK)
+def delete_user(
+    request: Request,
+    db: DbSession,
+    user_id: uuid.UUID,
+    payload: UserDeletion,
+    principal: Principal = Depends(manages_users),
+) -> dict[str, object]:
+    """Delete a user account outright.
+
+    Deactivation keeps the account and its ability to be reactivated; this removes
+    it. The same guards as deactivation apply — you cannot delete yourself, and
+    you cannot delete the last account able to manage users — plus a typed
+    confirmation. The audit trail is preserved: the account stays named in every
+    entry it produced, only the live login is gone.
+    """
+    user = db.get(AppUser, user_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unknown user")
+    _assert_may_manage(principal, user)
+    _assert_not_self(principal, user, "delete")
+    _assert_not_last_user_admin(db, user, deactivating=True)
+
+    confirm = payload.confirm.strip().lower()
+    if confirm != user.email.lower() and confirm != (user.username or "").lower():
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Type the account's email ({user.email}) or username to confirm deletion.",
+        )
+
+    before = {"email": user.email, "username": user.username, "role": user.role.value}
+    counts = purge.summarise(purge.delete_user(db, user))
+
+    ip, agent = client_context(request)
+    audit.record(
+        db,
+        action=AuditAction.USER_DELETED,
+        entity="app_user",
+        entity_id=user_id,
+        principal=principal,
+        before=before,
+        after={"deleted_rows": counts},
+        source_ip=ip,
+        user_agent=agent,
+        note=f"Account {before['email']} deleted",
+    )
+    db.commit()
+    return {"deleted": counts, "message": f"{before['email']} deleted."}

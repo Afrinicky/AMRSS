@@ -240,3 +240,57 @@ def test_a_purge_never_touches_the_audit_trail(db: Session) -> None:
     purge.reset_surveillance(db, include_facilities=True)
 
     assert db.scalar(select(func.count(AuditLog.id))) == audit_before
+
+
+def test_deleting_a_user_keeps_the_audit_trail_and_reattributes_by_label(db: Session) -> None:
+    """A deleted account leaves the trail intact: the row survives, its actor_id
+    is cleared by the cascade, and the actor stays named in actor_label."""
+    from amrss import audit as audit_mod
+    from amrss.audit import AuditAction
+    from amrss.security.scope import principal_from_user
+
+    _, _, regional_admin = _build_block(db)
+    # A second admin so the deleted one is not the last user-admin.
+    keeper = AppUser(
+        email="keeper@test.example",
+        full_name="Keeper",
+        password_hash=hash_password("x" * 12),
+        role=Role.REGIONAL_AMR_ADMINISTRATOR,
+    )
+    db.add(keeper)
+    db.flush()
+    audit_mod.record(
+        db,
+        action=AuditAction.LOGIN_SUCCEEDED,
+        entity="app_user",
+        entity_id=regional_admin.id,
+        principal=principal_from_user(regional_admin),
+    )
+    db.flush()
+    entry_id = db.scalar(select(AuditLog.id).where(AuditLog.actor_id == regional_admin.id))
+    label_before = db.scalar(select(AuditLog.actor_label).where(AuditLog.id == entry_id))
+    audit_total = db.scalar(select(func.count(AuditLog.id)))
+
+    counts = purge.delete_user(db, regional_admin)
+
+    assert counts["users"] == 1
+    assert db.get(AppUser, regional_admin.id) is None
+    # The audit entry is untouched except that its FK pointer is cleared.
+    assert db.scalar(select(func.count(AuditLog.id))) == audit_total
+    row = db.get(AuditLog, entry_id)
+    assert row.actor_id is None
+    assert row.actor_label == label_before
+
+
+def test_deleting_an_empty_district_and_block(db: Session) -> None:
+    block = RegionalBlock(code="EMP", name="Empty Block", governing_body="x", status="active")
+    db.add(block)
+    db.flush()
+    district = District(regional_block_id=block.id, name="Empty District")
+    db.add(district)
+    db.flush()
+
+    assert purge.delete_district(db, district)["districts"] == 1
+    assert db.get(District, district.id) is None
+    assert purge.delete_region(db, block)["regional_blocks"] == 1
+    assert db.get(RegionalBlock, block.id) is None

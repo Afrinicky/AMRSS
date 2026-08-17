@@ -84,9 +84,14 @@ class AuditLog(Base):
     occurred_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
     )
-    actor_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("app_user.id"))
+    #: ON DELETE SET NULL so a user can be deleted without rewriting history: the
+    #: pointer is cleared by the database, the append-only trigger permits only
+    #: that one cascade, and the actor stays named in ``actor_label`` below.
+    actor_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("app_user.id", ondelete="SET NULL")
+    )
     #: Retained independently of actor_id so the trail stays legible after a user
-    #: is deactivated or renamed.
+    #: is deactivated, renamed or deleted.
     actor_label: Mapped[str] = mapped_column(String(256), nullable=False)
     actor_role: Mapped[str | None] = mapped_column(String(64))
 
