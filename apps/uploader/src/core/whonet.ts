@@ -25,6 +25,11 @@ export interface ColumnProfile {
   table: string;
   patientIdentifier: string;
   specimenDate: string;
+  /** A second date column used only when the primary specimen date is blank —
+   * WHONET files frequently leave SPEC_DATE empty and carry the registration
+   * date in DATE_DATA, and dropping those isolates loses a quarter of a real
+   * export for a field that is present under a different name. */
+  specimenDateFallback: string | null;
   specimenNumber: string | null;
   sex: string | null;
   ageYears: string | null;
@@ -55,6 +60,7 @@ export interface ColumnProfile {
 const CANDIDATES = {
   patientIdentifier: ["PATIENT_ID", "PATIENT", "PATID", "PAT_ID", "HOSPITAL_NUMBER"],
   specimenDate: ["SPEC_DATE", "SPECDATE", "DATE_SPEC", "SPECIMEN_DATE", "DATE_ADMIS"],
+  specimenDateFallback: ["DATE_DATA", "DATE_TEST", "DATE_ENTRY", "DATE_RECEIVE", "DATE_RESULT"],
   specimenNumber: ["SPEC_NUM", "SPECNUM", "SPECIMEN_NUMBER", "LAB_NUMBER", "ACCESSION"],
   sex: ["SEX", "GENDER"],
   ageYears: ["AGE", "AGE_YEARS", "PATIENT_AGE"],
@@ -165,6 +171,7 @@ export function detectProfile(databasePath: string): DetectionResult {
         table,
         patientIdentifier: mapped.patientIdentifier!,
         specimenDate: mapped.specimenDate!,
+        specimenDateFallback: pick(columns, CANDIDATES.specimenDateFallback),
         specimenNumber: pick(columns, CANDIDATES.specimenNumber),
         sex: pick(columns, CANDIDATES.sex),
         ageYears: pick(columns, CANDIDATES.ageYears),
@@ -234,6 +241,7 @@ export function readIsolates(
     const selected = [
       profile.patientIdentifier,
       profile.specimenDate,
+      profile.specimenDateFallback,
       profile.specimenNumber,
       profile.sex,
       profile.ageYears,
@@ -249,8 +257,20 @@ export function readIsolates(
     const parameters: unknown[] = [];
 
     if (options.since) {
-      sql += ` WHERE "${profile.specimenDate}" >= ?`;
-      parameters.push(options.since.toISOString().slice(0, 10));
+      const since = options.since.toISOString().slice(0, 10);
+      const sd = `"${profile.specimenDate.replaceAll('"', '""')}"`;
+      // The primary date column filters most rows; a row whose primary date is
+      // blank is kept when its fallback date is in range, so incremental sync
+      // reaches the same fallback-dated isolates the first upload does rather
+      // than dropping them the moment a since marker exists.
+      if (profile.specimenDateFallback) {
+        const fb = `"${profile.specimenDateFallback.replaceAll('"', '""')}"`;
+        sql += ` WHERE (${sd} >= ? OR (${sd} IS NULL AND ${fb} >= ?))`;
+        parameters.push(since, since);
+      } else {
+        sql += ` WHERE ${sd} >= ?`;
+        parameters.push(since);
+      }
     }
     if (options.limit) {
       sql += ` LIMIT ${Number(options.limit)}`;
@@ -261,7 +281,9 @@ export function readIsolates(
     const isolates: SourceIsolate[] = [];
     for (const row of rows) {
       const patientIdentifier = asText(row[profile.patientIdentifier]);
-      const specimenDate = asDate(row[profile.specimenDate]);
+      const specimenDate =
+        asDate(row[profile.specimenDate]) ??
+        (profile.specimenDateFallback ? asDate(row[profile.specimenDateFallback]) : null);
       const organismCode = asText(row[profile.organism]);
       const specimenTypeCode = asText(row[profile.specimenType]);
 
@@ -323,6 +345,15 @@ export const NO_ORGANISM_CODES = new Set([
   "no significant growth",
   "nogrowth",
   "-",
+  // Normal / mixed flora: growth that named no pathogen. In the validation
+  // exports "nor" appears on stool with no susceptibility testing and an
+  // "other" organism type — a negative culture, not an organism to count.
+  "nor",
+  "naf",
+  "mix",
+  "mixed",
+  "normal flora",
+  "mixed flora",
 ]);
 
 export function isNoOrganism(organismCode: string): boolean {

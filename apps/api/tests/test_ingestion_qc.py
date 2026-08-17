@@ -104,14 +104,29 @@ def test_future_specimen_date_is_an_error():
     assert outcome.has_error
 
 
-def test_unmapped_organism_holds_the_batch_rather_than_rejecting_it():
-    """An unmapped code is usually a legitimate new entry needing a steward, not
-    corrupt data — but it cannot enter an aggregate until mapped."""
-    outcome = qc.run(payload([isolate(1, organism="unknown_code")]), context())
+def test_wholesale_unmapped_organisms_hold_the_batch():
+    """When most of a batch fails to map — the wrong file, an unconfigured
+    facility — it is held for review rather than quietly accepted near-empty."""
+    outcome = qc.run(payload([isolate(i, organism="unknown_code") for i in range(4)]), context())
 
     assert "UNMAPPED_ORGANISM" in codes(outcome)
     assert outcome.has_warning
     assert not outcome.has_error
+
+
+def test_a_stray_unmapped_code_does_not_hold_the_batch():
+    """One unusual code among many good isolates flows through as INFO, its rows
+    skipped, so routine uploading is not a chore that stops people uploading."""
+    isolates = [isolate(i, day_offset=i % 7) for i in range(20)]
+    isolates.append(isolate(99, organism="unknown_code"))
+
+    outcome = qc.run(payload(isolates), context())
+
+    assert "UNMAPPED_ORGANISM" in codes(outcome)
+    assert not outcome.has_warning  # INFO, not WARNING — the batch is accepted
+    assert not outcome.has_error
+    finding = next(f for f in outcome.findings if f.code == "UNMAPPED_ORGANISM")
+    assert finding.severity is QcFindingSeverity.INFO
 
 
 def test_approved_facility_mapping_stops_a_local_code_being_flagged():

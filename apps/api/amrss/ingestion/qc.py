@@ -94,14 +94,32 @@ def run(payload: UploadPayload, context: QcContext) -> QcOutcome:
     return QcOutcome(findings)
 
 
+#: Above this share of a batch, unmapped codes mean the facility's whole mapping
+#: is wrong (a misconfigured export, the wrong column profile) and the batch is
+#: held for review. At or below it they are a stray local code — a single agent
+#: column, an unusual specimen — that must not freeze an otherwise good upload.
+#: The affected rows are skipped and recorded, not silently accepted as success.
+UNMAPPED_HOLD_FRACTION = 0.25
+
+
 def _check_unmapped_codes(payload: UploadPayload, context: QcContext) -> list[Finding]:
     """Codes with no canonical mapping.
 
-    Held rather than rejected: an unmapped code is usually a legitimate new test
-    or organism that a Data Steward needs to map (SDD 3.4), not corrupt data. But
-    it cannot enter an aggregate until mapped, because the alternative is silently
-    combining incompatible codes.
+    An unmapped code is usually a legitimate new test or organism a Data Steward
+    should map (SDD 3.4), not corrupt data — and its rows cannot enter an
+    aggregate until it is mapped, because the alternative is silently combining
+    incompatible codes. So its rows are always skipped, never guessed.
+
+    What differs is whether the batch is *held*. Holding every batch that carries
+    one stray local code makes routine uploading a chore, which is its own failure
+    mode: people stop uploading. So the finding is proportionate — a wholesale
+    mismatch (the wrong file, an unconfigured facility) still holds for review,
+    but a small fraction flows through as INFO with the known data accepted and
+    the unmapped codes recorded for mapping at leisure.
     """
+    total_isolates = len(payload.isolates)
+    total_results = sum(len(isolate.ast_results) for isolate in payload.isolates)
+
     unknown_organisms = Counter(
         isolate.organism_code
         for isolate in payload.isolates
@@ -120,25 +138,38 @@ def _check_unmapped_codes(payload: UploadPayload, context: QcContext) -> list[Fi
     )
 
     findings = []
-    for code, unknown, label in (
-        ("UNMAPPED_ORGANISM", unknown_organisms, "organism"),
-        ("UNMAPPED_SPECIMEN_TYPE", unknown_specimens, "specimen type"),
-        ("UNMAPPED_ANTIBIOTIC", unknown_antibiotics, "antibiotic"),
+    for code, unknown, label, denominator in (
+        ("UNMAPPED_ORGANISM", unknown_organisms, "organism", total_isolates),
+        ("UNMAPPED_SPECIMEN_TYPE", unknown_specimens, "specimen type", total_isolates),
+        ("UNMAPPED_ANTIBIOTIC", unknown_antibiotics, "antibiotic", total_results),
     ):
-        if unknown:
-            findings.append(
-                Finding(
-                    code=code,
-                    severity=QcFindingSeverity.WARNING,
-                    message=(
-                        f"{len(unknown)} {label} code(s) have no approved canonical "
-                        "mapping. A Data Steward must map them before this data can "
-                        "contribute to any aggregate."
-                    ),
-                    affected_record_count=sum(unknown.values()),
-                    detail={"codes": dict(unknown.most_common(25))},
-                )
+        if not unknown:
+            continue
+        affected = sum(unknown.values())
+        share = affected / denominator if denominator else 0.0
+        holds = share > UNMAPPED_HOLD_FRACTION
+        if holds:
+            message = (
+                f"{len(unknown)} {label} code(s), covering {affected} of {denominator} "
+                "records, have no canonical mapping — too many to be a stray code. "
+                "Check the WHONET column profile and map the codes before this data "
+                "can contribute to any aggregate."
             )
+        else:
+            message = (
+                f"{len(unknown)} {label} code(s) have no canonical mapping and were "
+                "skipped; the rest of the batch was accepted. Map them in "
+                "Administration to include them next time."
+            )
+        findings.append(
+            Finding(
+                code=code,
+                severity=QcFindingSeverity.WARNING if holds else QcFindingSeverity.INFO,
+                message=message,
+                affected_record_count=affected,
+                detail={"codes": dict(unknown.most_common(25))},
+            )
+        )
     return findings
 
 
