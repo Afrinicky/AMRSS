@@ -104,6 +104,44 @@ export async function transitionFacility(form: FormData): Promise<void> {
   back(`Status changed to ${target.replace(/_/g, " ")}.`, "ok");
 }
 
+export async function deleteFacility(form: FormData): Promise<void> {
+  const facilityId = text(form, "facility_id");
+  const confirm = text(form, "confirm");
+  if (!facilityId || !confirm) {
+    back("Type the facility code to confirm deletion.");
+  }
+
+  let message: string;
+  try {
+    const result = await api.deleteFacility(facilityId, confirm);
+    message = result.message;
+  } catch (error) {
+    back(describe(error, "The facility could not be deleted."));
+  }
+
+  revalidatePath(PAGE);
+  back(message, "ok");
+}
+
+export async function resetData(form: FormData): Promise<void> {
+  const scope = text(form, "scope") === "everything" ? "everything" : "surveillance";
+  const confirm = text(form, "confirm");
+  if (!confirm) {
+    back("Type RESET to confirm clearing the surveillance data.");
+  }
+
+  let message: string;
+  try {
+    const result = await api.resetData(scope, confirm);
+    message = result.message;
+  } catch (error) {
+    back(describe(error, "The surveillance data could not be reset."));
+  }
+
+  revalidatePath(PAGE);
+  back(message, "ok");
+}
+
 export async function createDistrict(form: FormData): Promise<void> {
   const blockId = text(form, "regional_block_id");
   const name = text(form, "name");

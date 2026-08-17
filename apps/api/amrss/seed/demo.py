@@ -118,7 +118,9 @@ USERS = [
     ),
     ("steward@amrss-demo.org", "Demo Data Steward", Role.DATA_STEWARD, None),
     ("auditor@amrss-demo.org", "Demo Auditor", Role.AUDITOR, None),
-    ("sysadmin@amrss-demo.org", "Demo System Administrator", Role.SYSTEM_ADMINISTRATOR, None),
+    # The regional AMR administrator above is now the single overall authority —
+    # it holds what a separate system administrator used to, so the demo no
+    # longer seeds one.
     ("lab@amrss-demo.org", "Demo Laboratory Scientist", Role.LABORATORY_STAFF, "AHA-001"),
     (
         "facility.admin@amrss-demo.org",

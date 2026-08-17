@@ -91,8 +91,6 @@ def visible_facility_ids(db: Session, principal: Principal) -> list[uuid.UUID] |
     is distinct from ``None`` — treating the two alike would turn a
     correctly-empty scope into full access.
     """
-    if principal.role is Role.SYSTEM_ADMINISTRATOR:
-        return []
     if principal.facility_id is not None:
         return [principal.facility_id]
     if not (

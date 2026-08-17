@@ -13,14 +13,14 @@ rather than a release.
 
 import uuid
 from datetime import date, datetime
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 
 from amrss import audit
-from amrss.admin import enrollment
+from amrss.admin import enrollment, purge
 from amrss.api.deps import CurrentPrincipal, DbSession, client_context, requires
 from amrss.audit import AuditAction
 from amrss.models import (
@@ -452,6 +452,141 @@ def transition_facility(
     db.commit()
     db.refresh(facility)
     return _facility_response(facility)
+
+
+# ---- Destructive data management -------------------------------------------
+#
+# The only endpoints in the platform that genuinely delete. Gated on PURGE_DATA,
+# held solely by the overall regional authority, and each one requires the caller
+# to type a confirmation so a reset is never a single misplaced click. The
+# deletion logic lives in amrss.admin.purge; the audit record it writes outlives
+# the data it removed.
+
+
+class PurgeResult(BaseModel):
+    #: Rows removed, per table, zero entries omitted.
+    deleted: dict[str, int]
+    total: int
+    message: str
+
+
+class FacilityDeletion(BaseModel):
+    #: Must equal the facility's own code. A free-text confirmation that names
+    #: the target is the cheapest guard against deleting the wrong laboratory.
+    confirm: str = Field(min_length=1, max_length=32)
+
+
+class DataReset(BaseModel):
+    #: ``surveillance`` clears uploads and everything computed from them but
+    #: keeps the facility roster; ``everything`` also removes the facilities and
+    #: districts so the block starts from nothing.
+    scope: Literal["surveillance", "everything"] = "surveillance"
+    #: Must equal ``RESET``. Distinct from a facility code because this clears
+    #: every facility at once, so the confirmation is a word, not a name.
+    confirm: str = Field(min_length=1, max_length=32)
+
+
+@router.post(
+    "/facilities/{facility_id}/delete",
+    response_model=PurgeResult,
+    dependencies=[Depends(requires(Permission.PURGE_DATA))],
+)
+def delete_facility(
+    request: Request,
+    db: DbSession,
+    principal: CurrentPrincipal,
+    facility_id: uuid.UUID,
+    payload: FacilityDeletion,
+) -> PurgeResult:
+    """Delete a facility and every record it ever submitted (irreversible).
+
+    Suspending or retiring a facility keeps its data; this removes it. Use it for
+    a laboratory enrolled in error, or when clearing a pilot. The facility's
+    accounts are detached and deactivated rather than deleted, so the audit trail
+    stays attributable.
+    """
+    facility = db.get(Facility, facility_id)
+    if facility is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unknown facility")
+
+    if payload.confirm.strip() != facility.code:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Type the facility code {facility.code!r} to confirm deletion.",
+        )
+
+    before = {"code": facility.code, "name": facility.name, "status": facility.status.value}
+    counts = purge.summarise(purge.delete_facility(db, facility))
+    total = purge.total_rows(counts)
+
+    ip, agent = client_context(request)
+    audit.record(
+        db,
+        action=AuditAction.FACILITY_DELETED,
+        entity="facility",
+        entity_id=facility_id,
+        principal=principal,
+        before=before,
+        after={"deleted_rows": counts, "total": total},
+        source_ip=ip,
+        user_agent=agent,
+        note=f"Facility {before['code']} deleted with all its data",
+    )
+    db.commit()
+    return PurgeResult(
+        deleted=counts,
+        total=total,
+        message=f"{before['name']} and {total} record(s) removed.",
+    )
+
+
+@router.post(
+    "/data/reset",
+    response_model=PurgeResult,
+    dependencies=[Depends(requires(Permission.PURGE_DATA))],
+)
+def reset_data(
+    request: Request,
+    db: DbSession,
+    principal: CurrentPrincipal,
+    payload: DataReset,
+) -> PurgeResult:
+    """Clear surveillance data so the block can begin a new cycle (irreversible).
+
+    Keeps the canonical dictionary, methodology versions, regional blocks and
+    user accounts — the configuration the next cycle is built on. With
+    ``scope=everything`` it also removes the facilities and districts.
+    """
+    if payload.confirm.strip().upper() != "RESET":
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Type RESET to confirm clearing the surveillance data.",
+        )
+
+    include_facilities = payload.scope == "everything"
+    counts = purge.summarise(purge.reset_surveillance(db, include_facilities=include_facilities))
+    total = purge.total_rows(counts)
+
+    ip, agent = client_context(request)
+    audit.record(
+        db,
+        action=AuditAction.DATA_RESET,
+        entity="surveillance",
+        entity_id=None,
+        principal=principal,
+        before={"scope": payload.scope},
+        after={"deleted_rows": counts, "total": total},
+        source_ip=ip,
+        user_agent=agent,
+        note=f"Surveillance data reset (scope={payload.scope})",
+    )
+    db.commit()
+    kept = "facilities kept" if not include_facilities else "facilities and districts removed"
+    return PurgeResult(
+        deleted=counts,
+        total=total,
+        message=f"Surveillance data cleared ({kept}); {total} record(s) removed.",
+    )
 
 
 # ---- Dictionary mapping queue ----------------------------------------------

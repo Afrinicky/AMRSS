@@ -35,9 +35,6 @@ function scopeFor(role: string, form: FormData) {
   if (role === "laboratory_staff" || role === "facility_administrator") {
     return { facility_id: text(form, "facility_id") ?? null, regional_block_id: null };
   }
-  if (role === "system_administrator") {
-    return { facility_id: null, regional_block_id: null };
-  }
   return { facility_id: null, regional_block_id: text(form, "regional_block_id") ?? null };
 }
 
@@ -46,13 +43,14 @@ export async function createUser(form: FormData): Promise<void> {
   const full_name = text(form, "full_name");
   const role = text(form, "role");
   const password = text(form, "password");
+  const username = text(form, "username") ?? null;
 
   if (!email || !full_name || !role || !password) {
     back("An account needs an email address, a name, a role and an initial password.");
   }
 
   try {
-    await api.createUser({ email, full_name, role, password, ...scopeFor(role, form) });
+    await api.createUser({ email, username, full_name, role, password, ...scopeFor(role, form) });
   } catch (error) {
     back(describe(error, "The account could not be created."));
   }
@@ -70,9 +68,16 @@ export async function updateUser(form: FormData): Promise<void> {
   const role = text(form, "role");
   if (!userId || !role) back("No account was identified.");
 
+  // The username field is always present, so its empty value is meaningful: it
+  // clears the handle back to email-only sign-in. Sent as "" rather than
+  // omitted. Email cannot be blanked, so an empty email is simply not sent.
+  const username = String(form.get("username") ?? "").trim();
+
   try {
     await api.updateUser(userId, {
       full_name: text(form, "full_name"),
+      email: text(form, "email"),
+      username,
       role,
       ...scopeFor(role, form),
     });

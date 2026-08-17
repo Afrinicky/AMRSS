@@ -41,6 +41,11 @@ class AuditAction(StrEnum):
 
     FACILITY_ENROLLED = "facility.enrolled"
     FACILITY_STATUS_CHANGED = "facility.status_changed"
+    #: Irreversible removal of a facility and everything it submitted, or of the
+    #: whole surveillance dataset to start a block over. Recorded with the row
+    #: counts it removed; the trail itself is never part of what is deleted.
+    FACILITY_DELETED = "facility.deleted"
+    DATA_RESET = "data.reset"
     BLOCK_CREATED = "block.created"
     BLOCK_UPDATED = "block.updated"
 

@@ -156,13 +156,14 @@ async function send<T>(path: string, method: string, body?: unknown): Promise<T>
 }
 
 export async function login(
-  email: string,
+  identifier: string,
   password: string,
 ): Promise<{ access_token: string; refresh_token: string }> {
   const response = await callApi(`${apiUrl()}/api/v1/auth/login`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ email, password }),
+    // `identifier` is a username or an email; the API accepts either.
+    body: JSON.stringify({ identifier, password }),
     cache: "no-store",
   });
   if (!response.ok) {
@@ -220,6 +221,10 @@ export const api = {
       target,
       reason,
     }),
+  deleteFacility: (facilityId: string, confirm: string) =>
+    send<PurgeResult>(`/api/v1/admin/facilities/${facilityId}/delete`, "POST", { confirm }),
+  resetData: (scope: "surveillance" | "everything", confirm: string) =>
+    send<PurgeResult>("/api/v1/admin/data/reset", "POST", { scope, confirm }),
   users: () => request<AdminUser[]>("/api/v1/admin/users"),
   userScopeOptions: () => request<UserScopeOptions>("/api/v1/admin/users/options"),
   createUser: (payload: UserCreate) => send<AdminUser>("/api/v1/admin/users", "POST", payload),
@@ -302,6 +307,8 @@ export interface Profile {
   /** True while the account uses a password an administrator set. */
   must_change_password?: boolean;
   email: string;
+  /** Optional second login handle; null means email-only sign-in. */
+  username?: string | null;
   full_name: string;
   role: string;
   facility_id: string | null;
@@ -604,6 +611,7 @@ export interface AdminFacility {
 export interface AdminUser {
   id: string;
   email: string;
+  username: string | null;
   full_name: string;
   role: string;
   facility_id: string | null;
@@ -628,6 +636,7 @@ export interface UserScopeOptions {
 
 export interface UserCreate {
   email: string;
+  username?: string | null;
   full_name: string;
   role: string;
   password: string;
@@ -636,11 +645,21 @@ export interface UserCreate {
 }
 
 export interface UserUpdate {
+  email?: string;
+  /** "" clears the username to email-only login; omit to leave it untouched. */
+  username?: string | null;
   full_name?: string;
   role?: string;
   facility_id?: string | null;
   regional_block_id?: string | null;
   is_active?: boolean;
+}
+
+/** What a delete or reset removed, echoed back so the console can report it. */
+export interface PurgeResult {
+  deleted: Record<string, number>;
+  total: number;
+  message: string;
 }
 
 export interface DistrictRef {

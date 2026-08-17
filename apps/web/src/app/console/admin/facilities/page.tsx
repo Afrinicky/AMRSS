@@ -13,7 +13,14 @@ import { api } from "@/lib/api";
 import { requireProfile } from "@/lib/session";
 import type { AdminFacility, DistrictRef, FacilityStatus } from "@/lib/api";
 
-import { createDistrict, enrollFacility, transitionFacility, updateFacility } from "./actions";
+import {
+  createDistrict,
+  deleteFacility,
+  enrollFacility,
+  resetData,
+  transitionFacility,
+  updateFacility,
+} from "./actions";
 
 export const metadata = { title: "Facility enrollment" };
 
@@ -62,6 +69,10 @@ export default async function FacilitiesPage({
 }) {
   const profile = await requireProfile();
   const params = await searchParams;
+  // Deleting facilities and resetting the dataset are held behind their own
+  // permission (data:purge), so the controls appear only for the overall
+  // authority — the API refuses them for anyone else regardless.
+  const canPurge = profile.permissions.includes("data:purge");
 
   const [facilities, districts, blocks] = await Promise.all([
     api.facilities({ facility_status: params.facility_status }),
@@ -238,12 +249,14 @@ export default async function FacilitiesPage({
               </p>
               <div className="space-y-3">
                 {ordered.map((facility) => (
-                  <ManageFacility key={facility.id} facility={facility} />
+                  <ManageFacility key={facility.id} facility={facility} canPurge={canPurge} />
                 ))}
               </div>
             </section>
           </>
         )}
+
+        {canPurge ? <DangerZone facilities={facilities} /> : null}
 
         <p className="rounded-[--radius-card] border border-line bg-surface-tint px-4 py-3 text-xs text-ink-muted">
           Only <strong className="font-medium text-ink">active</strong> facilities contribute to
@@ -413,7 +426,13 @@ function RegistrationForms({
   );
 }
 
-function ManageFacility({ facility }: { facility: AdminFacility }) {
+function ManageFacility({
+  facility,
+  canPurge,
+}: {
+  facility: AdminFacility;
+  canPurge: boolean;
+}) {
   return (
     <details
       id={`facility-${facility.id}`}
@@ -567,8 +586,101 @@ function ManageFacility({ facility }: { facility: AdminFacility }) {
             </div>
           )}
         </div>
+
+        {canPurge ? (
+          <div className="border-t border-sir-r/40 pt-4">
+            <h3 className="text-sm font-medium text-sir-r">Delete this facility</h3>
+            <p className="mt-1 max-w-2xl text-xs text-ink-muted">
+              Removes {facility.name} and <strong className="text-ink">every record it ever
+              submitted</strong> — isolates, results, uploads and quality records. This cannot be
+              undone. To suspend a laboratory without losing its data, use the lifecycle above
+              instead. Its accounts are kept but detached and deactivated.
+            </p>
+            <form
+              action={deleteFacility}
+              className="mt-3 flex flex-wrap items-end gap-2 rounded-lg border border-sir-r/40 bg-sir-r/5 px-3 py-2"
+            >
+              <input type="hidden" name="facility_id" value={facility.id} />
+              <div>
+                <label htmlFor={`delcode-${facility.id}`} className={LABEL}>
+                  Type <span className="font-mono text-ink">{facility.code}</span> to confirm
+                </label>
+                <input
+                  id={`delcode-${facility.id}`}
+                  name="confirm"
+                  autoComplete="off"
+                  className={`${FIELD} sm:w-48`}
+                />
+              </div>
+              <button
+                type="submit"
+                className="rounded-lg bg-sir-r px-3 py-2 text-sm font-medium text-white hover:opacity-90"
+              >
+                Delete facility
+              </button>
+            </form>
+          </div>
+        ) : null}
       </div>
     </details>
+  );
+}
+
+/**
+ * The one place data is genuinely destroyed.
+ *
+ * Kept at the foot of the page, behind its own permission and a typed
+ * confirmation, and visually set apart. "Begin a new cycle" is a real operation
+ * a pilot needs — clearing test data before going live — but it is the opposite
+ * of everything else in this console, which never loses a record. The two
+ * choices are stated plainly: keep the facility roster, or remove it too.
+ */
+function DangerZone({ facilities }: { facilities: AdminFacility[] }) {
+  return (
+    <section aria-labelledby="danger-heading" className="rounded-[--radius-card] border border-sir-r/45 bg-sir-r/5 p-4">
+      <h2 id="danger-heading" className="text-lg font-semibold text-sir-r">
+        Reset the system
+      </h2>
+      <p className="mt-1 max-w-3xl text-sm text-ink">
+        Clears surveillance data so this block can begin a new cycle. The canonical dictionary,
+        methodology, regional blocks and user accounts are kept. There are{" "}
+        {facilities.length} {facilities.length === 1 ? "facility" : "facilities"} registered.
+        <strong className="font-medium"> This cannot be undone.</strong>
+      </p>
+      <form action={resetData} className="mt-4 grid gap-4 sm:max-w-xl">
+        <fieldset className="grid gap-2">
+          <legend className={LABEL}>What to clear</legend>
+          <label className="flex items-start gap-2 text-sm text-ink">
+            <input type="radio" name="scope" value="surveillance" defaultChecked className="mt-1" />
+            <span>
+              <span className="font-medium">Uploads and results only.</span> Keeps the facility
+              roster; each facility is reset to a pre-upload state.
+            </span>
+          </label>
+          <label className="flex items-start gap-2 text-sm text-ink">
+            <input type="radio" name="scope" value="everything" className="mt-1" />
+            <span>
+              <span className="font-medium">Everything.</span> Also removes the facilities and
+              districts; their facility-scoped accounts are detached and deactivated.
+            </span>
+          </label>
+        </fieldset>
+        <div>
+          <label htmlFor="reset-confirm" className={LABEL}>
+            Type <span className="font-mono text-ink">RESET</span> to confirm
+          </label>
+          <input id="reset-confirm" name="confirm" autoComplete="off" className={`${FIELD} sm:w-48`} />
+        </div>
+        <div>
+          <button
+            type="submit"
+            className="rounded-lg bg-sir-r px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+          >
+            Reset surveillance data
+          </button>
+        </div>
+      </form>
+    </section>
   );
 }
 
