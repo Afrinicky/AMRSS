@@ -8,7 +8,7 @@ The repository holds two deployable services and one desktop client:
 | | Path | What it is |
 |---|---|---|
 | **Surveillance platform** | `apps/api`, `apps/web` | The regional API and dashboard: ingestion, quality gating, antibiograms, trends, reports, administration. Deployed from `infra/docker/` — see **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**. |
-| **Offline uploader** | `apps/uploader` | Runs inside a laboratory. Reads WHONET exports, de-identifies them there, submits only the result. |
+| **Laboratory uploader** | `apps/uploader` | Runs inside a laboratory beside WHONET. Reads the WHONET database live, interprets it as S/I/R, checks every record, de-identifies, and submits only the result — see **[docs/UPLOADER.md](docs/UPLOADER.md)**. |
 | **Laboratory service** | `src/amrss` | The bench-side service. Its own stack: the root `Dockerfile` and `docker-compose.yml`, and the quick start below. |
 | **CLSI engine** | `packages/clsi` | The interpretive engine both halves share rather than reimplement (ADR-0005). |
 

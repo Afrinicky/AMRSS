@@ -1,0 +1,23 @@
+{
+  // The renderer is compiled separately, as ES modules.
+  //
+  // It is served over the amrss:// scheme rather than file://, which is what
+  // lets it be split into one module per screen instead of a single script
+  // nobody can review. CommonJS would need a `require` the renderer does not
+  // have — node integration is off, and it stays off.
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ES2022",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "outDir": "dist/renderer",
+    "rootDir": "src/renderer",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "sourceMap": true,
+    "types": []
+  },
+  "include": ["src/renderer/**/*"]
+}
