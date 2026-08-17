@@ -44,8 +44,10 @@ from amrss.models import (
     FacilityCodeMapping,
     GeneratedReport,
     Isolate,
+    MethodologyVersion,
     PhenotypeFlag,
     QcAttestation,
+    RegionalBlock,
     UploadBatch,
     UploadQcFinding,
 )
@@ -167,6 +169,94 @@ def reset_surveillance(db: Session, *, include_facilities: bool) -> dict[str, in
             ),
         )
 
+    return counts
+
+
+def delete_user(db: Session, user: AppUser) -> dict[str, int]:
+    """Delete a user account, detaching it from everything it ever touched.
+
+    Deactivation is the usual tool; this is for genuinely removing an account —
+    a mistaken or test one. Every operational reference (who submitted a batch,
+    who reviewed a mapping) is nulled first so the history those rows carry is
+    kept while the person is removed. The audit trail is not touched here: its
+    ``actor_id`` is cleared by the database's ON DELETE SET NULL, and the actor
+    stays named in the immutable ``actor_label``.
+    """
+    uid = user.id
+    counts = {
+        "batches_detached": _count(
+            db,
+            update(UploadBatch)
+            .where(UploadBatch.submitted_by_id == uid)
+            .values(submitted_by_id=None),
+        )
+        + _count(
+            db,
+            update(UploadBatch).where(UploadBatch.decided_by_id == uid).values(decided_by_id=None),
+        ),
+        "mappings_detached": _count(
+            db,
+            update(FacilityCodeMapping)
+            .where(FacilityCodeMapping.reviewed_by_id == uid)
+            .values(reviewed_by_id=None),
+        ),
+        "attestations_detached": _count(
+            db,
+            update(QcAttestation)
+            .where(QcAttestation.submitted_by_id == uid)
+            .values(submitted_by_id=None),
+        ),
+        "eqa_detached": _count(
+            db,
+            update(EqaRecord).where(EqaRecord.submitted_by_id == uid).values(submitted_by_id=None),
+        ),
+        "signals_detached": _count(
+            db,
+            update(EmergingSignal)
+            .where(EmergingSignal.acknowledged_by_id == uid)
+            .values(acknowledged_by_id=None),
+        ),
+        "reports_detached": _count(
+            db,
+            update(GeneratedReport)
+            .where(GeneratedReport.generated_by_id == uid)
+            .values(generated_by_id=None),
+        ),
+        "users": _count(db, delete(AppUser).where(AppUser.id == uid)),
+    }
+    return counts
+
+
+def delete_district(db: Session, district: District) -> dict[str, int]:
+    """Delete an empty district. The caller has already refused a district that
+    still holds facilities — removing those is a separate, heavier decision."""
+    return {"districts": _count(db, delete(District).where(District.id == district.id))}
+
+
+def delete_region(db: Session, block: RegionalBlock) -> dict[str, int]:
+    """Delete an empty regional block. The caller has refused a block that still
+    holds districts. Methodology versions scoped to it are detached (they are
+    reference configuration, not the block's own data) and any stray
+    block-scoped signals, refreshes and reports are removed first."""
+    bid = block.id
+    counts = {
+        "methodology_detached": _count(
+            db,
+            update(MethodologyVersion)
+            .where(MethodologyVersion.regional_block_id == bid)
+            .values(regional_block_id=None),
+        ),
+        "emerging_signals": _count(
+            db, delete(EmergingSignal).where(EmergingSignal.regional_block_id == bid)
+        ),
+        "analytics_refreshes": _count(
+            db, delete(AnalyticsRefresh).where(AnalyticsRefresh.regional_block_id == bid)
+        ),
+        "generated_reports": _count(
+            db, delete(GeneratedReport).where(GeneratedReport.regional_block_id == bid)
+        ),
+        "regional_blocks": _count(db, delete(RegionalBlock).where(RegionalBlock.id == bid)),
+    }
     return counts
 
 

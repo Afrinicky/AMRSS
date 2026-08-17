@@ -589,6 +589,123 @@ def reset_data(
     )
 
 
+class RegionDeletion(BaseModel):
+    #: Must equal the block code (or the district name), so a delete names its
+    #: target. Different from the reset word because this removes one thing.
+    confirm: str = Field(min_length=1, max_length=128)
+
+
+@router.post(
+    "/districts/{district_id}/delete",
+    response_model=PurgeResult,
+    dependencies=[Depends(requires(Permission.PURGE_DATA))],
+)
+def delete_district(
+    request: Request,
+    db: DbSession,
+    principal: CurrentPrincipal,
+    district_id: uuid.UUID,
+    payload: RegionDeletion,
+) -> PurgeResult:
+    """Delete a district. Refused while it still holds facilities — those, and
+    their data, are removed one at a time as a deliberate separate act."""
+    district = db.get(District, district_id)
+    if district is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unknown district")
+
+    facilities = db.scalar(
+        select(func.count(Facility.id)).where(Facility.district_id == district_id)
+    )
+    if facilities:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"{district.name} still has {facilities} facility(ies). Delete or move them "
+                "before deleting the district."
+            ),
+        )
+    if payload.confirm.strip().lower() != district.name.strip().lower():
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Type the district name {district.name!r} to confirm deletion.",
+        )
+
+    counts = purge.summarise(purge.delete_district(db, district))
+    ip, agent = client_context(request)
+    audit.record(
+        db,
+        action=AuditAction.DISTRICT_DELETED,
+        entity="district",
+        entity_id=district_id,
+        principal=principal,
+        before={"name": district.name, "regional_block_id": str(district.regional_block_id)},
+        after={"deleted_rows": counts},
+        source_ip=ip,
+        user_agent=agent,
+        note=f"District {district.name} deleted",
+    )
+    db.commit()
+    return PurgeResult(
+        deleted=counts, total=purge.total_rows(counts), message=f"District {district.name} deleted."
+    )
+
+
+@router.post(
+    "/blocks/{block_id}/delete",
+    response_model=PurgeResult,
+    dependencies=[Depends(requires(Permission.PURGE_DATA))],
+)
+def delete_block(
+    request: Request,
+    db: DbSession,
+    principal: CurrentPrincipal,
+    block_id: uuid.UUID,
+    payload: RegionDeletion,
+) -> PurgeResult:
+    """Delete a regional block. Refused while it still holds districts."""
+    block = db.get(RegionalBlock, block_id)
+    if block is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unknown regional block")
+
+    districts = db.scalar(
+        select(func.count(District.id)).where(District.regional_block_id == block_id)
+    )
+    if districts:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"{block.name} still has {districts} district(s). Delete them before deleting "
+                "the block."
+            ),
+        )
+    if payload.confirm.strip().lower() != block.code.strip().lower():
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Type the block code {block.code!r} to confirm deletion.",
+        )
+
+    counts = purge.summarise(purge.delete_region(db, block))
+    ip, agent = client_context(request)
+    audit.record(
+        db,
+        action=AuditAction.BLOCK_DELETED,
+        entity="regional_block",
+        entity_id=block_id,
+        principal=principal,
+        before={"code": block.code, "name": block.name},
+        after={"deleted_rows": counts},
+        source_ip=ip,
+        user_agent=agent,
+        note=f"Regional block {block.code} deleted",
+    )
+    db.commit()
+    return PurgeResult(
+        deleted=counts,
+        total=purge.total_rows(counts),
+        message=f"Regional block {block.name} deleted.",
+    )
+
+
 # ---- Dictionary mapping queue ----------------------------------------------
 
 

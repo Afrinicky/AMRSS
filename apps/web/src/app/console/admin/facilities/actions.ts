@@ -142,6 +142,38 @@ export async function resetData(form: FormData): Promise<void> {
   back(message, "ok");
 }
 
+export async function deleteDistrict(form: FormData): Promise<void> {
+  const districtId = text(form, "district_id");
+  const confirm = text(form, "confirm");
+  if (!districtId || !confirm) back("Choose a district and type its name to confirm.");
+
+  let message: string;
+  try {
+    const result = await api.deleteDistrict(districtId, confirm);
+    message = result.message;
+  } catch (error) {
+    back(describe(error, "The district could not be deleted."));
+  }
+  revalidatePath(PAGE);
+  back(message, "ok");
+}
+
+export async function deleteBlock(form: FormData): Promise<void> {
+  const blockId = text(form, "block_id");
+  const confirm = text(form, "confirm");
+  if (!blockId || !confirm) back("Choose a block and type its code to confirm.");
+
+  let message: string;
+  try {
+    const result = await api.deleteBlock(blockId, confirm);
+    message = result.message;
+  } catch (error) {
+    back(describe(error, "The regional block could not be deleted."));
+  }
+  revalidatePath(PAGE);
+  back(message, "ok");
+}
+
 export async function createDistrict(form: FormData): Promise<void> {
   const blockId = text(form, "regional_block_id");
   const name = text(form, "name");

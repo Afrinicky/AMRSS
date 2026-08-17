@@ -161,12 +161,19 @@ $("choose-file").addEventListener("click", async () => {
 });
 
 $("sign-in").addEventListener("click", async () => {
-  const result = await amrss.signIn({
-    email: $<HTMLInputElement>("email").value.trim(),
-    password: $<HTMLInputElement>("password").value,
-  });
-  $<HTMLInputElement>("password").value = "";
-  $("auth-status").textContent = result.ok ? "Signed in for this session." : result.message;
+  $("auth-status").textContent = "Signing in…";
+  try {
+    const result = await amrss.signIn({
+      email: $<HTMLInputElement>("email").value.trim(),
+      password: $<HTMLInputElement>("password").value,
+    });
+    $<HTMLInputElement>("password").value = "";
+    $("auth-status").textContent = result.ok ? "Signed in for this session." : result.message;
+  } catch (error) {
+    // A rejected IPC would otherwise leave the button looking inert. Surfacing
+    // the message is what turns "nothing happens" into something actionable.
+    $("auth-status").textContent = `Sign-in failed: ${(error as Error).message}`;
+  }
   await refresh();
 });
 

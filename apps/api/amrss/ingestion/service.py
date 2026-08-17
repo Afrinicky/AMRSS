@@ -30,6 +30,7 @@ from amrss.analytics.query import invalidate_record_cache
 from amrss.audit import AuditAction
 from amrss.ingestion import qc
 from amrss.ingestion.payload import UploadPayload
+from amrss.ingestion.whonet_aliases import aliased_codes, whonet_alias
 from amrss.models import (
     AstResult,
     CanonicalAntibiotic,
@@ -179,6 +180,12 @@ def _build_qc_context(db: Session, facility: Facility, payload: UploadPayload) -
         )
     ):
         antibiotics.add(local_code)
+
+    # Built-in WHONET aliases resolve to a canonical entry too, so a file using
+    # them must not be flagged as carrying unknown codes.
+    organisms |= aliased_codes(DictionaryEntityType.ORGANISM)
+    specimens |= aliased_codes(DictionaryEntityType.SPECIMEN_TYPE)
+    antibiotics |= aliased_codes(DictionaryEntityType.ANTIBIOTIC)
 
     existing_hashes = {
         record_hash
@@ -361,7 +368,13 @@ def _persist_isolates(
             mappings[(mapping.entity_type, mapping.local_code)] = mapping.canonical_code
 
     def canonical(entity_type: DictionaryEntityType, local_code: str) -> str:
-        return mappings.get((entity_type, local_code), local_code)
+        # A steward-approved facility mapping wins (it is a deliberate local
+        # decision); then a built-in WHONET alias; then the code stands for
+        # itself, which is the common case now the dictionary is seeded with
+        # WHONET codes.
+        if (entity_type, local_code) in mappings:
+            return mappings[(entity_type, local_code)]
+        return whonet_alias(entity_type, local_code) or local_code
 
     seen: set[str] = set(already_accepted)
     accepted = 0

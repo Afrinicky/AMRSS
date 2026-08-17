@@ -122,6 +122,23 @@ export async function resetUserPassword(form: FormData): Promise<void> {
   );
 }
 
+export async function deleteUser(form: FormData): Promise<void> {
+  const userId = text(form, "user_id");
+  const confirm = text(form, "confirm");
+  if (!userId || !confirm) back("Type the account's email or username to confirm deletion.");
+
+  let message: string;
+  try {
+    const result = await api.deleteUser(userId, confirm);
+    message = result.message;
+  } catch (error) {
+    back(describe(error, "The account could not be deleted."));
+  }
+
+  revalidatePath(PAGE);
+  back(message, "ok");
+}
+
 export async function unlockUser(form: FormData): Promise<void> {
   const userId = text(form, "user_id");
   if (!userId) back("No account was identified.");
