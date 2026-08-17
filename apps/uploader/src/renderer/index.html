@@ -37,8 +37,8 @@
             <input id="facility-code" type="text" placeholder="e.g. AHA-001" />
           </label>
           <label>
-            AMRSS server
-            <input id="api-url" type="url" placeholder="https://…" />
+            AMRSS server address
+            <input id="api-url" type="url" placeholder="https://your-amrss-api.onrender.com" />
           </label>
           <label>
             WHONET configuration version
@@ -72,7 +72,10 @@
       <section class="card">
         <h2>3 · Sign in</h2>
         <div class="grid">
-          <label>Email <input id="email" type="email" autocomplete="username" /></label>
+          <label>
+            Email or username
+            <input id="email" type="text" autocomplete="username" autocapitalize="none" />
+          </label>
           <label>
             Password
             <input id="password" type="password" autocomplete="current-password" />

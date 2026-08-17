@@ -495,6 +495,10 @@ function ManageAccount({
                 </option>
               ))}
             </select>
+            {/* A disabled <select> submits nothing, so on your own account the
+                role must still be carried or the update arrives with no role and
+                is rejected. Server-side, an unchanged role is allowed. */}
+            {isSelf ? <input type="hidden" name="role" value={user.role} /> : null}
           </div>
 
           <ScopeFields

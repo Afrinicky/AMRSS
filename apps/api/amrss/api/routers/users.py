@@ -469,12 +469,21 @@ def update_user(
         "full_name": user.full_name,
     }
 
-    if "role" in changes or "is_active" in changes:
+    # Only an actual change is a self-edit worth refusing. A form that resubmits
+    # the account's current role unchanged — which is what editing your own name
+    # or email does, since the role control is shown read-only — must not trip
+    # the guard, or an administrator can never correct their own details.
+    role_changing = payload.role is not None and payload.role != user.role
+    active_changing = payload.is_active is not None and payload.is_active != user.is_active
+    if role_changing or active_changing:
         _assert_not_self(principal, user, "change the role or status of")
 
-    if payload.role is not None:
+    if payload.role is not None and payload.role != user.role:
         _assert_may_grant(principal, payload.role)
         _assert_not_last_user_admin(db, user, becoming=payload.role)
+
+    if payload.is_active is False and active_changing:
+        _assert_not_last_user_admin(db, user, deactivating=True)
 
     if payload.is_active is False:
         _assert_not_last_user_admin(db, user, deactivating=True)

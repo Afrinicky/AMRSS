@@ -85,11 +85,39 @@ ipcMain.handle("whonet:choose", async () => {
 
 ipcMain.handle("auth:signIn", async (_event, input: { email: string; password: string }) => {
   const state = store.read();
-  const response = await fetch(`${state.apiUrl}/api/v1/auth/login`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(input),
-  });
+  const apiUrl = (state.apiUrl ?? "").trim().replace(/\/+$/, "");
+
+  // Without this guard a request to the localhost default (or an empty URL) just
+  // throws inside fetch below, the handler rejects, and the sign-in button
+  // appears to do nothing at all. Naming the cause is the whole fix the user
+  // sees. The API accepts either an email or a username under this key.
+  if (!apiUrl || apiUrl.startsWith("http://localhost") || apiUrl.startsWith("http://127.")) {
+    return {
+      ok: false,
+      message:
+        "Set the API address in Facility setup first (for example " +
+        "https://your-amrss-api.onrender.com), then sign in.",
+    };
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(`${apiUrl}/api/v1/auth/login`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      // The API reads this key as an identifier and matches it against either an
+      // email address or a username, so the field labelled "Email" accepts both.
+      body: JSON.stringify({ identifier: input.email, password: input.password }),
+    });
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        `Could not reach the API at ${apiUrl}. Check the address in Facility setup and your ` +
+        `internet connection, then try again. (${(error as Error).message})`,
+    };
+  }
+
   const body = (await response.json().catch(() => ({}))) as Record<string, unknown>;
   if (!response.ok) {
     return { ok: false, message: (body.detail as string) ?? "Sign-in failed." };
