@@ -709,7 +709,9 @@ function FilterChip({
   label: string;
 }) {
   const active = current === value;
-  const href = value ? `/admin/facilities?facility_status=${value}` : "/admin/facilities";
+  const href = value
+    ? `/console/admin/facilities?facility_status=${value}`
+    : "/console/admin/facilities";
   return (
     <Link
       href={href}

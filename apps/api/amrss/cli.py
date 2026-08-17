@@ -6,6 +6,7 @@
     python -m amrss.cli create-block <code> <name> <governing-body> [--district NAME ...]
     python -m amrss.cli create-user <email> <full-name> <role> [--block CODE] [--facility CODE]
     python -m amrss.cli list-users
+    python -m amrss.cli reset-password <email-or-username> [--require-change]
 
 The reason this exists rather than an endpoint: a deployment has to be able to
 create its *first* administrator, and every write in this system requires an
@@ -284,6 +285,77 @@ def _cmd_list_users(_: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_reset_password(args: argparse.Namespace) -> int:
+    """Set an account's password from the host, and get it back into a usable state.
+
+    The recovery path when the only administrator is locked out — a deactivated
+    account, a forgotten password, or a lockout with no second administrator to
+    clear it. Looks the account up by email or username, sets a new password read
+    from the terminal, clears any lockout, and reactivates it. Unlike an in-app
+    reset it does not force a change at next sign-in by default: whoever runs a
+    host command already holds the credential they just set. Audited, with the
+    operating-system account recorded as the actor.
+    """
+    from datetime import UTC, datetime
+
+    from sqlalchemy import func, or_, select
+
+    from amrss import audit
+    from amrss.audit import AuditAction
+    from amrss.db import SessionLocal
+    from amrss.models import AppUser
+    from amrss.security.passwords import hash_password
+
+    identifier = args.identifier.strip().lower()
+
+    with SessionLocal() as db:
+        user = db.scalar(
+            select(AppUser).where(
+                or_(AppUser.email == identifier, func.lower(AppUser.username) == identifier)
+            )
+        )
+        if user is None:
+            print(f"No account with email or username {args.identifier!r}.", file=sys.stderr)
+            return 1
+
+        password = _read_password()
+        if password is None:
+            return 1
+
+        user.password_hash = hash_password(password)
+        user.password_changed_at = datetime.now(UTC)
+        user.must_change_password = args.require_change
+        # A recovery is also the answer to "locked out and cannot wait", and to an
+        # account that was deactivated (including automatically, when its facility
+        # was removed). Both are cleared so the reset actually restores access.
+        user.locked_until = None
+        user.failed_login_count = 0
+        reactivated = not user.is_active
+        user.is_active = True
+
+        audit.record(
+            db,
+            action=AuditAction.USER_UPDATED,
+            entity="app_user",
+            entity_id=user.id,
+            actor_label=_actor(),
+            after={
+                "password_reset": True,
+                "reactivated": reactivated,
+                "must_change_password": user.must_change_password,
+            },
+            note="Password reset from the command line",
+        )
+        db.commit()
+
+        label = user.username or user.email
+        print(f"Password reset for {label} ({user.role.value}).")
+        if reactivated:
+            print("The account was inactive and has been reactivated.")
+        print("Sign in with either the email or the username.")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="amrss", description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -318,6 +390,18 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("list-users", help="list accounts and their roles")
     p.set_defaults(func=_cmd_list_users)
+
+    p = sub.add_parser(
+        "reset-password",
+        help="set a password by email or username, clearing any lockout and reactivating",
+    )
+    p.add_argument("identifier", help="the account's email address or username")
+    p.add_argument(
+        "--require-change",
+        action="store_true",
+        help="force the account to change the password at next sign-in",
+    )
+    p.set_defaults(func=_cmd_reset_password)
 
     return parser
 

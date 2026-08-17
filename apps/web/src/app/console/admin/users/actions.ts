@@ -14,7 +14,7 @@ import { ApiError, api } from "@/lib/api";
  * session and turn a refusal into a sentence someone can act on.
  */
 
-const PAGE = "/admin/users";
+const PAGE = "/console/admin/users";
 
 function text(form: FormData, field: string): string | undefined {
   const value = String(form.get(field) ?? "").trim();
