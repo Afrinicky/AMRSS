@@ -45,7 +45,7 @@ export default async function AuditPage({
       if (value) search.set(key, value);
     }
     const rendered = search.toString();
-    return rendered ? `/admin/audit?${rendered}` : "/admin/audit";
+    return rendered ? `/console/admin/audit?${rendered}` : "/console/admin/audit";
   };
 
   return (

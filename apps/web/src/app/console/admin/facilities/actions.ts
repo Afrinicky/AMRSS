@@ -17,7 +17,7 @@ import type { FacilityStatus } from "@/lib/api";
  * would be a rule the uploader could bypass (SDD 7).
  */
 
-const PAGE = "/admin/facilities";
+const PAGE = "/console/admin/facilities";
 
 function text(form: FormData, field: string): string | undefined {
   const value = String(form.get(field) ?? "").trim();
