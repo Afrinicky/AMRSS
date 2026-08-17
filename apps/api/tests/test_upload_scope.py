@@ -46,9 +46,7 @@ def db() -> Session:
 
 
 def _facility(db: Session, block_code: str, facility_code: str) -> Facility:
-    block = RegionalBlock(
-        code=block_code, name=block_code, governing_body="x", status="active"
-    )
+    block = RegionalBlock(code=block_code, name=block_code, governing_body="x", status="active")
     db.add(block)
     db.flush()
     district = District(regional_block_id=block.id, name=f"D-{block_code}")

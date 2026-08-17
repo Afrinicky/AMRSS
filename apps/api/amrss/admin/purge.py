@@ -27,8 +27,11 @@ attributable while they can no longer sign in to a laboratory that is gone.
 
 from __future__ import annotations
 
-from sqlalchemy import delete, select, update
+from typing import Any, cast
+
+from sqlalchemy import CursorResult, Select, delete, select, update
 from sqlalchemy.orm import Session
+from sqlalchemy.sql.expression import Executable
 
 from amrss.models import (
     AnalyticsRefresh,
@@ -54,13 +57,15 @@ from amrss.models.enums import EqaStatus, QcStatus, Role
 FACILITY_SCOPED_ROLES = frozenset({Role.LABORATORY_STAFF, Role.FACILITY_ADMINISTRATOR})
 
 
-def _count(db: Session, statement) -> int:
+def _count(db: Session, statement: Executable) -> int:
     """Run a bulk delete/update and return the number of rows it touched."""
-    result = db.execute(statement)
+    # A DML statement returns a CursorResult, which carries rowcount; the generic
+    # Result the stubs infer does not, so the cast states what execute() returns.
+    result = cast("CursorResult[Any]", db.execute(statement))
     return result.rowcount or 0
 
 
-def _delete_isolate_children(db: Session, isolate_filter) -> dict[str, int]:
+def _delete_isolate_children(db: Session, isolate_filter: Select[Any]) -> dict[str, int]:
     """Delete everything hanging off a set of isolates, then the isolates.
 
     ``isolate_filter`` is a SELECT of isolate ids, so the same routine serves
@@ -71,9 +76,7 @@ def _delete_isolate_children(db: Session, isolate_filter) -> dict[str, int]:
         "phenotype_flags": _count(
             db, delete(PhenotypeFlag).where(PhenotypeFlag.isolate_id.in_(isolate_ids))
         ),
-        "ast_results": _count(
-            db, delete(AstResult).where(AstResult.isolate_id.in_(isolate_ids))
-        ),
+        "ast_results": _count(db, delete(AstResult).where(AstResult.isolate_id.in_(isolate_ids))),
     }
     return counts
 
@@ -90,9 +93,7 @@ def delete_facility(db: Session, facility: Facility) -> dict[str, int]:
     fid = facility.id
     batch_ids = select(UploadBatch.id).where(UploadBatch.facility_id == fid).scalar_subquery()
 
-    counts = _delete_isolate_children(
-        db, select(Isolate.id).where(Isolate.facility_id == fid)
-    )
+    counts = _delete_isolate_children(db, select(Isolate.id).where(Isolate.facility_id == fid))
     counts["isolates"] = _count(db, delete(Isolate).where(Isolate.facility_id == fid))
     counts["upload_qc_findings"] = _count(
         db, delete(UploadQcFinding).where(UploadQcFinding.upload_batch_id.in_(batch_ids))
@@ -116,9 +117,7 @@ def delete_facility(db: Session, facility: Facility) -> dict[str, int]:
     )
     counts["accounts_detached"] = _count(
         db,
-        update(AppUser)
-        .where(AppUser.facility_id == fid)
-        .values(facility_id=None, is_active=False),
+        update(AppUser).where(AppUser.facility_id == fid).values(facility_id=None, is_active=False),
     )
     counts["facilities"] = _count(db, delete(Facility).where(Facility.id == fid))
     return counts

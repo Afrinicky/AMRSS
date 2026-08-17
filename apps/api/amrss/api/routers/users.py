@@ -68,6 +68,7 @@ def _normalise_username(username: str | None) -> str | None:
     cleaned = username.strip().lower()
     return cleaned or None
 
+
 #: Roles a facility administrator may grant. Anything scoped above the facility
 #: is out of reach — see rule 1.
 FACILITY_GRANTABLE_ROLES = frozenset({Role.LABORATORY_STAFF, Role.FACILITY_ADMINISTRATOR})
