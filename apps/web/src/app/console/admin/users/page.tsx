@@ -1,4 +1,5 @@
 import { EmptyState, ScrollTable, formatDateTime } from "@/components/admin";
+import { Modal } from "@/components/modal";
 import { PasswordField } from "@/components/password-field";
 import { BannerFigure, PageHeading, Shell } from "@/components/shell";
 import { api } from "@/lib/api";
@@ -141,9 +142,7 @@ export default async function UsersPage({
                   <tr key={user.id} className="border-b border-line last:border-0">
                     <th scope="row" className="px-3 py-2 text-left font-medium text-ink">
                       {user.editable ? (
-                        <a href={`#user-${user.id}`} className="text-brand-700">
-                          {user.full_name}
-                        </a>
+                        <ManageAccount user={user} options={options} profile={profile} />
                       ) : (
                         user.full_name
                       )}
@@ -171,23 +170,10 @@ export default async function UsersPage({
               </tbody>
             </ScrollTable>
 
-            <section aria-labelledby="manage-heading">
-              <h2 id="manage-heading" className="heading-rule mb-1 text-lg font-semibold text-ink">
-                Manage an account
-              </h2>
-              <p className="mb-3 max-w-3xl text-sm text-ink-muted">
-                Every change here is recorded in the audit trail against you. You cannot change
-                your own role or deactivate yourself — that needs a second administrator, which is
-                the point.
-              </p>
-              <div className="space-y-3">
-                {users
-                  .filter((user) => user.editable)
-                  .map((user) => (
-                    <ManageAccount key={user.id} user={user} options={options} profile={profile} />
-                  ))}
-              </div>
-            </section>
+            <p className="text-sm text-ink-muted">
+              Select an account&rsquo;s name to manage it. Every change is recorded in the audit
+              trail against you; you cannot change your own role or deactivate yourself.
+            </p>
           </>
         )}
 
@@ -331,11 +317,12 @@ function ScopeFields({
 
 function CreateAccount({ options }: { options: UserScopeOptions }) {
   return (
-    <details className="rounded-[--radius-card] border border-line bg-surface">
-      <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-ink">
-        Create an account
-      </summary>
-      <form action={createUser} className="grid gap-4 border-t border-line p-4 sm:grid-cols-2">
+    <Modal
+      label="Create an account"
+      triggerLabel="Create an account"
+      triggerClassName="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
+    >
+      <form action={createUser} className="grid gap-4 sm:grid-cols-2">
         <div>
           <label htmlFor="full_name" className={LABEL}>
             Full name
@@ -405,7 +392,7 @@ function CreateAccount({ options }: { options: UserScopeOptions }) {
           </button>
         </div>
       </form>
-    </details>
+    </Modal>
   );
 }
 
@@ -421,16 +408,21 @@ function ManageAccount({
   const isSelf = user.email === profile.email;
 
   return (
-    <details id={`user-${user.id}`} className="scroll-mt-4 rounded-[--radius-card] border border-line bg-surface">
-      <summary className="cursor-pointer px-4 py-3 text-sm text-ink">
-        <span className="font-medium">{user.full_name}</span>
-        <span className="ml-2 text-ink-muted">
-          {user.email} · {ROLE_LABEL[user.role] ?? user.role}
-          {isSelf ? " · you" : ""}
+    <Modal
+      label={`Manage ${user.full_name}`}
+      title={
+        <span>
+          {user.full_name}
+          <span className="ml-2 font-normal text-ink-muted">
+            {ROLE_LABEL[user.role] ?? user.role}
+            {isSelf ? " · you" : ""}
+          </span>
         </span>
-      </summary>
-
-      <div className="space-y-5 border-t border-line p-4">
+      }
+      triggerLabel={user.full_name}
+      triggerClassName="text-left font-medium text-brand-700 hover:underline"
+    >
+      <div className="space-y-5">
         {isSelf ? (
           <p className="rounded-lg border border-line bg-surface-tint px-3 py-2 text-xs text-ink-muted">
             This is your own account. You can correct your name here; changing your role or
@@ -621,7 +613,7 @@ function ManageAccount({
           </details>
         ) : null}
       </div>
-    </details>
+    </Modal>
   );
 }
 

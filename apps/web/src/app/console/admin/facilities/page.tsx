@@ -8,6 +8,7 @@ import {
   formatDate,
   formatDateTime,
 } from "@/components/admin";
+import { Modal } from "@/components/modal";
 import { BannerFigure, PageHeading, Shell } from "@/components/shell";
 import { api } from "@/lib/api";
 import { requireProfile } from "@/lib/session";
@@ -198,9 +199,7 @@ export default async function FacilitiesPage({
                 {ordered.map((facility) => (
                   <tr key={facility.id} className="border-b border-line last:border-0">
                     <th scope="row" className="px-3 py-2 text-left font-medium text-ink">
-                      <a href={`#facility-${facility.id}`} className="text-brand-700">
-                        {facility.name}
-                      </a>
+                      <ManageFacility facility={facility} canPurge={canPurge} />
                       <span className="ml-2 font-normal text-ink-muted">{facility.code}</span>
                     </th>
                     <td className="px-3 py-2 text-ink-muted">{facility.district_name}</td>
@@ -241,20 +240,10 @@ export default async function FacilitiesPage({
               </tbody>
             </ScrollTable>
 
-            <section aria-labelledby="manage-heading">
-              <h2 id="manage-heading" className="heading-rule mb-1 text-lg font-semibold text-ink">
-                Manage a registration
-              </h2>
-              <p className="mb-3 max-w-3xl text-sm text-ink-muted">
-                Enrollment paperwork and lifecycle moves. Every change is recorded in the audit
-                trail against the person who made it.
-              </p>
-              <div className="space-y-3">
-                {ordered.map((facility) => (
-                  <ManageFacility key={facility.id} facility={facility} canPurge={canPurge} />
-                ))}
-              </div>
-            </section>
+            <p className="text-sm text-ink-muted">
+              Select a laboratory&rsquo;s name to manage its enrollment paperwork and lifecycle.
+              Every change is recorded in the audit trail against the person who made it.
+            </p>
           </>
         )}
 
@@ -287,15 +276,13 @@ function RegistrationForms({
   blocks: { id: string; name: string }[];
 }) {
   return (
-    <div className="space-y-3">
-      <details
-        open={districts.length > 0 && districts.every((d) => d.facility_count === 0)}
-        className="rounded-[--radius-card] border border-line bg-surface"
+    <div className="flex flex-wrap gap-3">
+      <Modal
+        label="Register a laboratory"
+        triggerLabel="Register a laboratory"
+        triggerClassName="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
       >
-        <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-ink">
-          Register a laboratory
-        </summary>
-        <form action={enrollFacility} className="grid gap-4 border-t border-line p-4 sm:grid-cols-2 lg:grid-cols-3">
+        <form action={enrollFacility} className="grid gap-4 sm:grid-cols-2">
           <div>
             <label htmlFor="name" className={LABEL}>
               Laboratory name
@@ -391,13 +378,14 @@ function RegistrationForms({
             </p>
           </div>
         </form>
-      </details>
+      </Modal>
 
-      <details className="rounded-[--radius-card] border border-line bg-surface">
-        <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-ink">
-          Add a district
-        </summary>
-        <form action={createDistrict} className="grid gap-4 border-t border-line p-4 sm:grid-cols-3">
+      <Modal
+        label="Add a district"
+        triggerLabel="Add a district"
+        triggerClassName="rounded-lg border border-line bg-surface px-4 py-2 text-sm font-medium text-ink hover:bg-surface-muted"
+      >
+        <form action={createDistrict} className="grid gap-4">
           <div>
             <label htmlFor="district_name" className={LABEL}>
               District name
@@ -416,7 +404,7 @@ function RegistrationForms({
               ))}
             </select>
           </div>
-          <div className="flex items-end">
+          <div>
             <button
               type="submit"
               className="rounded-lg border border-line px-4 py-2 text-sm font-medium text-ink hover:bg-surface-muted"
@@ -425,7 +413,7 @@ function RegistrationForms({
             </button>
           </div>
         </form>
-      </details>
+      </Modal>
     </div>
   );
 }
@@ -438,19 +426,21 @@ function ManageFacility({
   canPurge: boolean;
 }) {
   return (
-    <details
-      id={`facility-${facility.id}`}
-      className="rounded-[--radius-card] border border-line bg-surface scroll-mt-4"
-    >
-      <summary className="cursor-pointer px-4 py-3 text-sm text-ink">
-        <span className="font-medium">{facility.name}</span>
-        <span className="ml-2 text-ink-muted">
-          {facility.code} · {facility.district_name} · {STATUS_LABEL[facility.status]}
+    <Modal
+      label={`Manage ${facility.name}`}
+      title={
+        <span>
+          {facility.name}
+          <span className="ml-2 font-normal text-ink-muted">
+            {facility.code} · {facility.district_name} · {STATUS_LABEL[facility.status]}
+          </span>
         </span>
-      </summary>
-
-      <div className="space-y-5 border-t border-line p-4">
-        <form action={updateFacility} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      }
+      triggerLabel={facility.name}
+      triggerClassName="text-left font-medium text-brand-700 hover:underline"
+    >
+      <div className="space-y-5">
+        <form action={updateFacility} className="grid gap-4 sm:grid-cols-2">
           <input type="hidden" name="facility_id" value={facility.id} />
           <div>
             <label htmlFor={`whonet-${facility.id}`} className={LABEL}>
@@ -626,7 +616,7 @@ function ManageFacility({
           </div>
         ) : null}
       </div>
-    </details>
+    </Modal>
   );
 }
 
