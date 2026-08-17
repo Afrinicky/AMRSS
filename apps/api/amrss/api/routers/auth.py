@@ -11,8 +11,10 @@ from amrss.models import AppUser
 from amrss.models.enums import Role
 from amrss.security.passwords import hash_password, needs_rehash, verify_password
 from amrss.security.tokens import (
+    HANDOFF_TTL,
     TokenError,
     create_access_token,
+    create_handoff_token,
     create_refresh_token,
     decode_token,
 )
@@ -151,6 +153,91 @@ def refresh(payload: RefreshRequest, db: DbSession) -> TokenResponse:
     user = db.get(AppUser, user_id)
     if user is None or not user.is_active:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Account is inactive")
+
+    return TokenResponse(
+        access_token=create_access_token(user.id),
+        refresh_token=create_refresh_token(user.id),
+    )
+
+
+class HandoffResponse(BaseModel):
+    code: str
+    expires_in_seconds: int
+
+
+class HandoffExchangeRequest(BaseModel):
+    code: str
+
+
+@router.post("/handoff", response_model=HandoffResponse)
+def issue_handoff(
+    principal: CurrentPrincipal, db: DbSession, client: ClientContext
+) -> HandoffResponse:
+    """Mint a short-lived code so the desktop uploader can open the web console
+    already signed in as the person using it.
+
+    The laboratory works in two places — the uploader on the bench workstation
+    and the console in a browser — and asking for the same password twice on the
+    same machine trains people to type it into whatever asks. The code carries no
+    authority beyond the session the caller already holds: it is issued only to
+    an authenticated caller and is exchanged, once, for that same person's
+    tokens.
+    """
+    ip, user_agent = client
+    audit.record(
+        db,
+        action=AuditAction.LOGIN_SUCCEEDED,
+        entity="app_user",
+        entity_id=principal.user_id,
+        principal=principal,
+        source_ip=ip,
+        user_agent=user_agent,
+        note="Web console handoff code issued to a desktop client",
+    )
+    db.commit()
+    return HandoffResponse(
+        code=create_handoff_token(principal.user_id),
+        expires_in_seconds=int(HANDOFF_TTL.total_seconds()),
+    )
+
+
+@router.post("/handoff/exchange", response_model=TokenResponse)
+def exchange_handoff(
+    payload: HandoffExchangeRequest, db: DbSession, client: ClientContext
+) -> TokenResponse:
+    """Exchange a handoff code for a session.
+
+    Called by the web console, never by a browser directly. The account is
+    re-checked here rather than trusted from the code: a person deactivated in
+    the seconds between issue and exchange must not land in the console.
+    """
+    ip, user_agent = client
+    try:
+        user_id = decode_token(payload.code, "handoff")
+    except TokenError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="This sign-in link has expired. Sign in again from the uploader.",
+        ) from exc
+
+    user = db.get(AppUser, user_id)
+    if user is None or not user.is_active:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Account is inactive")
+    if user.locked_until is not None and user.locked_until > datetime.now(UTC):
+        raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="Account is locked")
+
+    user.last_login_at = datetime.now(UTC)
+    audit.record(
+        db,
+        action=AuditAction.LOGIN_SUCCEEDED,
+        entity="app_user",
+        entity_id=user.id,
+        actor_label=f"{user.full_name} <{user.email}>",
+        source_ip=ip,
+        user_agent=user_agent,
+        note="Signed in to the web console from the desktop uploader",
+    )
+    db.commit()
 
     return TokenResponse(
         access_token=create_access_token(user.id),

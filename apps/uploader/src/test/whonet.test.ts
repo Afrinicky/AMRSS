@@ -158,7 +158,7 @@ test("agent columns are parsed into codes and methods", () => {
   );
 
   assert.deepEqual(
-    matched.map((entry) => `${entry.code}:${entry.method}`),
+    matched.map((entry) => `${entry.code}:${entry.methodCode}`),
     ["AMP:ND", "CIP:ND", "MEM:NM"],
   );
 });
@@ -212,8 +212,8 @@ test("a row missing the patient identifier is skipped", () => {
 
 test("incremental reads honour the since date", () => {
   const path = makeWhonetFile("since.sqlite", [
-    { PATIENT_ID: "H-1", SPEC_DATE: "2026-01-01", SPEC_TYPE: "ur", ORGANISM: "eco" },
-    { PATIENT_ID: "H-2", SPEC_DATE: "2026-07-15", SPEC_TYPE: "ur", ORGANISM: "eco" },
+    { PATIENT_ID: "H-1", SPEC_DATE: "2026-01-01", SPEC_TYPE: "ur", ORGANISM: "eco", AMP_ND10: "20" },
+    { PATIENT_ID: "H-2", SPEC_DATE: "2026-07-15", SPEC_TYPE: "ur", ORGANISM: "eco", AMP_ND10: "18" },
   ]);
   const profile = detectProfile(path).profile!;
 
@@ -341,7 +341,7 @@ test("agent codes with compound potencies are captured", () => {
   );
 
   assert.deepEqual(
-    matched.map((entry) => `${entry.code}:${entry.method}`),
+    matched.map((entry) => `${entry.code}:${entry.methodCode}`),
     ["SXT:ND", "SXT:ND", "AXS:ND", "CTX:NE", "CRB:ND"],
   );
 });

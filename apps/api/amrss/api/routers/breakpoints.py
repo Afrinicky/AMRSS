@@ -48,6 +48,8 @@ from amrss.analytics.m100_workbook import (
 )
 from amrss.api.deps import CurrentPrincipal, DbSession, client_context, requires
 from amrss.audit import AuditAction
+from amrss.models import MethodologyVersion
+from amrss.models.enums import MethodologyComponent
 from amrss.security.permissions import Permission
 
 router = APIRouter(prefix="/breakpoints", tags=["breakpoints"])
@@ -267,6 +269,58 @@ async def import_breakpoint_table(
         imported=result.imported,
         warnings=result.warnings,
         conversion=report,
+    )
+
+
+class ActiveBreakpointsResponse(BaseModel):
+    """The effective table, in the shape the template CSV declares it.
+
+    Rows are passed through unchanged rather than reshaped, so an offline client
+    interpreting a measurement is reading the same numbers, under the same
+    column names, as the server that will re-interpret it after upload. A second
+    shape here would be a second chance to transpose a threshold.
+    """
+
+    version: str | None
+    label: str | None
+    effective_from: date | None
+    criteria: list[dict]
+
+
+@router.get("/active", response_model=ActiveBreakpointsResponse)
+def active_breakpoints(
+    db: DbSession,
+    principal: CurrentPrincipal,
+    regional_block_id: uuid.UUID | None = None,
+) -> ActiveBreakpointsResponse:
+    """The breakpoint table currently in force, for clients that interpret offline.
+
+    The desktop uploader shows a laboratory its own results as S/I/R before they
+    are sent, which it cannot do from a zone diameter alone. Reading the table
+    from here rather than shipping one with the client is the whole point: there
+    is exactly one set of thresholds in the programme, the one the laboratory
+    imported from its licensed edition, and both halves cite the same version.
+
+    Empty rather than an error when nothing is loaded — a laboratory that has not
+    yet imported its tables gets measurements marked pending, which is the honest
+    answer, not a failed sync it cannot act on.
+    """
+    scope = regional_block_id if regional_block_id is not None else principal.regional_block_id
+    methodology = methodology_engine.resolve(
+        db,
+        regional_block_id=scope,
+        components=[MethodologyComponent.AST_BREAKPOINTS],
+    )
+    component = methodology.get(MethodologyComponent.AST_BREAKPOINTS)
+    if component is None:
+        return ActiveBreakpointsResponse(version=None, label=None, effective_from=None, criteria=[])
+
+    row = db.get(MethodologyVersion, component.id)
+    return ActiveBreakpointsResponse(
+        version=component.version,
+        label=component.get("label"),
+        effective_from=row.effective_from if row else None,
+        criteria=list(component.get("breakpoints") or []),
     )
 
 

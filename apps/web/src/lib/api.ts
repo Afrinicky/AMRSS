@@ -176,6 +176,33 @@ export async function login(
   return response.json();
 }
 
+/**
+ * Exchange a desktop handoff code for a session.
+ *
+ * The uploader has already authenticated this person against the same API; the
+ * code says so, and lasts ninety seconds. Kept beside `login` because it is the
+ * other way a session begins, and both must stay on the server: neither token
+ * may reach client-side JavaScript.
+ */
+export async function exchangeHandoff(
+  code: string,
+): Promise<{ access_token: string; refresh_token: string }> {
+  const response = await callApi(`${apiUrl()}/api/v1/auth/handoff/exchange`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ code }),
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new ApiError(
+      response.status,
+      typeof body.detail === "string" ? body.detail : "This sign-in link is no longer valid.",
+    );
+  }
+  return response.json();
+}
+
 export const api = {
   profile: () => request<Profile>("/api/v1/auth/me"),
   antibiogram: (params?: Record<string, string | undefined>) =>

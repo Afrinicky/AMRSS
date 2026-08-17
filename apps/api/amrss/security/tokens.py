@@ -11,7 +11,20 @@ class TokenError(Exception):
     pass
 
 
-def _encode(subject: uuid.UUID, token_type: Literal["access", "refresh"], ttl: timedelta) -> str:
+#: How long a desktop-to-browser handoff code stays usable.
+#:
+#: Deliberately tiny. The code travels as a query parameter — through the
+#: operating system's "open this URL" plumbing and into the browser's history —
+#: so it is the one credential in the system that is not kept secret by its
+#: transport. A JWT cannot be revoked after issue, so the window is the control:
+#: long enough for a browser to start, far too short to be useful to anyone who
+#: reads it out of a history file later.
+HANDOFF_TTL = timedelta(seconds=90)
+
+
+def _encode(
+    subject: uuid.UUID, token_type: Literal["access", "refresh", "handoff"], ttl: timedelta
+) -> str:
     settings = get_settings()
     now = datetime.now(UTC)
     claims = {
@@ -40,7 +53,17 @@ def create_refresh_token(user_id: uuid.UUID) -> str:
     return _encode(user_id, "refresh", timedelta(days=settings.refresh_token_ttl_days))
 
 
-def decode_token(token: str, expected_type: Literal["access", "refresh"]) -> uuid.UUID:
+def create_handoff_token(user_id: uuid.UUID) -> str:
+    """A one-hop code that lets an already-authenticated desktop client open the
+    web console as the same person.
+
+    Carries no more authority than the access token the caller already holds —
+    it is exchanged for one — and expires in ``HANDOFF_TTL``.
+    """
+    return _encode(user_id, "handoff", HANDOFF_TTL)
+
+
+def decode_token(token: str, expected_type: Literal["access", "refresh", "handoff"]) -> uuid.UUID:
     settings = get_settings()
     try:
         claims: dict[str, Any] = jwt.decode(
