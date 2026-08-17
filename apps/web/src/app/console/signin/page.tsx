@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 
+import { PasswordField } from "@/components/password-field";
 import { SubmitButton } from "@/components/submit-button";
 import { ApiError, ApiUnavailableError, login } from "@/lib/api";
 import { setSession } from "@/lib/session";
@@ -9,11 +10,11 @@ export const metadata = { title: "Sign in" };
 async function signIn(formData: FormData) {
   "use server";
 
-  const email = String(formData.get("email") ?? "");
+  const identifier = String(formData.get("identifier") ?? "");
   const password = String(formData.get("password") ?? "");
 
   try {
-    const tokens = await login(email, password);
+    const tokens = await login(identifier, password);
     await setSession(tokens.access_token);
   } catch (error) {
     // Three outcomes, and telling them apart is the whole point. A rejected
@@ -54,14 +55,16 @@ export default async function SignInPage({
           className="space-y-4 rounded-[--radius-card] border border-line bg-surface p-6"
         >
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-ink">
-              Email
+            <label htmlFor="identifier" className="block text-sm font-medium text-ink">
+              Username or email
             </label>
             <input
-              id="email"
-              name="email"
-              type="email"
+              id="identifier"
+              name="identifier"
+              type="text"
               autoComplete="username"
+              autoCapitalize="none"
+              spellCheck={false}
               required
               className="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink"
             />
@@ -71,10 +74,9 @@ export default async function SignInPage({
             <label htmlFor="password" className="block text-sm font-medium text-ink">
               Password
             </label>
-            <input
+            <PasswordField
               id="password"
               name="password"
-              type="password"
               autoComplete="current-password"
               required
               className="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink"

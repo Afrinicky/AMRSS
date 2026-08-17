@@ -10,8 +10,57 @@ from amrss.ingestion import service
 from amrss.models import Facility, UploadBatch, UploadQcFinding
 from amrss.models.enums import BatchStatus, FacilityStatus, QcFindingSeverity
 from amrss.security.permissions import Permission
+from amrss.security.scope import Principal, resolve_block_id
 
 router = APIRouter(prefix="/ingestion", tags=["ingestion"])
+
+
+def _resolve_upload_facility(
+    db: DbSession, principal: Principal, payload_facility_code: str
+) -> Facility:
+    """Which facility a submitted batch belongs to.
+
+    A facility-scoped account (laboratory staff) can only be one laboratory, and
+    the payload must agree with it. A non-scoped authority — the regional AMR
+    administrator uploading on a laboratory's behalf — names the facility in the
+    payload instead, and may reach any facility within its own block. Either way
+    the batch lands against a real, in-scope facility rather than wherever the
+    payload asked.
+    """
+    if principal.facility_id is not None:
+        facility = db.get(Facility, principal.facility_id)
+        if facility is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Facility not found")
+        if payload_facility_code != facility.code:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=(
+                    "The payload declares a different facility than the authenticated "
+                    "account is scoped to."
+                ),
+            )
+        return facility
+
+    # Not tied to one facility: only a cross-facility authority may upload this
+    # way, and only inside its block.
+    if not principal.has(Permission.VIEW_CROSS_FACILITY):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Upload accounts must be scoped to a facility",
+        )
+    facility = db.scalar(select(Facility).where(Facility.code == payload_facility_code))
+    if facility is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No facility with code {payload_facility_code!r}",
+        )
+    block_id = resolve_block_id(db, principal)
+    if block_id is not None and facility.regional_block_id != block_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="That facility is outside your regional block.",
+        )
+    return facility
 
 
 class FindingResponse(BaseModel):
@@ -53,15 +102,20 @@ async def submit_batch(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Requires permission: upload:submit",
         )
-    if principal.facility_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Upload accounts must be scoped to a facility",
-        )
 
-    facility = db.get(Facility, principal.facility_id)
-    if facility is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Facility not found")
+    settings = get_settings()
+    body = await request.body()
+    source_ip, _ = client
+
+    # Decode first: the facility the batch belongs to may be named in the payload
+    # (a regional authority uploading for a laboratory), not carried on the token.
+    try:
+        payload = service.decode_envelope(body, x_amrss_checksum, settings.max_upload_bytes)
+        service.check_uploader_version(payload.uploader_version, settings.minimum_uploader_version)
+    except service.IngestionError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    facility = _resolve_upload_facility(db, principal, payload.facility_code)
 
     # A suspended or retired facility must not be able to keep contributing.
     # Enrollment status gates submission, not just aggregation.
@@ -71,25 +125,6 @@ async def submit_batch(
             detail=(
                 f"Facility status is '{facility.status.value}'. Only active or "
                 "under-verification facilities may submit data."
-            ),
-        )
-
-    settings = get_settings()
-    body = await request.body()
-    source_ip, _ = client
-
-    try:
-        payload = service.decode_envelope(body, x_amrss_checksum, settings.max_upload_bytes)
-        service.check_uploader_version(payload.uploader_version, settings.minimum_uploader_version)
-    except service.IngestionError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
-
-    if payload.facility_code != facility.code:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=(
-                "The payload declares a different facility than the authenticated "
-                "account is scoped to."
             ),
         )
 

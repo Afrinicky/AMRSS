@@ -148,7 +148,14 @@ class UploadSchedule(StrEnum):
 
 
 class Role(StrEnum):
-    """SDD 7. Enforced at the API layer, never solely in the UI."""
+    """SDD 7. Enforced at the API layer, never solely in the UI.
+
+    The ``regional_amr_administrator`` is the single overall authority: it
+    subsumes the former ``system_administrator``, holding both regional
+    oversight and platform/account administration. The old ``system_administrator``
+    value is retained in the database enum for historical audit rows but is no
+    longer assignable; the 20260817 migration reassigns any account that held it.
+    """
 
     LABORATORY_STAFF = "laboratory_staff"
     FACILITY_ADMINISTRATOR = "facility_administrator"
@@ -156,7 +163,6 @@ class Role(StrEnum):
     REGIONAL_AMR_ADMINISTRATOR = "regional_amr_administrator"
     CLINICIAN = "clinician"
     AUDITOR = "auditor"
-    SYSTEM_ADMINISTRATOR = "system_administrator"
 
 
 class MethodologyComponent(StrEnum):

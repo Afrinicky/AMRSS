@@ -20,6 +20,9 @@ class AppUser(Base, TimestampMixin):
 
     id: Mapped[uuid.UUID] = pk_column()
     email: Mapped[str] = mapped_column(String(256), unique=True, nullable=False)
+    #: Optional second login handle. Stored lower-cased and unique when present;
+    #: null means the account signs in by email only. A login accepts either.
+    username: Mapped[str | None] = mapped_column(String(64), unique=True)
     full_name: Mapped[str] = mapped_column(String(256), nullable=False)
     password_hash: Mapped[str] = mapped_column(String(256), nullable=False)
     role: Mapped[Role] = mapped_column(pg_enum(Role, "user_role"), nullable=False)

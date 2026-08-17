@@ -1,17 +1,15 @@
 """Account administration.
 
-SDD 7 splits this authority deliberately, and the split is the reason this
-module is separate from the rest of the admin console:
+Two kinds of administrator reach this module:
 
-- a **system administrator** manages accounts across the platform but holds no
-  surveillance permission at all, so technical authority never becomes clinical
-  authority;
+- a **regional AMR administrator** — the platform's single overall authority —
+  manages every account across the platform;
 - a **facility administrator** manages accounts at their own facility and
   nowhere else.
 
-Nobody else can create a user. A regional AMR administrator enrols facilities
-and sets methodology; they do not hand out logins. Widening that here — because
-it would be convenient — would quietly merge two roles the design keeps apart.
+Nobody else can create a user. A data steward or clinician holds no account
+authority; widening that here — because it would be convenient — would quietly
+hand out logins to a role the design keeps clear of them.
 
 Four rules below are load-bearing and each has a test:
 
@@ -28,6 +26,7 @@ Four rules below are load-bearing and each has a test:
    flagged to change it at next sign-in.
 """
 
+import re
 import uuid
 from datetime import UTC, datetime
 
@@ -51,6 +50,23 @@ router = APIRouter(prefix="/admin/users", tags=["administration"])
 #: a twelve-character passphrase resists guessing better than eight characters
 #: of enforced punctuation, and composition rules push people towards patterns.
 MIN_PASSWORD_LENGTH = 12
+
+#: What a username may contain. Kept deliberately narrow — letters, digits and a
+#: few separators — so a username can never be mistaken for an email address at
+#: the login form, and so it survives being typed by hand without surprises.
+USERNAME_PATTERN = r"^[A-Za-z0-9](?:[A-Za-z0-9._-]{1,62}[A-Za-z0-9])?$"
+
+
+def _normalise_username(username: str | None) -> str | None:
+    """Trim and lower-case a username, treating blank as absent.
+
+    Stored lower-cased so that ``J.Mensah`` and ``j.mensah`` are the same login
+    rather than two accounts a hair apart, matching how email is handled.
+    """
+    if username is None:
+        return None
+    cleaned = username.strip().lower()
+    return cleaned or None
 
 #: Roles a facility administrator may grant. Anything scoped above the facility
 #: is out of reach — see rule 1.
@@ -90,6 +106,7 @@ def manages_users(principal: CurrentPrincipal) -> Principal:
 class UserResponse(BaseModel):
     id: uuid.UUID
     email: str
+    username: str | None
     full_name: str
     role: Role
     facility_id: uuid.UUID | None
@@ -110,6 +127,10 @@ class UserResponse(BaseModel):
 
 class UserCreate(BaseModel):
     email: EmailStr
+    #: Optional. A login can be an email alone; a username is offered because a
+    #: converted demo account, or a laboratory that shares one mailbox, is easier
+    #: to sign in as a short name than a full address.
+    username: str | None = Field(default=None, pattern=USERNAME_PATTERN)
     full_name: str = Field(min_length=1, max_length=256)
     role: Role
     password: str = Field(min_length=MIN_PASSWORD_LENGTH, max_length=256)
@@ -118,9 +139,20 @@ class UserCreate(BaseModel):
 
 
 class UserUpdate(BaseModel):
-    """Password is not here. It moves through /reset-password, which flags the
-    account — folding it in would let a reset happen without that flag."""
+    """Everything an administrator may correct about an account except its
+    password, which moves through /reset-password so the must-change flag is
+    always set with it.
 
+    Email and username are editable: converting the demo accounts a pilot runs
+    on into real ones means changing the address they were seeded with, and a
+    login nobody can change is a demo account forever. Every field here is
+    optional and only touched when supplied (``exclude_unset``), so a form that
+    submits one field cannot blank the rest."""
+
+    email: EmailStr | None = None
+    #: Explicitly nullable: sending ``""`` clears the username back to
+    #: email-only login. ``None`` (field absent) leaves it untouched.
+    username: str | None = Field(default=None)
     full_name: str | None = Field(default=None, min_length=1, max_length=256)
     role: Role | None = None
     facility_id: uuid.UUID | None = None
@@ -137,6 +169,7 @@ def _response(user: AppUser, *, editable: bool) -> UserResponse:
     return UserResponse(
         id=user.id,
         email=user.email,
+        username=user.username,
         full_name=user.full_name,
         role=user.role,
         facility_id=user.facility_id,
@@ -231,8 +264,34 @@ def _resolve_scope(
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unknown block")
         return None, regional_block_id
 
-    # System administrators are platform-wide and carry neither.
+    # No unscoped role remains; every role is either facility- or block-scoped.
+    # Kept as a safe default rather than an assertion so a future unscoped role
+    # lands somewhere sensible instead of raising.
     return None, None
+
+
+def _assert_email_free(db: Session, email: str, *, exclude_id: uuid.UUID | None = None) -> None:
+    query = select(AppUser).where(AppUser.email == email)
+    if exclude_id is not None:
+        query = query.where(AppUser.id != exclude_id)
+    if db.scalar(query):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"An account with email {email} already exists.",
+        )
+
+
+def _assert_username_free(
+    db: Session, username: str, *, exclude_id: uuid.UUID | None = None
+) -> None:
+    query = select(AppUser).where(AppUser.username == username)
+    if exclude_id is not None:
+        query = query.where(AppUser.id != exclude_id)
+    if db.scalar(query):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"An account with username {username!r} already exists.",
+        )
 
 
 def _assert_not_last_user_admin(
@@ -342,11 +401,11 @@ def create_user(
     principal: Principal = Depends(manages_users),
 ) -> UserResponse:
     email = payload.email.strip().lower()
-    if db.scalar(select(AppUser).where(AppUser.email == email)):
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"An account with email {email} already exists.",
-        )
+    _assert_email_free(db, email)
+
+    username = _normalise_username(payload.username)
+    if username is not None:
+        _assert_username_free(db, username)
 
     _assert_may_grant(principal, payload.role)
     facility_id, block_id = _resolve_scope(
@@ -355,6 +414,7 @@ def create_user(
 
     user = AppUser(
         email=email,
+        username=username,
         full_name=payload.full_name.strip(),
         password_hash=hash_password(payload.password),
         role=payload.role,
@@ -399,6 +459,8 @@ def update_user(
 
     changes = payload.model_dump(exclude_unset=True)
     before = {
+        "email": user.email,
+        "username": user.username,
         "role": user.role.value,
         "is_active": user.is_active,
         "facility_id": str(user.facility_id) if user.facility_id else None,
@@ -415,6 +477,28 @@ def update_user(
 
     if payload.is_active is False:
         _assert_not_last_user_admin(db, user, deactivating=True)
+
+    if payload.email is not None:
+        email = payload.email.strip().lower()
+        _assert_email_free(db, email, exclude_id=user.id)
+        user.email = email
+
+    if "username" in changes:
+        # Empty string clears the username to email-only login; a non-empty one
+        # is validated against the pattern here rather than on the field, so
+        # that clearing (an intentionally empty value) is still accepted.
+        username = _normalise_username(payload.username)
+        if username is not None:
+            if not re.match(USERNAME_PATTERN, username):
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=(
+                        "A username may use letters, digits, dot, hyphen and "
+                        "underscore, and must start and end with a letter or digit."
+                    ),
+                )
+            _assert_username_free(db, username, exclude_id=user.id)
+        user.username = username
 
     if payload.full_name is not None:
         user.full_name = payload.full_name.strip()
@@ -455,6 +539,8 @@ def update_user(
         principal=principal,
         before=before,
         after={
+            "email": user.email,
+            "username": user.username,
             "role": user.role.value,
             "is_active": user.is_active,
             "facility_id": str(user.facility_id) if user.facility_id else None,

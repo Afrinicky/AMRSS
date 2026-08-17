@@ -55,13 +55,36 @@ def test_auditor_reads_the_trail_and_holds_no_operational_permission():
     assert auditor == frozenset({Permission.READ_AUDIT})
 
 
-def test_system_administrator_has_no_surveillance_access():
-    """Technical and clinical authority are deliberately separate."""
-    sysadmin = principal(Role.SYSTEM_ADMINISTRATOR)
+def test_regional_administrator_is_the_single_overall_authority():
+    """The regional AMR administrator absorbed the former system administrator:
+    one role now holds both regional surveillance oversight and platform-wide
+    account and system administration."""
+    admin = principal(Role.REGIONAL_AMR_ADMINISTRATOR)
 
-    assert not sysadmin.has(Permission.VIEW_REGIONAL)
-    assert not sysadmin.has(Permission.VIEW_CROSS_FACILITY)
-    assert not sysadmin.has(Permission.VIEW_OWN_FACILITY)
+    # Regional oversight.
+    assert admin.has(Permission.VIEW_REGIONAL)
+    assert admin.has(Permission.ENROLL_FACILITY)
+    assert admin.has(Permission.MANAGE_METHODOLOGY)
+    # Acts on the ground too: uploads, QC attestation and data stewardship, so
+    # one authority covers the whole pipeline (it can perform every operational
+    # role, not only oversee them).
+    assert admin.has(Permission.UPLOAD_SUBMIT)
+    assert admin.has(Permission.QC_ATTEST)
+    assert admin.has(Permission.REVIEW_MAPPING)
+    assert admin.has(Permission.MANAGE_DICTIONARY)
+    # Platform administration, formerly the system administrator's.
+    assert admin.has(Permission.MANAGE_USERS)
+    assert admin.has(Permission.SYSTEM_ADMIN)
+    # The one irreversible authority: clearing data to begin a new cycle.
+    assert admin.has(Permission.PURGE_DATA)
+
+
+def test_purge_data_is_held_only_by_the_overall_authority():
+    """Deleting facilities or wiping the dataset is irreversible, so no other
+    role — not even a data steward who retracts batches — can reach it."""
+    holders = {role for role in Role if Permission.PURGE_DATA in permissions_for(role)}
+
+    assert holders == {Role.REGIONAL_AMR_ADMINISTRATOR}
 
 
 def test_only_the_auditor_reads_the_audit_trail():

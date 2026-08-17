@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 
+import { PasswordField } from "@/components/password-field";
 import { PageHeading, Shell } from "@/components/shell";
 import { ApiError, api } from "@/lib/api";
 import { requireProfile } from "@/lib/session";
@@ -91,10 +92,9 @@ export default async function PasswordPage({
             <label htmlFor="current_password" className={LABEL}>
               Current password
             </label>
-            <input
+            <PasswordField
               id="current_password"
               name="current_password"
-              type="password"
               required
               autoComplete="current-password"
               className={FIELD}
@@ -112,10 +112,9 @@ export default async function PasswordPage({
             <label htmlFor="new_password" className={LABEL}>
               New password
             </label>
-            <input
+            <PasswordField
               id="new_password"
               name="new_password"
-              type="password"
               required
               minLength={MIN_PASSWORD}
               autoComplete="new-password"
@@ -131,10 +130,9 @@ export default async function PasswordPage({
             <label htmlFor="confirm_password" className={LABEL}>
               Repeat new password
             </label>
-            <input
+            <PasswordField
               id="confirm_password"
               name="confirm_password"
-              type="password"
               required
               minLength={MIN_PASSWORD}
               autoComplete="new-password"

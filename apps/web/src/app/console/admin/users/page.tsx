@@ -1,4 +1,5 @@
 import { EmptyState, ScrollTable, formatDateTime } from "@/components/admin";
+import { PasswordField } from "@/components/password-field";
 import { BannerFigure, PageHeading, Shell } from "@/components/shell";
 import { api } from "@/lib/api";
 import { requireProfile } from "@/lib/session";
@@ -15,7 +16,9 @@ const ROLE_LABEL: Record<string, string> = {
   data_steward: "Data steward",
   regional_amr_administrator: "Regional AMR administrator",
   auditor: "Auditor",
-  system_administrator: "System administrator",
+  // Retained so an account still carrying the retired role (before the merge
+  // migration runs) is labelled rather than shown as a raw string.
+  system_administrator: "System administrator (retired)",
 };
 
 const ROLE_NOTE: Record<string, string> = {
@@ -23,13 +26,12 @@ const ROLE_NOTE: Record<string, string> = {
   laboratory_staff: "Submits uploads and QC attestations for one laboratory.",
   facility_administrator: "Manages accounts at their own laboratory, and nothing beyond it.",
   data_steward: "Reviews batches and dictionary mappings across the block.",
-  regional_amr_administrator: "Enrols facilities, sets methodology, acknowledges signals.",
+  regional_amr_administrator:
+    "The overall authority: enrols facilities, sets methodology, manages every account, " +
+    "and can reset the system to start a new surveillance cycle.",
   auditor: "Reads the audit trail and holds no operational permission.",
-  system_administrator: "Manages accounts platform-wide, and sees no surveillance data.",
+  system_administrator: "Retired — its authority is now held by the regional AMR administrator.",
 };
-
-const FACILITY_ROLES = new Set(["laboratory_staff", "facility_administrator"]);
-const UNSCOPED_ROLES = new Set(["system_administrator"]);
 
 const FIELD = "mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink";
 const LABEL = "block text-xs font-medium uppercase tracking-wide text-ink-muted";
@@ -38,12 +40,11 @@ const MIN_PASSWORD = 12;
 /**
  * Accounts (SDD 7, 10.2).
  *
- * Two roles reach this page and they see different things. A system
- * administrator manages every account and holds no surveillance permission at
- * all; a facility administrator manages their own laboratory's staff and
- * nothing else. That separation keeps technical authority away from clinical
- * data, and it is enforced at the API — the console only ever declines to draw
- * a control the caller could not use.
+ * Two kinds of administrator reach this page. The regional AMR administrator —
+ * the platform's overall authority — manages every account; a facility
+ * administrator manages their own laboratory's staff and nothing else. What each
+ * one may reach is enforced at the API; the console only ever declines to draw a
+ * control the caller could not use.
  *
  * The page states what each role can do rather than listing permission strings.
  * "Reads the audit trail and holds no operational permission" is a sentence an
@@ -140,7 +141,12 @@ export default async function UsersPage({
                         user.full_name
                       )}
                     </th>
-                    <td className="px-3 py-2 text-ink-muted">{user.email}</td>
+                    <td className="px-3 py-2 text-ink-muted">
+                      {user.email}
+                      {user.username ? (
+                        <span className="block text-xs text-ink-muted">@{user.username}</span>
+                      ) : null}
+                    </td>
                     <td className="px-3 py-2 text-ink-muted">
                       {ROLE_LABEL[user.role] ?? user.role}
                     </td>
@@ -338,6 +344,23 @@ function CreateAccount({ options }: { options: UserScopeOptions }) {
             Used to sign in. No mail is ever sent to it.
           </p>
         </div>
+        <div>
+          <label htmlFor="username" className={LABEL}>
+            Username <span className="font-normal normal-case">(optional)</span>
+          </label>
+          <input
+            id="username"
+            name="username"
+            autoCapitalize="none"
+            spellCheck={false}
+            maxLength={64}
+            className={FIELD}
+          />
+          <p className="mt-1 text-xs text-ink-muted">
+            A short handle they can sign in with instead of the email. Letters, digits, dot, hyphen
+            and underscore.
+          </p>
+        </div>
         <div className="sm:col-span-2">
           <label htmlFor="role" className={LABEL}>
             Role
@@ -351,10 +374,9 @@ function CreateAccount({ options }: { options: UserScopeOptions }) {
           <label htmlFor="password" className={LABEL}>
             Initial password
           </label>
-          <input
+          <PasswordField
             id="password"
             name="password"
-            type="password"
             required
             minLength={MIN_PASSWORD}
             autoComplete="new-password"
@@ -425,6 +447,38 @@ function ManageAccount({
             />
           </div>
           <div>
+            <label htmlFor={`email-${user.id}`} className={LABEL}>
+              Email address
+            </label>
+            <input
+              id={`email-${user.id}`}
+              name="email"
+              type="email"
+              defaultValue={user.email}
+              className={FIELD}
+            />
+            <p className="mt-1 text-xs text-ink-muted">
+              Editable, so a demo account seeded with a placeholder address can become a real one.
+            </p>
+          </div>
+          <div>
+            <label htmlFor={`username-${user.id}`} className={LABEL}>
+              Username
+            </label>
+            <input
+              id={`username-${user.id}`}
+              name="username"
+              defaultValue={user.username ?? ""}
+              autoCapitalize="none"
+              spellCheck={false}
+              maxLength={64}
+              className={FIELD}
+            />
+            <p className="mt-1 text-xs text-ink-muted">
+              Leave blank for email-only sign-in.
+            </p>
+          </div>
+          <div>
             <label htmlFor={`role-${user.id}`} className={LABEL}>
               Role
             </label>
@@ -466,10 +520,9 @@ function ManageAccount({
             <label htmlFor={`pw-${user.id}`} className={LABEL}>
               Reset password
             </label>
-            <input
+            <PasswordField
               id={`pw-${user.id}`}
               name="password"
-              type="password"
               minLength={MIN_PASSWORD}
               required
               autoComplete="new-password"

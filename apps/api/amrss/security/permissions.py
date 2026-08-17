@@ -44,14 +44,26 @@ class Permission(StrEnum):
     MANAGE_USERS = "user:manage"
     SYSTEM_ADMIN = "system:admin"
 
+    #: Destroy surveillance data. Deleting a facility with everything it
+    #: submitted, or wiping the whole surveillance dataset to start a block
+    #: over, is irreversible in a way no other administrative action is — so it
+    #: is its own permission rather than folded into SYSTEM_ADMIN, and only the
+    #: single overall authority holds it.
+    PURGE_DATA = "data:purge"
+
 
 #: SDD 7, rendered as data.
 #:
-#: Two separations are deliberate and must not be collapsed for convenience:
-#: the Auditor reads the trail but holds no operational permission, so
-#: accountability stays independent of the administration it examines; and the
-#: System Administrator manages infrastructure and accounts without gaining
-#: access to surveillance data, keeping technical and clinical authority apart.
+#: One separation remains deliberate and must not be collapsed: the Auditor
+#: reads the trail but holds no operational permission, so accountability stays
+#: independent of the administration it examines.
+#:
+#: The Regional AMR Administrator is the platform's single overall authority. It
+#: previously shared that authority with a separate System Administrator, but
+#: splitting infrastructure and account management away from regional oversight
+#: created two accounts where a regional programme has one accountable owner. The
+#: two are now one role, which enrols facilities, sets methodology, manages every
+#: account, and can reset the system to begin a new surveillance cycle.
 ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
     Role.LABORATORY_STAFF: frozenset(
         {
@@ -79,25 +91,35 @@ ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
     ),
     Role.REGIONAL_AMR_ADMINISTRATOR: frozenset(
         {
+            # Regional surveillance oversight.
             Permission.VIEW_REGIONAL,
             Permission.VIEW_CROSS_FACILITY,
+            Permission.VIEW_OWN_FACILITY,
             Permission.REVIEW_BATCH,
             Permission.ENROLL_FACILITY,
             Permission.MANAGE_BLOCK,
             Permission.CONFIGURE_ALERTS,
             Permission.ACKNOWLEDGE_SIGNAL,
             Permission.MANAGE_METHODOLOGY,
+            # Also acts on the ground: the overall authority can submit uploads
+            # and QC attestations for any facility in its block, not only review
+            # them — so a regional programme can enter data itself where a
+            # laboratory cannot.
+            Permission.UPLOAD_SUBMIT,
+            Permission.QC_ATTEST,
+            # Data stewardship, so one authority covers the whole pipeline.
+            Permission.RETRACT_BATCH,
+            Permission.MANAGE_DICTIONARY,
+            Permission.REVIEW_MAPPING,
+            Permission.MANAGE_QC_GATING,
+            # Overall platform authority, formerly the System Administrator.
+            Permission.MANAGE_USERS,
+            Permission.SYSTEM_ADMIN,
+            Permission.PURGE_DATA,
         }
     ),
     Role.CLINICIAN: frozenset({Permission.VIEW_REGIONAL}),
     Role.AUDITOR: frozenset({Permission.READ_AUDIT}),
-    Role.SYSTEM_ADMINISTRATOR: frozenset(
-        {
-            Permission.MANAGE_USERS,
-            Permission.MANAGE_BLOCK,
-            Permission.SYSTEM_ADMIN,
-        }
-    ),
 }
 
 

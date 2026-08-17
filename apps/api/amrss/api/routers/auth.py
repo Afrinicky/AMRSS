@@ -1,8 +1,8 @@
 from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, HTTPException, status
-from pydantic import BaseModel, EmailStr, Field
-from sqlalchemy import select
+from pydantic import AliasChoices, BaseModel, Field
+from sqlalchemy import func, or_, select
 
 from amrss import audit
 from amrss.api.deps import ClientContext, CurrentPrincipal, DbSession
@@ -26,7 +26,14 @@ LOCKOUT_DURATION = timedelta(minutes=15)
 
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    #: A username or an email address. Accepted under either key so an older
+    #: client that still posts ``email`` keeps working while the console posts
+    #: ``identifier``.
+    identifier: str = Field(
+        validation_alias=AliasChoices("identifier", "email"),
+        min_length=1,
+        max_length=256,
+    )
     password: str
 
 
@@ -38,6 +45,7 @@ class TokenResponse(BaseModel):
 
 class ProfileResponse(BaseModel):
     email: str
+    username: str | None = None
     full_name: str
     role: Role
     facility_id: str | None
@@ -53,12 +61,20 @@ class ProfileResponse(BaseModel):
 @router.post("/login", response_model=TokenResponse)
 def login(payload: LoginRequest, db: DbSession, client: ClientContext) -> TokenResponse:
     ip, user_agent = client
-    user = db.scalar(select(AppUser).where(AppUser.email == payload.email.lower()))
+    identifier = payload.identifier.strip().lower()
+    # Either handle signs in. Both are stored lower-cased, so a lower-cased
+    # comparison is exact rather than a scan, and username being null simply
+    # never matches an email typed into the box.
+    user = db.scalar(
+        select(AppUser).where(
+            or_(AppUser.email == identifier, func.lower(AppUser.username) == identifier)
+        )
+    )
 
     # One failure response for every cause. Distinguishing "no such account" from
     # "wrong password" turns the login form into an account-enumeration oracle.
     failure = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password"
+        status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid username or password"
     )
 
     def log_failure(reason: str) -> None:
@@ -67,7 +83,7 @@ def login(payload: LoginRequest, db: DbSession, client: ClientContext) -> TokenR
             action=AuditAction.LOGIN_FAILED,
             entity="app_user",
             entity_id=user.id if user else None,
-            actor_label=payload.email,
+            actor_label=identifier,
             source_ip=ip,
             user_agent=user_agent,
             note=reason,
@@ -215,6 +231,7 @@ def me(principal: CurrentPrincipal, db: DbSession) -> ProfileResponse:
     user = db.get(AppUser, principal.user_id)
     return ProfileResponse(
         email=principal.email,
+        username=user.username if user else None,
         full_name=principal.full_name,
         role=principal.role,
         facility_id=str(principal.facility_id) if principal.facility_id else None,
