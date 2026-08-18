@@ -28,8 +28,9 @@ contextBridge.exposeInMainWorld("amrss", {
   openStateFolder: () => ipcRenderer.invoke("app:openStateFolder"),
   apiUrlProblem: (url: string) => ipcRenderer.invoke("app:apiUrlProblem", url),
 
-  signIn: (input: { identifier: string; password: string; apiUrl?: string }) =>
+  signIn: (input: { identifier: string; password: string }) =>
     ipcRenderer.invoke("auth:signIn", input),
+  testConnection: (url: string) => ipcRenderer.invoke("connection:test", url),
   signOut: () => ipcRenderer.invoke("auth:signOut"),
   openWebConsole: () => ipcRenderer.invoke("auth:openWebConsole"),
 
@@ -73,4 +74,6 @@ contextBridge.exposeInMainWorld("amrss", {
   onStatus: (listener: Listener) => subscribe("amrss:status", listener),
   onData: (listener: Listener) => subscribe("amrss:data", listener),
   onSchedule: (listener: Listener) => subscribe("amrss:schedule", listener),
+  onOpenConnectionSettings: (listener: Listener) =>
+    subscribe("amrss:open-connection-settings", listener),
 });

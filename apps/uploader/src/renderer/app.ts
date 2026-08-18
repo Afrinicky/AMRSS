@@ -10,7 +10,7 @@
 
 import { api, type Status } from "./api.js";
 import { beep, button, el, toast } from "./ui.js";
-import { renderSignIn } from "./views/signin.js";
+import { openConnectionSettings, renderSignIn } from "./views/signin.js";
 import { renderDashboard } from "./views/dashboard.js";
 import { renderDatabase } from "./views/database.js";
 import { renderValidation } from "./views/validation.js";
@@ -314,7 +314,17 @@ api.onSchedule((event) => {
       : `Scheduled upload held back: ${event.reason ?? "not ready"}`,
     event.ran ? "ok" : "warn",
   );
-  void refresh();
+  // Help → Connection settings, from anywhere in the application.
+api.onOpenConnectionSettings(() => {
+  void openConnectionSettings(() => void refresh());
+});
+
+void refresh();
+});
+
+// Help → Connection settings, from anywhere in the application.
+api.onOpenConnectionSettings(() => {
+  void openConnectionSettings(() => void refresh());
 });
 
 void refresh();

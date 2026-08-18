@@ -13,20 +13,49 @@ facility's WHONET happens to contain.
 
 ---
 
-## Setup, once
+## What a laboratory does
 
-1. **Sign in** with the same username and password used for the web console.
-   The server address is asked for on the sign-in screen and remembered
-   afterwards.
-2. **Settings → Facility & server**: enter the facility code exactly as the
-   regional administrator enrolled it. A batch declaring a different facility is
-   refused by the API.
-3. **Settings → WHONET data**: choose the WHONET `.sqlite` file. The uploader
-   inspects it, reports the columns it found, and asks for confirmation.
+**Sign in** with the same username and password as the AMRSS website. That is
+the whole screen — two boxes and a button.
 
-That is the whole setup. The file never moves, so the uploader follows it from
-then on: every result entered in WHONET appears here, and uploading is one
-button.
+Nobody at the bench is asked for a server address. The address is deployment
+configuration: the installer is built with it (see below), so the software
+already knows where to send data. If an installation has none, the sign-in
+screen says the computer has not been connected yet and to ask IT — it does not
+present an empty box to someone who has no way to fill it.
+
+Two things a facility administrator sets once, in Settings:
+
+- **Facility** — the code the regional administrator issued at enrolment. A
+  batch declaring a different one is refused by the platform.
+- **WHONET data** — the WHONET `.sqlite` file. The uploader inspects it, reports
+  the columns it found, and asks for confirmation.
+
+After that the file never moves, so the uploader follows it: every result
+entered in WHONET appears here, and uploading is one button.
+
+## What IT does, once per computer
+
+Everything technical lives in one place, labelled for the person it is meant
+for: **Settings → Connection (IT)**, also reachable from **Help → Connection
+settings** before anyone signs in. It holds the service address, the website
+address, how often the connection is checked, and how long the machine may work
+offline — with a **Test connection** button, so whoever sets it up finds out
+there and then whether it works.
+
+Better still, set nothing: build the installer with the addresses baked in.
+`deployment.json` sits beside the application and is written by the build from
+the programme's repository variables:
+
+| Variable | What it sets |
+|---|---|
+| `AMRSS_API_URL` | The service the uploader submits to — the API, not the website |
+| `AMRSS_WEB_URL` | The dashboard, for "Open the AMRSS website" |
+| `AMRSS_SUPPORT_CONTACT` | Who the software names when it cannot reach the service |
+
+`deployment.example.json` shows the shape. A facility's IT can also drop the
+file beside an already-installed application, or correct it, without rebuilding
+anything.
 
 ---
 
@@ -128,6 +157,10 @@ uploader does not stop when the link does.
 
 - The indicator beside your name is **green online, red offline**, and the
   offline state sounds a periodic alert (switchable in Settings).
+- Messages are written for the bench: *"AMRSS could not be reached just now.
+  Ask your IT support if it continues."* The technical wording — the address,
+  the status code, what to check — is one click away under **Details for IT
+  support**, where it helps the person who can act on it and nobody else.
 - **Offline sign-in** works for the account that last signed in online on this
   computer, checked against a scrypt verifier — never a stored password. It
   lapses after `offlineGraceDays` (30 by default) so an account closed centrally

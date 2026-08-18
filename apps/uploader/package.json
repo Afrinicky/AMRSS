@@ -1,6 +1,6 @@
 {
   "name": "amrss-uploader",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "private": true,
   "description": "AMRSS offline de-identification and upload client for WHONET laboratories",
   "author": "AMRSS",

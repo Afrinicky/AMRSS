@@ -355,8 +355,8 @@ export interface Bridge {
   signIn(input: {
     identifier: string;
     password: string;
-    apiUrl?: string;
-  }): Promise<Outcome & { status: Status; code: string }>;
+  }): Promise<Outcome & { status: Status; code: string; detail?: string }>;
+  testConnection(url: string): Promise<Outcome & { detail?: string }>;
   signOut(): Promise<Status>;
   openWebConsole(): Promise<Outcome>;
 
@@ -439,6 +439,7 @@ export interface Bridge {
   onSchedule(
     listener: (payload: { ran: boolean; at: string; reason: string | null; code: string }) => void,
   ): () => void;
+  onOpenConnectionSettings(listener: () => void): () => void;
 }
 
 declare global {

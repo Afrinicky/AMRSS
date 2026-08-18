@@ -189,6 +189,44 @@ table {
   max-width: 380px;
 }
 
+.signin-form h2 {
+  font-size: 22px;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+/* The one technical door on this screen, kept quiet: present for whoever
+ * installs the software, unremarkable to everyone else. */
+.signin-footer {
+  margin-top: 26px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  justify-content: center;
+}
+
+.signin-footer button {
+  color: var(--ink-muted);
+  font-size: 12.5px;
+}
+
+/* Technical wording, folded away. A laboratory scientist never opens it; the
+ * person who can act on it finds it exactly where they would look. */
+details.detail {
+  margin-top: 8px;
+  font-size: 12.5px;
+}
+
+details.detail summary {
+  cursor: pointer;
+  color: var(--ink-muted);
+}
+
+details.detail p {
+  margin: 6px 0 0;
+  word-break: break-word;
+}
+
 /* --- Application shell ----------------------------------------------- */
 
 .shell {

@@ -71,13 +71,14 @@ export async function renderSettings(host: HTMLElement, context: ViewContext): P
   host.append(
     subtabs(
       [
-        { value: "facility", label: "Facility & server" },
+        { value: "facility", label: "Facility" },
         { value: "whonet", label: "WHONET data" },
         { value: "schedule", label: "Upload schedule" },
         { value: "behaviour", label: "Alerts & analysis" },
         { value: "breakpoints", label: "Breakpoints" },
         { value: "mapping", label: "Code mapping" },
-        { value: "about", label: "About this installation" },
+        { value: "connection", label: "Connection (IT)" },
+        { value: "about", label: "About" },
       ],
       panel,
       (value) => {
@@ -95,6 +96,7 @@ export async function renderSettings(host: HTMLElement, context: ViewContext): P
     behaviour: () => behaviourPanel(settings, context),
     breakpoints: () => breakpointsPanel(context),
     mapping: () => mappingPanel(context),
+    connection: () => connectionPanel(settings, context),
     about: () => aboutPanel(settings, context),
   };
 
@@ -104,63 +106,33 @@ export async function renderSettings(host: HTMLElement, context: ViewContext): P
 function facilityPanel(settings: Settings, context: ViewContext): HTMLElement {
   const code = textInput(settings.facilityCode, { placeholder: "e.g. SECH-01" });
   const name = textInput(settings.facilityName, { placeholder: "e.g. Suntreso Government Hospital" });
-  const apiUrl = textInput(settings.apiUrl, { placeholder: "https://amrss-api.onrender.com" });
-  const webUrl = textInput(settings.webUrl, { placeholder: "https://amrss.example.org" });
 
   return card(
-    "Facility and server",
-    "The facility code must match the one your regional administrator enrolled; a batch declaring a different facility is refused by the platform.",
+    "Your facility",
+    "How this laboratory is identified on the surveillance platform. Your regional administrator issues the code when the facility is enrolled; a batch declaring a different one is refused.",
     el("div", {
       className: "inline-fields",
       children: [
         el("div", { className: "field", children: [el("label", { text: "Facility code" }), code] }),
         el("div", { className: "field", children: [el("label", { text: "Facility name" }), name] }),
-        el("div", {
-          className: "field",
-          children: [
-            el("label", { text: "API address" }),
-            apiUrl,
-            el("div", {
-              className: "help",
-              text:
-                "Where the surveillance API lives — signing in, uploading and breakpoint " +
-                "syncing all go here. This is not the dashboard address; on the dashboard's " +
-                "own deployment it is the AMRSS_API_URL setting.",
-            }),
-          ],
-        }),
-        el("div", {
-          className: "field",
-          children: [
-            el("label", { text: "Web console address" }),
-            webUrl,
-            el("div", {
-              className: "help",
-              text: "Used by “Open web console”, which signs you into the browser as the same account with no second password.",
-            }),
-          ],
-        }),
       ],
     }),
     button(
       "Save",
       async () => {
-        const problem = apiUrl.value.trim() ? await api.apiUrlProblem(apiUrl.value) : null;
-        if (problem) {
-          toast(problem, "warn");
-          return;
-        }
         await api.saveSettings({
           facilityCode: code.value.trim() || null,
           facilityName: name.value.trim() || null,
-          apiUrl: apiUrl.value.trim(),
-          webUrl: webUrl.value.trim(),
         });
         await context.refresh();
         toast("Saved.");
       },
       "primary",
     ),
+    el("p", {
+      className: "small muted",
+      text: "Server addresses live under Connection (IT) — they are set once when this computer is installed and do not need changing here.",
+    }),
   );
 }
 
@@ -437,14 +409,10 @@ function schedulePanel(settings: Settings, context: ViewContext): HTMLElement {
 
 function behaviourPanel(settings: Settings, context: ViewContext): HTMLElement {
   const pollSeconds = textInput(String(settings.realtime.pollSeconds), { type: "number" });
-  const connectivitySeconds = textInput(String(settings.connectivity.pollSeconds), {
-    type: "number",
-  });
   const alertSeconds = textInput(String(settings.connectivity.alertIntervalSeconds), {
     type: "number",
   });
   const minimumIsolates = textInput(String(settings.analysis.minimumIsolates), { type: "number" });
-  const graceDays = textInput(String(settings.offlineGraceDays), { type: "number" });
 
   const realtimeEnabled = checkbox(
     "Follow the WHONET file and reload as results are entered",
@@ -481,13 +449,6 @@ function behaviourPanel(settings: Settings, context: ViewContext): HTMLElement {
         }),
         el("div", {
           className: "field",
-          children: [
-            el("label", { text: "Check the connection every (seconds)" }),
-            connectivitySeconds,
-          ],
-        }),
-        el("div", {
-          className: "field",
           children: [el("label", { text: "Repeat the offline alert every (seconds)" }), alertSeconds],
         }),
         el("div", {
@@ -501,17 +462,7 @@ function behaviourPanel(settings: Settings, context: ViewContext): HTMLElement {
             }),
           ],
         }),
-        el("div", {
-          className: "field",
-          children: [
-            el("label", { text: "Allow offline sign-in for (days)" }),
-            graceDays,
-            el("div", {
-              className: "help",
-              text: "After this long without reaching the server, signing in requires a connection — so an account closed centrally cannot keep working here forever.",
-            }),
-          ],
-        }),
+
       ],
     }),
     el("div", { children: [realtimeEnabled, audible, firstIsolate] }),
@@ -524,7 +475,7 @@ function behaviourPanel(settings: Settings, context: ViewContext): HTMLElement {
             pollSeconds: Math.max(5, Number(pollSeconds.value) || 30),
           },
           connectivity: {
-            pollSeconds: Math.max(10, Number(connectivitySeconds.value) || 30),
+            ...settings.connectivity,
             audibleAlert: (audible.querySelector("input") as HTMLInputElement).checked,
             alertIntervalSeconds: Math.max(15, Number(alertSeconds.value) || 60),
           },
@@ -532,13 +483,114 @@ function behaviourPanel(settings: Settings, context: ViewContext): HTMLElement {
             firstIsolateOnly: (firstIsolate.querySelector("input") as HTMLInputElement).checked,
             minimumIsolates: Math.max(1, Number(minimumIsolates.value) || 30),
           },
-          offlineGraceDays: Math.max(1, Number(graceDays.value) || 30),
         });
         await context.refresh();
         toast("Saved.");
       },
       "primary",
     ),
+  );
+}
+
+/**
+ * Connection — for whoever installs and supports this computer.
+ *
+ * Everything here was decided by the programme, not by the laboratory: where
+ * data goes, how often the connection is checked, and how long a machine may
+ * keep working without seeing the server. It is one click away from daily work
+ * on purpose, and labelled so nobody at the bench feels they should be reading
+ * it.
+ */
+function connectionPanel(settings: Settings, context: ViewContext): HTMLElement {
+  const serviceAddress = textInput(settings.apiUrl, {
+    placeholder: "https://amrss-api.example.org",
+  });
+  const websiteAddress = textInput(settings.webUrl, { placeholder: "https://amrss.example.org" });
+  const connectivitySeconds = textInput(String(settings.connectivity.pollSeconds), {
+    type: "number",
+  });
+  const graceDays = textInput(String(settings.offlineGraceDays), { type: "number" });
+  const testResult = el("div");
+
+  return card(
+    "Connection",
+    "Set once, when this computer is installed. Laboratory staff never need these.",
+    el("div", {
+      className: "inline-fields",
+      children: [
+        el("div", {
+          className: "field",
+          children: [
+            el("label", { text: "AMRSS service address" }),
+            serviceAddress,
+            el("div", {
+              className: "help",
+              text: "Where surveillance data is submitted, and where sign-in is checked. This is the API service — not the website staff open in a browser. On the website's own deployment it is the AMRSS_API_URL setting.",
+            }),
+          ],
+        }),
+        el("div", {
+          className: "field",
+          children: [
+            el("label", { text: "AMRSS website address" }),
+            websiteAddress,
+            el("div", {
+              className: "help",
+              text: "Optional. Used by “Open the AMRSS website”, which opens the dashboard already signed in as the same person.",
+            }),
+          ],
+        }),
+        el("div", {
+          className: "field",
+          children: [
+            el("label", { text: "Check the connection every (seconds)" }),
+            connectivitySeconds,
+          ],
+        }),
+        el("div", {
+          className: "field",
+          children: [
+            el("label", { text: "Allow working offline for (days)" }),
+            graceDays,
+            el("div", {
+              className: "help",
+              text: "After this long without reaching the service, signing in needs a connection — so an account closed centrally cannot keep working here indefinitely.",
+            }),
+          ],
+        }),
+      ],
+    }),
+    el("div", {
+      className: "toolbar",
+      children: [
+        button("Test connection", async () => {
+          testResult.replaceChildren(notice("info", "Testing…"));
+          const test = await api.testConnection(serviceAddress.value.trim());
+          testResult.replaceChildren(notice(test.ok ? "ok" : "bad", test.message));
+          if (!test.ok && typeof test.detail === "string") {
+            testResult.append(el("p", { className: "small muted", text: test.detail }));
+          }
+        }),
+        button(
+          "Save",
+          async () => {
+            await api.saveSettings({
+              apiUrl: serviceAddress.value.trim(),
+              webUrl: websiteAddress.value.trim(),
+              connectivity: {
+                ...settings.connectivity,
+                pollSeconds: Math.max(10, Number(connectivitySeconds.value) || 30),
+              },
+              offlineGraceDays: Math.max(1, Number(graceDays.value) || 30),
+            });
+            await context.refresh();
+            toast("Connection settings saved.");
+          },
+          "primary",
+        ),
+      ],
+    }),
+    testResult,
   );
 }
 

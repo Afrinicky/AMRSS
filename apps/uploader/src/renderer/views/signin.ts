@@ -1,25 +1,24 @@
 /**
  * Sign-in.
  *
- * One account for both halves of AMRSS: the same username and password that
- * open the web console open this. Two things the previous version got wrong are
- * fixed here and are worth naming, because both produced a button that looked
- * broken.
+ * Two boxes: the username and password the person already has for AMRSS. That
+ * is the whole screen, deliberately.
  *
- * First, the server address is asked for *on this screen*. It used to live on a
- * settings panel further in, defaulted to a developer's localhost, and signing
- * in against it failed inside `fetch` with nothing shown. Now the address is
- * part of signing in, it is checked before anything is sent, and an address that
- * cannot work says so before the password is typed.
+ * An earlier version asked for the server address here as well, and a
+ * laboratory scientist — who did not choose that address, cannot verify it, and
+ * has a specimen waiting — pasted the address of the dashboard they open every
+ * day and was told "the server answered 404". The address is not their
+ * decision. It is set when the software is installed, and it lives behind
+ * "Connection settings", which is written for whoever installs it.
  *
- * Second, every failure has a distinct message. "Wrong password", "server not
- * responding", "account locked" and "no address configured" send a person to
- * four different actions, and collapsing them into "sign-in failed" sends
- * everyone to the wrong one.
+ * The other rule here: every failure says what to do next, in a sentence a
+ * bench scientist can act on. The technical wording still exists — a 404 is
+ * genuinely useful to the person who can fix it — but it is one click away
+ * under "Details for IT support", not in the way.
  */
 
 import { api } from "../api.js";
-import { el, notice, textInput } from "../ui.js";
+import { button, el, modal, notice, textInput, toast } from "../ui.js";
 
 export function renderSignIn(host: HTMLElement, onSignedIn: () => Promise<void>): void {
   host.replaceChildren();
@@ -66,7 +65,7 @@ export function renderSignIn(host: HTMLElement, onSignedIn: () => Promise<void>)
   const form = el("form");
   const feedback = el("div");
 
-  const identifier = textInput(null, { placeholder: "username or email" });
+  const identifier = textInput(null, { placeholder: "e.g. your work email" });
   identifier.autocomplete = "username";
   identifier.autocapitalize = "none";
   identifier.spellcheck = false;
@@ -74,18 +73,19 @@ export function renderSignIn(host: HTMLElement, onSignedIn: () => Promise<void>)
   const password = textInput(null, { type: "password" });
   password.autocomplete = "current-password";
 
-  const apiUrl = textInput(null, { placeholder: "https://amrss-api.onrender.com" });
   const submit = el("button", { className: "primary", text: "Sign in" });
   submit.type = "submit";
   submit.style.width = "100%";
 
+  // Whether this computer has been set up at all. Asked once, on the way in,
+  // so an unconfigured installation says so plainly instead of failing at the
+  // first sign-in attempt.
   void api.status().then((status) => {
-    apiUrl.value = status.apiUrl ?? "";
     if (!status.apiUrl) {
       feedback.replaceChildren(
         notice(
           "info",
-          "First run on this computer: enter the AMRSS server address your regional administrator gave you, then sign in with your platform account.",
+          "This computer has not been connected to AMRSS yet. Your IT support can do it in one step — see Connection settings below.",
         ),
       );
     }
@@ -93,6 +93,11 @@ export function renderSignIn(host: HTMLElement, onSignedIn: () => Promise<void>)
   });
 
   form.append(
+    el("h2", { text: "Sign in" }),
+    el("p", {
+      className: "muted small",
+      text: "Use the same username and password as the AMRSS website.",
+    }),
     el("div", {
       className: "field",
       children: [el("label", { text: "Username or email" }), identifier],
@@ -101,25 +106,20 @@ export function renderSignIn(host: HTMLElement, onSignedIn: () => Promise<void>)
       className: "field",
       children: [el("label", { text: "Password" }), password],
     }),
-    el("div", {
-      className: "field",
-      children: [
-        el("label", { text: "AMRSS API address" }),
-        apiUrl,
-        el("div", {
-          className: "help",
-          text:
-            "The API, not the dashboard you open in a browser — they are two different " +
-            "addresses. Ask your regional Data Steward for it; saved after the first " +
-            "successful sign-in.",
-        }),
-      ],
-    }),
     submit,
     feedback,
     el("p", {
       className: "small muted",
-      text: "No connection? Sign in with the account that last used this computer — your data, checks and analysis all work offline, and uploading resumes when the connection does.",
+      text: "No internet? Sign in as usual — your data, the checks and the analysis all work offline, and uploading resumes on its own when the connection returns.",
+    }),
+    el("div", {
+      className: "signin-footer",
+      children: [
+        button("Connection settings", () => openConnectionSettings(), "ghost", {
+          small: true,
+          title: "For IT support — the address this computer sends data to",
+        }),
+      ],
     }),
   );
 
@@ -132,19 +132,12 @@ export function renderSignIn(host: HTMLElement, onSignedIn: () => Promise<void>)
       return;
     }
 
-    const problem = await api.apiUrlProblem(apiUrl.value);
-    if (problem && !(await hasOfflineFallback())) {
-      feedback.replaceChildren(notice("bad", problem));
-      return;
-    }
-
     submit.disabled = true;
     submit.textContent = "Signing in…";
 
     const result = await api.signIn({
       identifier: identifier.value.trim(),
       password: password.value,
-      apiUrl: apiUrl.value.trim(),
     });
 
     submit.disabled = false;
@@ -153,8 +146,16 @@ export function renderSignIn(host: HTMLElement, onSignedIn: () => Promise<void>)
 
     if (!result.ok) {
       feedback.replaceChildren(
-        notice(result.code === "offline_no_cache" ? "warn" : "bad", result.message),
+        notice(result.code === "bad_credentials" ? "warn" : "bad", result.message),
       );
+      if (result.detail) feedback.append(technicalDetail(result.detail));
+      if (result.code === "no_api_url" || result.code === "no_api_here") {
+        feedback.append(
+          button("Open connection settings", () => openConnectionSettings(), "default", {
+            small: true,
+          }),
+        );
+      }
       return;
     }
 
@@ -162,7 +163,7 @@ export function renderSignIn(host: HTMLElement, onSignedIn: () => Promise<void>)
       feedback.replaceChildren(notice("warn", result.message));
       // Offline is a working state, not a failure: the person is signed in and
       // the shell should open, with the message carried across as a toast.
-      window.setTimeout(() => void onSignedIn(), 1200);
+      window.setTimeout(() => void onSignedIn(), 1400);
       return;
     }
 
@@ -177,9 +178,86 @@ export function renderSignIn(host: HTMLElement, onSignedIn: () => Promise<void>)
   );
 }
 
-/** Whether an offline sign-in could still succeed, so a bad address does not
- * block the one person who is allowed to work without one. */
-async function hasOfflineFallback(): Promise<boolean> {
+/** The technical sentence, folded away. Present for the person who can act on
+ * it, absent for the person who cannot. */
+function technicalDetail(detail: string): HTMLElement {
+  const block = document.createElement("details");
+  block.className = "detail";
+  const summary = document.createElement("summary");
+  summary.textContent = "Details for IT support";
+  block.append(summary, el("p", { className: "small muted", text: detail }));
+  return block;
+}
+
+/**
+ * Where the addresses live.
+ *
+ * Behind a click, labelled for the person it is meant for, and with a test
+ * button — so whoever sets this up finds out here whether it works, rather than
+ * a laboratory finding out at sign-in.
+ */
+export async function openConnectionSettings(onSaved?: () => void): Promise<void> {
   const status = await api.status();
-  return status.uploadCount > 0 || status.setupComplete;
+  const body = el("div");
+
+  const serviceAddress = textInput(status.apiUrl, {
+    placeholder: "https://amrss-api.example.org",
+  });
+  const websiteAddress = textInput(status.webUrl, { placeholder: "https://amrss.example.org" });
+  const result = el("div");
+
+  body.append(
+    el("p", {
+      className: "small muted",
+      text: "For IT support. Laboratory staff never need these — they are set once, when the software is installed on a computer, and stay set.",
+    }),
+    el("div", {
+      className: "field",
+      children: [
+        el("label", { text: "AMRSS service address" }),
+        serviceAddress,
+        el("div", {
+          className: "help",
+          text: "Where surveillance data is submitted. This is the API service, not the website staff open in a browser; on the website's deployment it is the AMRSS_API_URL setting.",
+        }),
+      ],
+    }),
+    el("div", {
+      className: "field",
+      children: [
+        el("label", { text: "AMRSS website address (optional)" }),
+        websiteAddress,
+        el("div", {
+          className: "help",
+          text: "Used by “Open the AMRSS website”, which signs the user in without a second password.",
+        }),
+      ],
+    }),
+    result,
+  );
+
+  const close = modal("Connection settings", body, [
+    button("Test connection", async () => {
+      result.replaceChildren(notice("info", "Testing…"));
+      const test = await api.testConnection(serviceAddress.value.trim());
+      result.replaceChildren(notice(test.ok ? "ok" : "bad", test.message));
+      if (!test.ok && typeof test.detail === "string") {
+        result.append(technicalDetail(test.detail));
+      }
+    }),
+    button("Close", () => close()),
+    button(
+      "Save",
+      async () => {
+        await api.saveSettings({
+          apiUrl: serviceAddress.value.trim(),
+          webUrl: websiteAddress.value.trim(),
+        });
+        close();
+        toast("Connection settings saved.");
+        onSaved?.();
+      },
+      "primary",
+    ),
+  ]);
 }

@@ -17,6 +17,7 @@ import {
   makeVerifier,
   noApiHereMessage,
   normaliseApiUrl,
+  unreachableMessage,
   verifyPassword,
 } from "../core/session";
 
@@ -118,7 +119,7 @@ test("an unusable API address is named before anything is sent to it", () => {
   // The old default pointed at the developer's own machine; signing in against
   // it failed inside fetch and the button looked broken.
   assert.match(apiUrlProblem("http://localhost:8000") ?? "", /this computer/);
-  assert.match(apiUrlProblem("") ?? "", /No API address/);
+  assert.match(apiUrlProblem("") ?? "", /No service address/);
   assert.match(apiUrlProblem("amrss.example.org") ?? "", /not a web address/);
   assert.equal(apiUrlProblem("https://amrss-api.example.org"), null);
   assert.equal(normaliseApiUrl("https://amrss-api.example.org/"), "https://amrss-api.example.org");
@@ -194,4 +195,16 @@ test("the endpoint and the console path are trimmed back to the base", () => {
     normaliseApiUrl("https://example.org/amrss/"),
     "https://example.org/amrss",
   );
+});
+
+test("what a laboratory is told and what IT is told are different sentences", () => {
+  // The person at the bench did not choose the address and cannot check it.
+  // Their sentence says the service is unreachable and who to ask; the
+  // technical wording is carried separately, for whoever can act on it.
+  const forStaff = unreachableMessage("the SECH IT desk");
+  assert.match(forStaff, /could not be reached/);
+  assert.match(forStaff, /SECH IT desk/);
+  assert.doesNotMatch(forStaff, /404|API|URL|onrender/i);
+
+  assert.match(unreachableMessage(null), /IT support/);
 });

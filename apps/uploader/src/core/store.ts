@@ -23,6 +23,7 @@ import { dirname, join } from "node:path";
 import { type CorrectionBook, emptyCorrections } from "./corrections";
 import { type AnalysisOptions, DEFAULT_ANALYSIS_OPTIONS } from "./analytics";
 import { type BreakpointSet, EMPTY_BREAKPOINTS } from "./interpret";
+import { type DeploymentDefaults, NO_DEPLOYMENT } from "./deployment";
 import { DEFAULT_SCHEDULE, type SyncSchedule, type ValidationApproval } from "./schedule";
 import type { ColumnProfile } from "./whonet";
 
@@ -131,7 +132,17 @@ export class LocalStore {
   private readonly correctionsPath: string;
   private readonly breakpointsPath: string;
 
-  constructor(private readonly directory: string) {
+  /**
+   * `defaults` is what the installer was built with: where the service lives,
+   * and — where an installer was prepared for one facility — which facility.
+   * They fill anything nobody has set here, so a fresh installation is already
+   * pointed at the right place and the person signing in is asked for nothing
+   * but their username and password.
+   */
+  constructor(
+    private readonly directory: string,
+    private readonly defaults: DeploymentDefaults = NO_DEPLOYMENT,
+  ) {
     this.statePath = join(directory, "uploader-state.json");
     this.saltPath = join(directory, "facility.amrss-salt");
     this.correctionsPath = join(directory, "corrections.json");
@@ -139,20 +150,40 @@ export class LocalStore {
   }
 
   read(): UploaderState {
-    if (!existsSync(this.statePath)) return { ...EMPTY_STATE };
+    if (!existsSync(this.statePath)) {
+      return {
+        ...EMPTY_STATE,
+        apiUrl: this.defaults.apiUrl,
+        webUrl: this.defaults.webUrl,
+        facilityCode: this.defaults.facilityCode,
+        facilityName: this.defaults.facilityName,
+      };
+    }
     let stored: Partial<UploaderState> = {};
     try {
       stored = JSON.parse(readFileSync(this.statePath, "utf8")) as Partial<UploaderState>;
     } catch {
       // A settings file damaged by a crash or a full disk must not stop the
-      // application from opening: the defaults are usable and the setup screen
-      // asks for the rest.
-      return { ...EMPTY_STATE };
+      // application from opening: the deployment defaults are usable and the
+      // setup screen asks for the rest.
+      return {
+        ...EMPTY_STATE,
+        apiUrl: this.defaults.apiUrl,
+        webUrl: this.defaults.webUrl,
+        facilityCode: this.defaults.facilityCode,
+        facilityName: this.defaults.facilityName,
+      };
     }
 
     return migrate({
       ...EMPTY_STATE,
       ...stored,
+      // Deployment values are a floor, not an override: an administrator who
+      // has pointed this installation somewhere else keeps that setting.
+      apiUrl: (stored.apiUrl ?? "").trim() || this.defaults.apiUrl,
+      webUrl: (stored.webUrl ?? "").trim() || this.defaults.webUrl,
+      facilityCode: stored.facilityCode ?? this.defaults.facilityCode,
+      facilityName: stored.facilityName ?? this.defaults.facilityName,
       // Nested objects are merged rather than replaced, so a file written by an
       // earlier version keeps the new defaults instead of arriving undefined.
       schedule: { ...DEFAULT_SCHEDULE, ...(stored.schedule ?? {}) },
@@ -205,6 +236,10 @@ export class LocalStore {
 
   get stateDirectory(): string {
     return this.directory;
+  }
+
+  get deployment(): DeploymentDefaults {
+    return this.defaults;
   }
 
   hasSalt(): boolean {

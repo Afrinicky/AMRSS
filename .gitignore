@@ -47,6 +47,7 @@ out/
 *.tsbuildinfo
 .turbo/
 apps/uploader/release/
+apps/uploader/deployment.json
 apps/uploader/dist/
 
 # Editors / OS
