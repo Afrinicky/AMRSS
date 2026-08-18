@@ -10,7 +10,15 @@ import {
   nextRunAt,
   type SyncSchedule,
 } from "../core/schedule";
-import { apiUrlProblem, daysSince, makeVerifier, normaliseApiUrl, verifyPassword } from "../core/session";
+import {
+  apiUrlProblem,
+  daysSince,
+  looksLikeDashboardAddress,
+  makeVerifier,
+  noApiHereMessage,
+  normaliseApiUrl,
+  verifyPassword,
+} from "../core/session";
 
 function schedule(overrides: Partial<SyncSchedule>): SyncSchedule {
   return { ...DEFAULT_SCHEDULE, mode: "automatic", ...overrides };
@@ -146,4 +154,44 @@ test("offline sign-in is measured from the last time the server was reached", ()
   const thirtyOneDaysAgo = new Date(Date.now() - 31 * 86_400_000).toISOString();
   assert.ok(daysSince(thirtyOneDaysAgo) > 30);
   assert.ok(daysSince(new Date().toISOString()) < 1);
+});
+
+test("the dashboard address is recognised, not answered with a bare 404", () => {
+  // What a laboratory actually pastes: the address in the browser it uses every
+  // day. Reporting "the server answered 404" sends them to check their
+  // password; naming the mistake sends them to the one field that is wrong.
+  const pasted = "https://amrss.vercel.app/console/signin";
+
+  assert.equal(looksLikeDashboardAddress(pasted), true);
+  assert.match(apiUrlProblem(pasted) ?? "", /dashboard/);
+  assert.match(apiUrlProblem(pasted) ?? "", /AMRSS_API_URL/);
+  assert.match(noApiHereMessage(pasted, 404), /dashboard/);
+
+  // A real API address is not mistaken for one.
+  assert.equal(looksLikeDashboardAddress("https://amrss-api.onrender.com"), false);
+  assert.equal(apiUrlProblem("https://amrss-api.onrender.com"), null);
+});
+
+test("an address answering without an API is distinguished from a bad password", () => {
+  const message = noApiHereMessage("https://example.org", 404);
+  assert.match(message, /no AMRSS API there/);
+  assert.doesNotMatch(message, /password/i);
+});
+
+test("the endpoint and the console path are trimmed back to the base", () => {
+  // Both get pasted: one from the API docs, one from the browser's address bar.
+  assert.equal(
+    normaliseApiUrl("https://amrss-api.onrender.com/api/v1/auth/login"),
+    "https://amrss-api.onrender.com",
+  );
+  assert.equal(
+    normaliseApiUrl("https://amrss.vercel.app/console/signin"),
+    "https://amrss.vercel.app",
+  );
+  // A deployment that genuinely serves the API under a prefix keeps it: silently
+  // truncating that would break a working configuration.
+  assert.equal(
+    normaliseApiUrl("https://example.org/amrss/"),
+    "https://example.org/amrss",
+  );
 });

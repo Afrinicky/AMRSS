@@ -104,7 +104,7 @@ export async function renderSettings(host: HTMLElement, context: ViewContext): P
 function facilityPanel(settings: Settings, context: ViewContext): HTMLElement {
   const code = textInput(settings.facilityCode, { placeholder: "e.g. SECH-01" });
   const name = textInput(settings.facilityName, { placeholder: "e.g. Suntreso Government Hospital" });
-  const apiUrl = textInput(settings.apiUrl, { placeholder: "https://amrss-api.example.org" });
+  const apiUrl = textInput(settings.apiUrl, { placeholder: "https://amrss-api.onrender.com" });
   const webUrl = textInput(settings.webUrl, { placeholder: "https://amrss.example.org" });
 
   return card(
@@ -122,7 +122,10 @@ function facilityPanel(settings: Settings, context: ViewContext): HTMLElement {
             apiUrl,
             el("div", {
               className: "help",
-              text: "Where the surveillance API lives. Used for signing in, uploading and syncing breakpoints.",
+              text:
+                "Where the surveillance API lives — signing in, uploading and breakpoint " +
+                "syncing all go here. This is not the dashboard address; on the dashboard's " +
+                "own deployment it is the AMRSS_API_URL setting.",
             }),
           ],
         }),

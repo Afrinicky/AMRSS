@@ -74,7 +74,7 @@ export function renderSignIn(host: HTMLElement, onSignedIn: () => Promise<void>)
   const password = textInput(null, { type: "password" });
   password.autocomplete = "current-password";
 
-  const apiUrl = textInput(null, { placeholder: "https://amrss-api.example.org" });
+  const apiUrl = textInput(null, { placeholder: "https://amrss-api.onrender.com" });
   const submit = el("button", { className: "primary", text: "Sign in" });
   submit.type = "submit";
   submit.style.width = "100%";
@@ -104,11 +104,14 @@ export function renderSignIn(host: HTMLElement, onSignedIn: () => Promise<void>)
     el("div", {
       className: "field",
       children: [
-        el("label", { text: "AMRSS server address" }),
+        el("label", { text: "AMRSS API address" }),
         apiUrl,
         el("div", {
           className: "help",
-          text: "Saved after the first successful sign-in. Ask your regional Data Steward if you do not have it.",
+          text:
+            "The API, not the dashboard you open in a browser — they are two different " +
+            "addresses. Ask your regional Data Steward for it; saved after the first " +
+            "successful sign-in.",
         }),
       ],
     }),

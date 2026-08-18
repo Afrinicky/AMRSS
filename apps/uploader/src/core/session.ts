@@ -78,6 +78,7 @@ export type SignInFailure =
   | "offline_no_cache"
   | "offline_expired"
   | "offline_wrong_password"
+  | "no_api_here"
   | "server_error";
 
 export const ROLE_LABELS: Record<string, string> = {
@@ -94,8 +95,37 @@ export function roleLabel(role: string): string {
   return ROLE_LABELS[role] ?? role.replaceAll("_", " ");
 }
 
+/**
+ * Tidy an address into the API's base.
+ *
+ * Two paths are removed because people paste them and neither can be right.
+ * `/api/v1/...` is the endpoint rather than the base, and the console's own
+ * sign-in path is what a browser's address bar is showing when someone copies
+ * from it. Any *other* path is left alone: a deployment may legitimately host
+ * the API under a prefix, and silently truncating that would break it.
+ */
 export function normaliseApiUrl(value: string | null | undefined): string {
-  return (value ?? "").trim().replace(/\/+$/, "");
+  const trimmed = (value ?? "").trim().replace(/\/+$/, "");
+  return trimmed
+    .replace(/\/api\/v1(\/.*)?$/i, "")
+    .replace(/\/(console|signin|sign-in|login|dashboard)(\/.*)?$/i, "")
+    .replace(/\/+$/, "");
+}
+
+/** Hosts that serve the AMRSS *dashboard*. Pasting one into the uploader is the
+ * commonest setup mistake there is: it is the address a laboratory sees every
+ * day, and the API — a separate service, because a 64 MB batch cannot go
+ * through a serverless function — is the one nobody has in front of them. */
+const DASHBOARD_HOST = /(^|\.)(vercel\.app|netlify\.app|pages\.dev)$/i;
+
+export function looksLikeDashboardAddress(value: string): boolean {
+  const raw = (value ?? "").trim();
+  if (/\/(console|signin|sign-in|dashboard)(\/|$)/i.test(raw)) return true;
+  try {
+    return DASHBOARD_HOST.test(new URL(raw).hostname);
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -120,7 +150,33 @@ export function apiUrlProblem(apiUrl: string): string | null {
       `regional administrator gave you — for example https://amrss-api.example.org.`
     );
   }
+  if (looksLikeDashboardAddress(apiUrl)) {
+    return (
+      `"${apiUrl.trim()}" is the AMRSS dashboard you open in a browser, not the API the ` +
+      `uploader submits to. They are two different services. The API address usually ends ` +
+      `in .onrender.com — your regional Data Steward has it, and it is the AMRSS_API_URL ` +
+      `setting on the dashboard's own deployment.`
+    );
+  }
   return null;
+}
+
+/** The message for an address that answers but has no AMRSS API behind it —
+ * the dashboard, a company home page, a proxy. Distinguished from a wrong
+ * password, which is the user's problem to fix, and from an unreachable server,
+ * which is nobody's. */
+export function noApiHereMessage(apiUrl: string, status: number): string {
+  const base = `${normaliseApiUrl(apiUrl)} answered ${status}, but there is no AMRSS API there.`;
+  if (looksLikeDashboardAddress(apiUrl)) {
+    return (
+      `${base} That address is the dashboard you open in a browser; the uploader needs the ` +
+      `API address, which is a different service and usually ends in .onrender.com.`
+    );
+  }
+  return (
+    `${base} Check the address with your regional Data Steward — it is the same one the ` +
+    `dashboard is configured with as AMRSS_API_URL.`
+  );
 }
 
 export interface FetchOptions {
@@ -307,6 +363,17 @@ export class SessionManager {
         ok: false,
         code: "bad_credentials",
         message: (body.detail as string) ?? "That username or password was not accepted.",
+      };
+    }
+    // A 404 or 405 here is not a server fault: the address is pointing at
+    // something that is not this API. Saying "the server answered 404" sends a
+    // laboratory to check its password; naming the likely cause sends them to
+    // the one field that is actually wrong.
+    if (response.status === 404 || response.status === 405) {
+      return {
+        ok: false,
+        code: "no_api_here",
+        message: noApiHereMessage(apiUrl, response.status),
       };
     }
     if (!response.ok) {
