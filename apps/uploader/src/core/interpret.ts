@@ -56,6 +56,10 @@ export interface BreakpointCriterion {
   disk_intermediate_min?: string | number | null;
   disk_intermediate_max?: string | number | null;
   disk_resistant_max?: string | number | null;
+  /** The dosing regimen an SDD band assumes. Required in practice for any SDD
+   * row: susceptible-dose-dependent is a statement about the dose, and without
+   * it the category cannot be acted on. */
+  dosage_note?: string | null;
   comment?: string | null;
 }
 

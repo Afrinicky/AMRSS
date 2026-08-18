@@ -15,9 +15,9 @@
  */
 
 import { app, BrowserWindow, dialog, ipcMain, Menu, net, protocol, shell } from "electron";
-import { statSync, watch, type FSWatcher, writeFileSync } from "node:fs";
+import { readFileSync, statSync, watch, type FSWatcher, writeFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
-import { join, normalize } from "node:path";
+import { basename, join, normalize } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { readDeploymentDefaults } from "../core/deployment";
@@ -31,7 +31,25 @@ import {
   restoreRow,
   unmapCode,
 } from "../core/corrections";
-import { parseBreakpointCsv, type BreakpointSet } from "../core/interpret";
+import { parseBreakpointCsv, type BreakpointCriterion, type BreakpointSet } from "../core/interpret";
+import {
+  BREAKPOINT_COLUMNS,
+  breakpointCsv,
+  breakpointSheetRows,
+  criterionRow,
+  describeSet,
+  matchesPreference,
+  removeCriterion,
+  upsertCriterion,
+} from "../core/breakpoints";
+import { convertM100Workbook } from "../core/m100";
+import { buildWorkbook } from "../core/xlsx";
+import {
+  codebookWorkbook,
+  describeImport,
+  readCodebookWorkbook,
+  unmappedCodes,
+} from "../core/codebook";
 import { buildBatch, transmit, UPLOADER_VERSION } from "../core/payload";
 import {
   approvalIsCurrent,
@@ -485,7 +503,10 @@ ipcMain.handle("settings:save", (_event, patch: Partial<UploaderState>) => {
   if (
     patch.realtime !== undefined ||
     patch.whonetDatabasePath !== undefined ||
-    patch.includeUntestedIsolates !== undefined
+    patch.includeUntestedIsolates !== undefined ||
+    // Which method a laboratory reads changes what counts as covered, so the
+    // coverage figure and the grid are recomputed rather than left stale.
+    patch.testingMethod !== undefined
   ) {
     startFileWatcher();
     reloadAndNotify("settings");
@@ -742,6 +763,56 @@ ipcMain.handle(
 );
 
 /**
+ * The whole code book, out and back.
+ *
+ * The workbook opens with the laboratory's outstanding gaps already listed, so
+ * the job is filling in a column rather than transcribing codes off a screen.
+ */
+ipcMain.handle("mapping:export", async () => {
+  const mappings = store.readCorrections().mappings;
+  const dataset = workspace.appliedDataset;
+  const gaps = dataset ? unmappedCodes(dataset.records, mappings) : {};
+  return saveWorkbook(`amrss-code-mapping-${stamp()}.xlsx`, () =>
+    codebookWorkbook(mappings, gaps),
+  );
+});
+
+ipcMain.handle("mapping:import", async () => {
+  const chosen = await dialog.showOpenDialog({
+    title: "Select your completed code mapping workbook",
+    properties: ["openFile"],
+    filters: [{ name: "Excel workbook", extensions: ["xlsx"] }],
+  });
+  if (chosen.canceled || !chosen.filePaths[0]) return { ok: false, message: "Import cancelled." };
+
+  let result;
+  try {
+    result = readCodebookWorkbook(readFileSync(chosen.filePaths[0]), store.readCorrections().mappings);
+  } catch (error) {
+    return {
+      ok: false,
+      message: `That file could not be read as a workbook: ${(error as Error).message}`,
+    };
+  }
+
+  const book = store.readCorrections();
+  store.writeCorrections({ ...book, mappings: result.mappings });
+  reloadAndNotify("mapping");
+
+  // Rows naming a code AMRSS does not hold are reported, never applied — a
+  // mapping onto a code that does not exist would fail silently on every row
+  // that used it. The rest of the workbook still goes in.
+  return {
+    ok: result.problems.length === 0,
+    message:
+      result.problems.length === 0
+        ? describeImport(result)
+        : `${describeImport(result)} ${result.problems.length} row(s) were not applied.`,
+    problems: result.problems.slice(0, 20),
+  };
+});
+
+/**
  * A person signing off on the data as it stands.
  *
  * Recorded against a fingerprint of the data, so it lapses the instant WHONET
@@ -786,34 +857,218 @@ ipcMain.handle("breakpoints:sync", async () => {
   return result;
 });
 
+/**
+ * Loading a breakpoint table from a file.
+ *
+ * Two shapes are accepted and they are not equivalent. The **template CSV** is
+ * the interchange format: it is what Export writes, what the platform imports,
+ * and it round-trips exactly. A **CLSI M100 workbook** is the laboratory's own
+ * licensed copy of the standard, converted on the way in — useful because it is
+ * the file a laboratory actually possesses, and imperfect because a spreadsheet
+ * lifted out of a printed document loses the occasional cell. Rows that cannot
+ * be read are reported and left out, never guessed at, and the drop list comes
+ * back with the result so the laboratory can complete them in the table editor.
+ */
 ipcMain.handle("breakpoints:import", async () => {
   const chosen = await dialog.showOpenDialog({
-    title: "Select your CLSI breakpoint table (template CSV)",
+    title: "Select your breakpoint table",
     properties: ["openFile"],
-    filters: [{ name: "Breakpoint table", extensions: ["csv"] }],
+    filters: [
+      { name: "Breakpoint table", extensions: ["csv", "xlsx"] },
+      { name: "Template CSV", extensions: ["csv"] },
+      { name: "CLSI M100 workbook", extensions: ["xlsx"] },
+    ],
   });
   if (chosen.canceled || !chosen.filePaths[0]) return { ok: false, message: "Import cancelled." };
 
-  const text = await readFile(chosen.filePaths[0], "utf8");
-  const parsed = parseBreakpointCsv(text);
-  if (parsed.problems.length > 0) {
-    return {
-      ok: false,
-      message: `The table was not imported. ${parsed.problems.slice(0, 5).join("; ")}`,
-    };
+  const path = chosen.filePaths[0];
+  const preference = store.read().testingMethod;
+  let criteria: BreakpointCriterion[];
+  let label: string;
+  let notes: string[] = [];
+
+  if (path.toLowerCase().endsWith(".xlsx")) {
+    let conversion;
+    try {
+      conversion = convertM100Workbook(readFileSync(path), {
+        standard: "CLSI M100",
+        only: preference === "both" ? undefined : preference,
+      });
+    } catch (error) {
+      return { ok: false, message: (error as Error).message };
+    }
+    criteria = conversion.criteria;
+    label = `CLSI M100 workbook — ${conversion.organismGroups.length} organism groups, ${conversion.agentCodes.length} agents`;
+    notes = conversion.dropped.map((row) => `Row ${row.row}: ${row.label} — ${row.reason}`);
+    if (criteria.length === 0) {
+      return {
+        ok: false,
+        message:
+          "No breakpoints could be read from that workbook. Check that it holds the M100 tables "
+          + "with Organism and Antimicrobial Agent columns.",
+        problems: notes.slice(0, 20),
+      };
+    }
+  } else {
+    const parsed = parseBreakpointCsv(await readFile(path, "utf8"));
+    if (parsed.problems.length > 0) {
+      return {
+        ok: false,
+        message: `The table was not imported. ${parsed.problems.slice(0, 5).join("; ")}`,
+        problems: parsed.problems.slice(0, 20),
+      };
+    }
+    criteria = parsed.criteria.filter((criterion) => matchesPreference(criterion, preference));
+    label = `Imported from ${basename(path)}`;
   }
 
   const set: BreakpointSet = {
     version: `local-import-${new Date().toISOString().slice(0, 10)}`,
-    label: `Imported from ${chosen.filePaths[0]}`,
+    label,
     effectiveFrom: new Date().toISOString().slice(0, 10),
     source: "local-import",
     syncedAt: new Date().toISOString(),
-    criteria: parsed.criteria,
+    criteria,
   };
   store.writeBreakpoints(set);
   reloadAndNotify("breakpoints");
-  return { ok: true, message: `Imported ${parsed.criteria.length} breakpoint criteria.` };
+  return {
+    ok: true,
+    message:
+      notes.length === 0
+        ? `Loaded ${criteria.length} breakpoint criteria.`
+        : `Loaded ${criteria.length} breakpoint criteria. ${notes.length} row(s) could not be read `
+          + "and are listed below — add them in the table if your laboratory reports those agents.",
+    problems: notes.slice(0, 40),
+  };
+});
+
+/** The loaded table as the template CSV — the file Import accepts. Exporting,
+ * correcting a threshold in Excel and importing again is a supported loop. */
+ipcMain.handle("breakpoints:export", async (_event, input: { format?: "csv" | "xlsx" } = {}) => {
+  const set = store.readBreakpoints();
+  if (set.criteria.length === 0) {
+    return { ok: false, message: "There is no breakpoint table loaded to export." };
+  }
+
+  if (input.format === "xlsx") {
+    return saveWorkbook(`amrss-breakpoints-${stamp()}.xlsx`, () =>
+      buildWorkbook([
+        {
+          name: "Breakpoints",
+          header: [...BREAKPOINT_COLUMNS],
+          rows: breakpointSheetRows(set.criteria),
+        },
+        {
+          name: "About",
+          header: ["", ""],
+          rows: [
+            ["Table", describeSet(set)],
+            ["Criteria", set.criteria.length],
+            ["Exported", new Date().toISOString()],
+            [
+              "To re-import",
+              "Use the CSV export, not this workbook: the CSV is the format Import reads.",
+            ],
+          ],
+          columnWidths: [18, 90],
+        },
+      ]),
+    );
+  }
+
+  const chosen = await dialog.showSaveDialog({
+    title: "Save breakpoint table",
+    defaultPath: `amrss-breakpoints-${stamp()}.csv`,
+    filters: [{ name: "Breakpoint template CSV", extensions: ["csv"] }],
+  });
+  if (chosen.canceled || !chosen.filePath) return { ok: false, message: "Download cancelled." };
+  try {
+    writeFileSync(chosen.filePath, breakpointCsv(set.criteria), "utf8");
+    return {
+      ok: true,
+      message: `Saved ${set.criteria.length} criteria to ${chosen.filePath}. This file imports back unchanged.`,
+    };
+  } catch (error) {
+    return { ok: false, message: `Could not save the file: ${(error as Error).message}` };
+  }
+});
+
+/**
+ * The table on screen.
+ *
+ * Filtered and paged in the main process rather than the renderer: a full M100
+ * conversion is several hundred criteria, and sending all of them across the
+ * bridge on every keystroke is the difference between a table that responds and
+ * one that stutters.
+ */
+ipcMain.handle(
+  "breakpoints:table",
+  (_event, input: { search?: string; method?: string; offset?: number; limit?: number } = {}) => {
+    const set = store.readBreakpoints();
+    const search = (input.search ?? "").trim().toLowerCase();
+    const method = (input.method ?? "").trim().toUpperCase();
+
+    const rows = set.criteria
+      .filter((criterion) => !method || (criterion.method ?? "").toUpperCase() === method)
+      .map(criterionRow)
+      .filter((row) =>
+        !search
+          ? true
+          : `${row.organismGroup} ${row.agentCode} ${row.agentName} ${row.scope}`
+              .toLowerCase()
+              .includes(search),
+      )
+      .sort(
+        (a, b) =>
+          a.organismGroup.localeCompare(b.organismGroup) || a.agentName.localeCompare(b.agentName),
+      );
+
+    const offset = Math.max(0, input.offset ?? 0);
+    const limit = Math.min(500, Math.max(1, input.limit ?? 100));
+    return {
+      description: describeSet(set),
+      total: set.criteria.length,
+      matched: rows.length,
+      offset,
+      rows: rows.slice(offset, offset + limit),
+    };
+  },
+);
+
+/** One criterion the laboratory has typed or corrected. Checked exactly as a
+ * file import is: a threshold typed into a form and one read from a CSV are the
+ * same claim about a patient's result. */
+ipcMain.handle(
+  "breakpoints:save",
+  (_event, input: { criterion: BreakpointCriterion; replacing?: string }) => {
+    const set = store.readBreakpoints();
+    const result = upsertCriterion(set.criteria, input.criterion, input.replacing);
+    if (result.problems.length > 0) {
+      return { ok: false, message: result.problems[0]!, problems: result.problems };
+    }
+    store.writeBreakpoints({
+      ...set,
+      // A table a person has edited is theirs, whatever it started as. Saying it
+      // is still the platform's would misattribute a local decision.
+      source: "local-import",
+      label: set.source === "platform" ? `${set.label ?? "Platform table"} (edited here)` : set.label,
+      criteria: result.criteria,
+    });
+    reloadAndNotify("breakpoints");
+    return { ok: true, message: "Breakpoint saved." };
+  },
+);
+
+ipcMain.handle("breakpoints:remove", (_event, input: { key: string }) => {
+  const set = store.readBreakpoints();
+  const criteria = removeCriterion(set.criteria, input.key);
+  if (criteria.length === set.criteria.length) {
+    return { ok: false, message: "That breakpoint is no longer in the table." };
+  }
+  store.writeBreakpoints({ ...set, source: "local-import", criteria });
+  reloadAndNotify("breakpoints");
+  return { ok: true, message: "Breakpoint removed." };
 });
 
 async function syncBreakpoints(apiUrl: string): Promise<{ ok: boolean; message: string }> {

@@ -23,6 +23,7 @@ import { dirname, join } from "node:path";
 import { type CorrectionBook, emptyCorrections } from "./corrections";
 import { type AnalysisOptions, DEFAULT_ANALYSIS_OPTIONS } from "./analytics";
 import { type BreakpointSet, EMPTY_BREAKPOINTS } from "./interpret";
+import type { TestingMethodPreference } from "./breakpoints";
 import { type DeploymentDefaults, NO_DEPLOYMENT } from "./deployment";
 import { DEFAULT_SCHEDULE, type SyncSchedule, type ValidationApproval } from "./schedule";
 import type { ColumnProfile } from "./whonet";
@@ -77,6 +78,10 @@ export interface UploaderState {
   whonetDatabasePath: string | null;
   whonetConfigVersion: string | null;
   astBreakpointStandard: string | null;
+  /** Whether this laboratory reads zone diameters, MICs, or both. Set once
+   * during configuration; governs which criteria are imported, exported and
+   * counted as coverage. */
+  testingMethod: TestingMethodPreference;
   schedule: SyncSchedule;
   realtime: RealtimeSettings;
   connectivity: ConnectivitySettings;
@@ -112,6 +117,10 @@ const EMPTY_STATE: UploaderState = {
   whonetDatabasePath: null,
   whonetConfigVersion: null,
   astBreakpointStandard: null,
+  // Most laboratories run disks routinely and MICs for confirmation, so the
+  // default keeps both rather than hiding half a table behind a setting nobody
+  // was asked about.
+  testingMethod: "both",
   schedule: DEFAULT_SCHEDULE,
   realtime: { enabled: true, pollSeconds: 30 },
   connectivity: { pollSeconds: 30, audibleAlert: true, alertIntervalSeconds: 60 },

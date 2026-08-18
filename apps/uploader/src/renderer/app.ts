@@ -314,12 +314,7 @@ api.onSchedule((event) => {
       : `Scheduled upload held back: ${event.reason ?? "not ready"}`,
     event.ran ? "ok" : "warn",
   );
-  // Help → Connection settings, from anywhere in the application.
-api.onOpenConnectionSettings(() => {
-  void openConnectionSettings(() => void refresh());
-});
-
-void refresh();
+  void refresh();
 });
 
 // Help → Connection settings, from anywhere in the application.

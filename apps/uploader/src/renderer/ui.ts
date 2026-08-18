@@ -319,10 +319,11 @@ export function modal(
   title: string,
   body: HTMLElement,
   actions: HTMLElement[],
+  options: { wide?: boolean } = {},
 ): () => void {
   const backdrop = el("div", { className: "modal-backdrop" });
   const dialog = el("div", {
-    className: "modal",
+    className: `modal${options.wide ? " wide" : ""}`,
     children: [
       el("h3", { text: title }),
       body,

@@ -144,6 +144,8 @@ export interface Settings {
   whonetDatabasePath: string | null;
   whonetConfigVersion: string | null;
   astBreakpointStandard: string | null;
+  /** Whether this laboratory reads zones, MICs, or both. */
+  testingMethod: "disk" | "mic" | "both";
   schedule: Schedule;
   realtime: { enabled: boolean; pollSeconds: number };
   connectivity: { pollSeconds: number; audibleAlert: boolean; alertIntervalSeconds: number };
@@ -328,6 +330,29 @@ export interface AnalysisFilters {
   ageBand?: string | null;
 }
 
+/** One breakpoint as the editable table shows it. */
+export interface BreakpointTableRow {
+  key: string;
+  organismGroup: string;
+  agentCode: string;
+  agentName: string;
+  method: string;
+  scope: string;
+  susceptible: string;
+  intermediate: string;
+  resistant: string;
+  source: string;
+  comment: string;
+}
+
+export interface BreakpointTable {
+  description: string;
+  total: number;
+  matched: number;
+  offset: number;
+  rows: BreakpointTableRow[];
+}
+
 export interface Outcome {
   ok: boolean;
   message: string;
@@ -401,7 +426,22 @@ export interface Bridge {
 
   breakpointStatus(): Promise<WorkspaceSnapshot["breakpoints"]>;
   syncBreakpoints(): Promise<Outcome>;
-  importBreakpoints(): Promise<Outcome>;
+  importBreakpoints(): Promise<Outcome & { problems?: string[] }>;
+  exportBreakpoints(input: { format?: "csv" | "xlsx" }): Promise<Outcome>;
+  breakpointTable(request: {
+    search?: string;
+    method?: string;
+    offset?: number;
+    limit?: number;
+  }): Promise<BreakpointTable>;
+  saveBreakpoint(input: {
+    criterion: Record<string, unknown>;
+    replacing?: string;
+  }): Promise<Outcome & { problems?: string[] }>;
+  removeBreakpoint(input: { key: string }): Promise<Outcome>;
+
+  exportMappings(): Promise<Outcome>;
+  importMappings(): Promise<Outcome & { problems?: string[] }>;
 
   prepareUpload(): Promise<{
     ok: boolean;

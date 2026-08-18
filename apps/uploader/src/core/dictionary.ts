@@ -83,7 +83,10 @@ export const ORGANISMS: OrganismEntry[] = [
   { code: "can", name: "Candida species", kingdom: "fungi", genus: "Candida", family: "Debaryomycetaceae", gramStain: null, isEnterobacterales: false, specialImportance: false },
   { code: "sap", name: "Staphylococcus saprophyticus", kingdom: "bacteria", genus: "Staphylococcus", family: "Staphylococcaceae", gramStain: "positive", isEnterobacterales: false, specialImportance: false },
   { code: "sta", name: "Staphylococcus species", kingdom: "bacteria", genus: "Staphylococcus", family: "Staphylococcaceae", gramStain: "positive", isEnterobacterales: false, specialImportance: false },
-  { code: "svi", name: "Streptococcus, viridans group", kingdom: "bacteria", genus: "Streptococcus", family: "Streptococcaceae", gramStain: "positive", isEnterobacterales: false, specialImportance: false },
+  { code: "svi", name: "Streptococcus, viridans group", kingdom: "bacteria", genus: "Streptococcus", family: "Streptococcaceae", gramStain: "positive", isEnterobacterales: false, specialImportance: false, clsiGroups: ["Streptococcus spp. Viridans Group"] },
+  { code: "spy", name: "Streptococcus pyogenes (group A)", kingdom: "bacteria", genus: "Streptococcus", family: "Streptococcaceae", gramStain: "positive", isEnterobacterales: false, specialImportance: true, clsiGroups: ["Streptococcus spp. β-Hemolytic Group"] },
+  { code: "sag", name: "Streptococcus agalactiae (group B)", kingdom: "bacteria", genus: "Streptococcus", family: "Streptococcaceae", gramStain: "positive", isEnterobacterales: false, specialImportance: true, clsiGroups: ["Streptococcus spp. β-Hemolytic Group"] },
+  { code: "sbh", name: "Streptococcus, beta-haemolytic", kingdom: "bacteria", genus: "Streptococcus", family: "Streptococcaceae", gramStain: "positive", isEnterobacterales: false, specialImportance: false, clsiGroups: ["Streptococcus spp. β-Hemolytic Group"] },
   { code: "cfr", name: "Citrobacter freundii", kingdom: "bacteria", genus: "Citrobacter", family: "Enterobacteriaceae", gramStain: "negative", isEnterobacterales: true, specialImportance: false },
   { code: "cdi", name: "Citrobacter koseri (diversus)", kingdom: "bacteria", genus: "Citrobacter", family: "Enterobacteriaceae", gramStain: "negative", isEnterobacterales: true, specialImportance: false },
   { code: "ecl", name: "Enterobacter cloacae", kingdom: "bacteria", genus: "Enterobacter", family: "Enterobacteriaceae", gramStain: "negative", isEnterobacterales: true, specialImportance: true },
@@ -158,6 +161,67 @@ export const ANTIBIOTICS: AntibioticEntry[] = [
   { code: "SSS", name: "Sulfonamides", antimicrobialClass: "folate_inhibitor", targetKingdom: "bacteria", whoAware: "Access", displayOrder: 102 },
   { code: "TEC", name: "Teicoplanin", antimicrobialClass: "glycopeptide", targetKingdom: "bacteria", whoAware: "Watch", displayOrder: 111 },
   { code: "RIF", name: "Rifampicin", antimicrobialClass: "other", targetKingdom: "bacteria", whoAware: "Watch", displayOrder: 121 },
+
+  // Agents named in CLSI M100 that a laboratory may import breakpoints for.
+  // An agent absent from here cannot be matched to a WHONET column or to an
+  // imported breakpoint row, so the row is dropped and the laboratory told —
+  // which is why this list follows the standard rather than local practice.
+  { code: "CEC", name: "Cefaclor", antimicrobialClass: "cephalosporin", targetKingdom: "bacteria", whoAware: "Watch", displayOrder: 122 },
+  { code: "MAN", name: "Cefamandole", antimicrobialClass: "cephalosporin", targetKingdom: "bacteria", whoAware: "Watch", displayOrder: 123 },
+  { code: "CMZ", name: "Cefmetazole", antimicrobialClass: "cephalosporin", targetKingdom: "bacteria", whoAware: "Watch", displayOrder: 124 },
+  { code: "CID", name: "Cefonicid", antimicrobialClass: "cephalosporin", targetKingdom: "bacteria", whoAware: "Watch", displayOrder: 125 },
+  { code: "CFP", name: "Cefoperazone", antimicrobialClass: "cephalosporin", targetKingdom: "bacteria", whoAware: "Watch", displayOrder: 126 },
+  { code: "CTT", name: "Cefotetan", antimicrobialClass: "cephalosporin", targetKingdom: "bacteria", whoAware: "Watch", displayOrder: 127 },
+  { code: "CAT", name: "Cefetamet", antimicrobialClass: "cephalosporin", targetKingdom: "bacteria", whoAware: "Watch", displayOrder: 128 },
+  { code: "CPR", name: "Cefprozil", antimicrobialClass: "cephalosporin", targetKingdom: "bacteria", whoAware: "Watch", displayOrder: 129 },
+  { code: "CPD", name: "Cefpodoxime", antimicrobialClass: "cephalosporin", targetKingdom: "bacteria", whoAware: "Watch", displayOrder: 130 },
+  { code: "CDR", name: "Cefdinir", antimicrobialClass: "cephalosporin", targetKingdom: "bacteria", whoAware: "Watch", displayOrder: 131 },
+  { code: "CTB", name: "Ceftibuten", antimicrobialClass: "cephalosporin", targetKingdom: "bacteria", whoAware: "Watch", displayOrder: 132 },
+  { code: "CPT", name: "Ceftaroline", antimicrobialClass: "cephalosporin", targetKingdom: "bacteria", whoAware: "Reserve", displayOrder: 133 },
+  { code: "FDC", name: "Cefiderocol", antimicrobialClass: "cephalosporin", targetKingdom: "bacteria", whoAware: "Reserve", displayOrder: 134 },
+  { code: "LOR", name: "Loracarbef", antimicrobialClass: "cephalosporin", targetKingdom: "bacteria", whoAware: "Watch", displayOrder: 135 },
+  { code: "MOX", name: "Moxalactam", antimicrobialClass: "cephalosporin", targetKingdom: "bacteria", whoAware: "Watch", displayOrder: 136 },
+  { code: "CZA", name: "Ceftazidime-avibactam", antimicrobialClass: "beta_lactam_inhibitor", targetKingdom: "bacteria", whoAware: "Reserve", displayOrder: 140 },
+  { code: "CZT", name: "Ceftolozane-tazobactam", antimicrobialClass: "beta_lactam_inhibitor", targetKingdom: "bacteria", whoAware: "Reserve", displayOrder: 141 },
+  { code: "AZA", name: "Aztreonam-avibactam", antimicrobialClass: "beta_lactam_inhibitor", targetKingdom: "bacteria", whoAware: "Reserve", displayOrder: 142 },
+  { code: "IMR", name: "Imipenem-relebactam", antimicrobialClass: "beta_lactam_inhibitor", targetKingdom: "bacteria", whoAware: "Reserve", displayOrder: 143 },
+  { code: "MEV", name: "Meropenem-vaborbactam", antimicrobialClass: "beta_lactam_inhibitor", targetKingdom: "bacteria", whoAware: "Reserve", displayOrder: 144 },
+  { code: "SUD", name: "Sulbactam-durlobactam", antimicrobialClass: "beta_lactam_inhibitor", targetKingdom: "bacteria", whoAware: "Reserve", displayOrder: 145 },
+  { code: "DOR", name: "Doripenem", antimicrobialClass: "carbapenem", targetKingdom: "bacteria", whoAware: "Watch", displayOrder: 146 },
+  { code: "MEC", name: "Mecillinam", antimicrobialClass: "penicillin", targetKingdom: "bacteria", whoAware: "Access", displayOrder: 147 },
+  { code: "KAN", name: "Kanamycin", antimicrobialClass: "aminoglycoside", targetKingdom: "bacteria", whoAware: "Watch", displayOrder: 150 },
+  { code: "NET", name: "Netilmicin", antimicrobialClass: "aminoglycoside", targetKingdom: "bacteria", whoAware: "Watch", displayOrder: 151 },
+  { code: "STR", name: "Streptomycin", antimicrobialClass: "aminoglycoside", targetKingdom: "bacteria", whoAware: "Watch", displayOrder: 152 },
+  { code: "PLZ", name: "Plazomicin", antimicrobialClass: "aminoglycoside", targetKingdom: "bacteria", whoAware: "Reserve", displayOrder: 153 },
+  { code: "SPT", name: "Spectinomycin", antimicrobialClass: "aminoglycoside", targetKingdom: "bacteria", whoAware: "Watch", displayOrder: 154 },
+  { code: "MFX", name: "Moxifloxacin", antimicrobialClass: "fluoroquinolone", targetKingdom: "bacteria", whoAware: "Watch", displayOrder: 160 },
+  { code: "GAT", name: "Gatifloxacin", antimicrobialClass: "fluoroquinolone", targetKingdom: "bacteria", whoAware: "Watch", displayOrder: 161 },
+  { code: "GEM", name: "Gemifloxacin", antimicrobialClass: "fluoroquinolone", targetKingdom: "bacteria", whoAware: "Watch", displayOrder: 162 },
+  { code: "LOM", name: "Lomefloxacin", antimicrobialClass: "fluoroquinolone", targetKingdom: "bacteria", whoAware: "Watch", displayOrder: 163 },
+  { code: "ENX", name: "Enoxacin", antimicrobialClass: "fluoroquinolone", targetKingdom: "bacteria", whoAware: "Watch", displayOrder: 164 },
+  { code: "FLE", name: "Fleroxacin", antimicrobialClass: "fluoroquinolone", targetKingdom: "bacteria", whoAware: "Watch", displayOrder: 165 },
+  { code: "PEF", name: "Pefloxacin", antimicrobialClass: "fluoroquinolone", targetKingdom: "bacteria", whoAware: "Watch", displayOrder: 166 },
+  { code: "SPX", name: "Sparfloxacin", antimicrobialClass: "fluoroquinolone", targetKingdom: "bacteria", whoAware: "Watch", displayOrder: 167 },
+  { code: "GRX", name: "Grepafloxacin", antimicrobialClass: "fluoroquinolone", targetKingdom: "bacteria", whoAware: "Watch", displayOrder: 168 },
+  { code: "TVA", name: "Trovafloxacin", antimicrobialClass: "fluoroquinolone", targetKingdom: "bacteria", whoAware: "Watch", displayOrder: 169 },
+  { code: "CIN", name: "Cinoxacin", antimicrobialClass: "fluoroquinolone", targetKingdom: "bacteria", whoAware: "Watch", displayOrder: 170 },
+  { code: "CLR", name: "Clarithromycin", antimicrobialClass: "macrolide", targetKingdom: "bacteria", whoAware: "Watch", displayOrder: 175 },
+  { code: "DIR", name: "Dirithromycin", antimicrobialClass: "macrolide", targetKingdom: "bacteria", whoAware: "Watch", displayOrder: 176 },
+  { code: "TGC", name: "Tigecycline", antimicrobialClass: "tetracycline", targetKingdom: "bacteria", whoAware: "Reserve", displayOrder: 180 },
+  { code: "DAL", name: "Dalbavancin", antimicrobialClass: "glycopeptide", targetKingdom: "bacteria", whoAware: "Reserve", displayOrder: 185 },
+  { code: "ORI", name: "Oritavancin", antimicrobialClass: "glycopeptide", targetKingdom: "bacteria", whoAware: "Reserve", displayOrder: 186 },
+  { code: "TLV", name: "Telavancin", antimicrobialClass: "glycopeptide", targetKingdom: "bacteria", whoAware: "Reserve", displayOrder: 187 },
+  { code: "TZD", name: "Tedizolid", antimicrobialClass: "oxazolidinone", targetKingdom: "bacteria", whoAware: "Reserve", displayOrder: 188 },
+  { code: "DAP", name: "Daptomycin", antimicrobialClass: "other", targetKingdom: "bacteria", whoAware: "Reserve", displayOrder: 189 },
+  { code: "QDA", name: "Quinupristin-dalfopristin", antimicrobialClass: "other", targetKingdom: "bacteria", whoAware: "Reserve", displayOrder: 190 },
+  { code: "LFM", name: "Lefamulin", antimicrobialClass: "other", targetKingdom: "bacteria", whoAware: "Reserve", displayOrder: 191 },
+  { code: "TMP", name: "Trimethoprim", antimicrobialClass: "folate_inhibitor", targetKingdom: "bacteria", whoAware: "Access", displayOrder: 192 },
+  { code: "FOS", name: "Fosfomycin", antimicrobialClass: "other", targetKingdom: "bacteria", whoAware: "Access", displayOrder: 193 },
+  { code: "MTZ", name: "Metronidazole", antimicrobialClass: "other", targetKingdom: "bacteria", whoAware: "Access", displayOrder: 194 },
+  { code: "PMB", name: "Polymyxin B", antimicrobialClass: "polymyxin", targetKingdom: "bacteria", whoAware: "Reserve", displayOrder: 195 },
+  { code: "POS", name: "Posaconazole", antimicrobialClass: "azole", targetKingdom: "fungi", whoAware: null, displayOrder: 203 },
+  { code: "ISA", name: "Isavuconazole", antimicrobialClass: "azole", targetKingdom: "fungi", whoAware: null, displayOrder: 204 },
+  { code: "ANI", name: "Anidulafungin", antimicrobialClass: "echinocandin", targetKingdom: "fungi", whoAware: null, displayOrder: 212 },
 ];
 
 export const SPECIMEN_TYPES: SpecimenEntry[] = [
@@ -237,6 +301,59 @@ export const SPECIMEN_ALIASES: Record<string, string> = {
   // A biopsy is tissue; both are the same site to an antibiogram.
   bx: "ti",
   biopsy: "ti",
+};
+
+/**
+ * How CLSI M100 spells an agent, against the code the dictionary holds it under.
+ *
+ * The dictionary names agents the way a WHONET configuration does; the standard
+ * names them the way the published table does, and the two differ in ways that
+ * are not guessable — "Rifampin" for rifampicin, "Penicillin" for
+ * benzylpenicillin, a combination written with the components reversed. Only
+ * differences go here: an agent M100 spells exactly as the dictionary does is
+ * matched by name and needs no entry, so adding an agent to ANTIBIOTICS is
+ * enough to make it importable.
+ *
+ * Keys are lower-cased, with decoration (asterisks, footnote letters, and
+ * parenthetical qualifiers) already stripped by `parseAgentLabel`.
+ */
+export const M100_AGENT_SYNONYMS: Record<string, string> = {
+  // United States Pharmacopeia spellings.
+  rifampin: "RIF",
+  "colistin methanesulfonate": "COL",
+  "polymyxin e": "COL",
+  cefalotin: "CEP",
+  cephalotin: "CEP",
+  cefalexin: "LEX",
+  "penicillin g": "PEN",
+  "penicillin v": "PEN",
+  penicillin: "PEN",
+  "phenoxymethylpenicillin": "PEN",
+  // Combinations, written either way round and sometimes without the hyphen.
+  "trimethoprim-sulfamethoxazole": "SXT",
+  "sulfamethoxazole-trimethoprim": "SXT",
+  "trimethoprim/sulfamethoxazole": "SXT",
+  "co-trimoxazole": "SXT",
+  "amoxicillin-clavulanic acid": "AMC",
+  "amoxicillin/clavulanate": "AMC",
+  "ampicillin/sulbactam": "SAM",
+  "piperacillin/tazobactam": "TZP",
+  "ticarcillin/clavulanate": "TCC",
+  "ticarcillin-clavulanic acid": "TCC",
+  "quinupristin/dalfopristin": "QDA",
+  "ceftazidime/avibactam": "CZA",
+  "ceftolozane/tazobactam": "CZT",
+  "aztreonam/avibactam": "AZA",
+  "imipenem/relebactam": "IMR",
+  "meropenem/vaborbactam": "MEV",
+  "sulbactam/durlobactam": "SUD",
+  "imipenem-cilastatin": "IPM",
+  // Agents the table names by a broader term.
+  sulfonamides: "SSS",
+  sulfisoxazole: "SSS",
+  "nalidixic acid": "NAL",
+  "amphotericin b deoxycholate": "AMB",
+  "5-fluorocytosine": "FCY",
 };
 
 export const ANTIBIOTIC_ALIASES: Record<string, string> = {
