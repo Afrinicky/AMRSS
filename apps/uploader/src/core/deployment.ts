@@ -72,3 +72,26 @@ export function readDeploymentDefaults(directories: string[]): DeploymentDefault
   }
   return { ...NO_DEPLOYMENT };
 }
+
+/** Where the supplied breakpoint table sits, relative to the same directories.
+ * Beside the application rather than inside the asar, so a facility can replace
+ * it with its own edition without rebuilding anything. */
+export const SUPPLIED_BREAKPOINTS = join("breakpoints", "clsi_m100_ed36.csv");
+
+/**
+ * The breakpoint table the installer was built with, if it has one.
+ *
+ * It is deliberately not loaded on first run. A table that appeared by itself is
+ * a table nobody chose, and therefore a table nobody checked against the edition
+ * their laboratory actually reports under — which is the one thing that must not
+ * happen quietly. Settings offers it as a button, next to the other ways of
+ * getting a table, and says which edition it is before it is loaded.
+ */
+export function suppliedBreakpointPath(directories: string[]): string | null {
+  for (const directory of directories) {
+    if (!directory) continue;
+    const path = join(directory, SUPPLIED_BREAKPOINTS);
+    if (existsSync(path)) return path;
+  }
+  return null;
+}

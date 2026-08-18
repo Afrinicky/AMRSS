@@ -427,6 +427,8 @@ export interface Bridge {
   breakpointStatus(): Promise<WorkspaceSnapshot["breakpoints"]>;
   syncBreakpoints(): Promise<Outcome>;
   importBreakpoints(): Promise<Outcome & { problems?: string[] }>;
+  suppliedBreakpoints(): Promise<{ available: boolean; label: string }>;
+  loadSuppliedBreakpoints(): Promise<Outcome & { problems?: string[] }>;
   exportBreakpoints(input: { format?: "csv" | "xlsx" }): Promise<Outcome>;
   breakpointTable(request: {
     search?: string;

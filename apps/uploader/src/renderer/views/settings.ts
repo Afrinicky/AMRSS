@@ -611,6 +611,7 @@ async function breakpointsPanel(settings: Settings, context: ViewContext): Promi
   const breakpoints = context.status.workspace.breakpoints;
   const coverage = context.status.workspace.coverage;
   const preference = settings.testingMethod ?? "both";
+  const supplied = await api.suppliedBreakpoints();
   const panel = el("div");
 
   panel.append(
@@ -643,7 +644,7 @@ async function breakpointsPanel(settings: Settings, context: ViewContext): Promi
   panel.append(
     card(
       "Breakpoint table",
-      "No breakpoint values ship with AMRSS: the tables are copyrighted, revised every edition, and a mistyped threshold turns an R into an S. The table here is your laboratory's own — synced from the platform, imported from your licensed CLSI M100 workbook, or typed in below.",
+      "Nothing here is a fixed threshold: this table is data, and it is what every S, I and R on this computer is decided by. Load the edition your laboratory reports under — the one supplied with AMRSS, the one the platform is using, your own licensed CLSI M100 workbook — or type it in below.",
       definitionList([
         ["Loaded", breakpoints.loaded ? "yes" : "no"],
         ["Edition", breakpoints.label ?? breakpoints.version ?? "—"],
@@ -669,6 +670,21 @@ async function breakpointsPanel(settings: Settings, context: ViewContext): Promi
       el("div", {
         className: "toolbar",
         children: [
+          // Offered first when this installation was built with a table and none
+          // is loaded, because that is the one case where a laboratory has a
+          // working answer one click away and no way to know it.
+          supplied.available
+            ? button(
+                "Load the supplied CLSI table",
+                async () => {
+                  const result = await api.loadSuppliedBreakpoints();
+                  toast(result.message, result.ok ? "ok" : "warn");
+                  await context.refresh();
+                },
+                breakpoints.loaded ? "default" : "primary",
+                { title: supplied.label },
+              )
+            : null,
           button(
             "Sync from platform",
             async () => {
@@ -676,7 +692,7 @@ async function breakpointsPanel(settings: Settings, context: ViewContext): Promi
               toast(result.message, result.ok ? "ok" : "warn");
               await context.refresh();
             },
-            "primary",
+            breakpoints.loaded || !supplied.available ? "primary" : "default",
           ),
           button("Import a table…", async () => {
             const result = await api.importBreakpoints();

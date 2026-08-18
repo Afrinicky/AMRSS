@@ -291,14 +291,28 @@ export function validateCriterion(criterion: BreakpointCriterion): string[] {
     }
   }
 
+  return problems;
+}
+
+/**
+ * What is worth saying about a criterion that is nonetheless allowed.
+ *
+ * Separate from `validateCriterion` because severity is the whole point. The
+ * platform's importer treats these as warnings, and an uploader that refused
+ * what the platform accepts would leave a laboratory unable to save a row it had
+ * just imported successfully — or unable to correct a threshold on one.
+ */
+export function advisoriesFor(criterion: BreakpointCriterion): string[] {
+  const advisories: string[] = [];
   const sddMin = numberOf(criterion.mic_sdd_min) ?? numberOf(criterion.disk_sdd_min);
   if (sddMin !== null && !(criterion.dosage_note ?? "").trim()) {
-    problems.push(
-      "An SDD row needs a dosage note: susceptible-dose-dependent means nothing without the regimen it assumes.",
+    advisories.push(
+      "This row has an SDD band but no dosage note. Susceptible-dose-dependent is a statement "
+      + "about the dose, so the category cannot be acted on without the regimen it assumes — "
+      + "add it from the printed table.",
     );
   }
-
-  return problems;
+  return advisories;
 }
 
 export interface TableEdit {

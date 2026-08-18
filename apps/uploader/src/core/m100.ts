@@ -147,6 +147,11 @@ export interface AgentLabel {
   codes: string[];
   site: string | null;
   route: string | null;
+  /** The disk potency printed after the name ("Gentamicin 10"). Stripped from
+   * the name, kept here: on a row the extraction split badly the number lands
+   * in the label and only the unit survives in the disk-content column, and the
+   * two have to be put back together. */
+  potency: string | null;
   /** True when the cell is prose — a footnote, a reference, a heading — rather
    * than an attempt at an agent name. */
   isNote: boolean;
@@ -189,11 +194,18 @@ export function parseAgentLabel(raw: string, continuation = ""): AgentLabel {
   text = stripDecoration(text.replace(/\([^)]*\)/g, " "))
     // An organism name folded in from the column beside it.
     .replace(/\s+(All\s+\w+|S\.\s+\w+|MRSA|SOSA|Staphylococcus\b).*$/i, "")
-    // A footnote letter, then a disk potency.
+    // A footnote letter.
     .replace(/\s+[a-z]\s*$/, "")
-    .replace(/\s+\d+(?:\.\d+)?(?:\/\d+(?:\.\d+)?)?\s*(?:µg|ug|mcg)?\s*$/i, "")
     .replace(/\s+/g, " ")
     .trim();
+
+  // A disk potency printed after the name, kept rather than discarded.
+  const trailing = /\s+(\d+(?:\.\d+)?(?:\/\d+(?:\.\d+)?)?)\s*(µg|ug|mcg)?\s*$/i.exec(text);
+  let potency: string | null = null;
+  if (trailing) {
+    potency = trailing[1]!;
+    text = text.slice(0, trailing.index).trim();
+  }
 
   // A route printed as a word rather than a parenthesis: "Penicillin parenteral".
   const bareRoute = /\s+(oral|parenteral|intravenous|iv)$/i.exec(text);
@@ -207,7 +219,7 @@ export function parseAgentLabel(raw: string, continuation = ""): AgentLabel {
   const name = text.replace(/\s+or\s*$/i, "").trim();
   const key = name.toLowerCase();
 
-  if (isNoteText(name)) return { name, codes: [], site, route, isNote: true };
+  if (isNoteText(name)) return { name, codes: [], site, route, potency, isNote: true };
 
   // A name the extraction cut in half: prefer what the row still carries, fall
   // back to the completions M100's own tables make unambiguous. The continuation
@@ -223,6 +235,7 @@ export function parseAgentLabel(raw: string, continuation = ""): AgentLabel {
       codes: joined ? [joined] : fallback ? [fallback] : [],
       site,
       route,
+      potency,
       isNote: false,
     };
   }
@@ -236,7 +249,7 @@ export function parseAgentLabel(raw: string, continuation = ""): AgentLabel {
     if (code && !codes.includes(code)) codes.push(code);
   }
 
-  return { name, codes, site, route, isNote: false };
+  return { name, codes, site, route, potency, isNote: false };
 }
 
 /**
@@ -340,6 +353,94 @@ export function parseRange(value: string): { min: number | null; max: number | n
  * - intermediate is a band, never a bound. `I ≤2` is a susceptible value that
  *   has moved one column right.
  */
+/**
+ * One value: a bound, a range, a bare number, or a dash meaning nothing here.
+ *
+ * The order of the alternatives matters. A bound must be tried before a bare
+ * number so `≤14` does not read as `14`, and a range before a bare number so
+ * `15-17` does not read as `15`.
+ */
+const VALUE_TOKEN =
+  /[≤≥<>]\s*\d+(?:\.\d+)?(?:\/\d+(?:\.\d+)?)?\^?|\d+(?:\.\d+)?(?:\/\d+(?:\.\d+)?)?\s*[-–]\s*\d+(?:\.\d+)?(?:\/\d+(?:\.\d+)?)?\^?|\d+(?:\.\d+)?(?:\/\d+(?:\.\d+)?)?\^?|[-–—]/g;
+
+/** A leading disk potency, which is not one of the values. */
+const POTENCY = /^\s*(?:\d+(?:\.\d+)?(?:\/\d+(?:\.\d+)?)?\s*)?(?:µg|ug|mcg|units?)\b/i;
+
+/**
+ * Put a row's values back in their own columns.
+ *
+ * Some rows come out of the extraction split at the wrong character: every
+ * operator ends up stuck to the end of the cell before it, so the
+ * Enterobacterales gentamicin row reads
+ *
+ *     "µg ≥" | "18" | "– 15-17^" | "≤" | "14 ≤" | "2" | "–" | "4^ ≥" | "8"
+ *
+ * where the row three lines below it, printed identically, reads
+ *
+ *     "30 µg" | "≥18" | "–" | "15-17^" | "≤14" | "≤2" | "–" | "4^" | "≥8"
+ *
+ * The characters are the same and in the same order; only the cell boundaries
+ * are wrong. So this re-splits them — it re-reads the row's own text and invents
+ * nothing — and the result is accepted only if it yields exactly the number of
+ * values the layout has columns for. Anything else is left damaged, to be caught
+ * and dropped by the checks that follow.
+ *
+ * Without this, gentamicin, tobramycin and amikacin against Enterobacterales
+ * are missing from the converted table: three of the agents a surveillance
+ * antibiogram is mostly made of.
+ */
+function repairSplit(row: string[], layout: ColumnLayout): string[] {
+  const slots = [
+    ...(layout.zone ? [layout.zone.s, layout.zone.sdd, layout.zone.i, layout.zone.r] : []),
+    ...(layout.mic ? [layout.mic.s, layout.mic.sdd, layout.mic.i, layout.mic.r] : []),
+  ].filter((index) => index >= 0);
+  if (slots.length === 0) return row;
+
+  // Only rows that are actually broken are touched. A well-formed row re-split
+  // would gain nothing and could only lose something.
+  const damaged = slots.some((index) => {
+    const cell = (row[index] ?? "").trim();
+    return cell !== "" && /[≤≥<>]/.test(cell) && cell.search(/[≤≥<>]/) > 0;
+  });
+  if (!damaged) return row;
+
+  const first = layout.diskContent >= 0 ? Math.min(layout.diskContent, slots[0]!) : slots[0]!;
+  const last = Math.max(...slots);
+  const joined = row.slice(first, last + 1).join(" ");
+
+  const potency = POTENCY.exec(joined);
+  const body = potency ? joined.slice(potency[0].length) : joined;
+  const tokens = (body.match(VALUE_TOKEN) ?? []).map((token) => token.replace(/\s+/g, ""));
+  if (tokens.length !== slots.length) return row;
+
+  const repaired = [...row];
+  if (layout.diskContent >= 0) {
+    // The potency's number is often left behind in the agent label
+    // ("Gentamicin 10"), so what survives here can be just the unit. Both parts
+    // are recombined by the caller, which has the label.
+    repaired[layout.diskContent] = (potency?.[0] ?? "").trim();
+  }
+  slots.forEach((index, position) => {
+    repaired[index] = tokens[position]!;
+  });
+  return repaired;
+}
+
+/**
+ * The disk content, from wherever the extraction left its two halves.
+ *
+ * Normally the whole thing is in its own column: `30 µg`. On a badly split row
+ * the number ends up in the agent label — `Gentamicin 10` — and only the unit
+ * survives in the column, so the two are put back together. Neither half is
+ * invented: if the column carries a number already it is used as it stands.
+ */
+function diskContentOf(column: string, potency: string | null): string | null {
+  const cell = column.trim();
+  if (/\d/.test(cell)) return cell;
+  if (potency) return cell ? `${potency} ${cell}` : potency;
+  return cell || null;
+}
+
 function columnsAreSound(
   values: { s: string; sdd: string; i: string; r: string },
   method: "disk" | "mic",
@@ -489,20 +590,24 @@ export function convertM100Workbook(buffer: Buffer, options: ConvertOptions = {}
     const agentCell = at(row, layout.agent);
     if (!agentCell) continue;
 
+    // Some rows arrive split at the wrong character, with each operator stuck to
+    // the end of the previous cell. Repaired here, before anything reads them.
+    const repaired = repairSplit(row, layout);
+
     const zoneValues = layout.zone
       ? {
-          s: at(row, layout.zone.s),
-          sdd: at(row, layout.zone.sdd),
-          i: at(row, layout.zone.i),
-          r: at(row, layout.zone.r),
+          s: at(repaired, layout.zone.s),
+          sdd: at(repaired, layout.zone.sdd),
+          i: at(repaired, layout.zone.i),
+          r: at(repaired, layout.zone.r),
         }
       : null;
     const micValues = layout.mic
       ? {
-          s: at(row, layout.mic.s),
-          sdd: at(row, layout.mic.sdd),
-          i: at(row, layout.mic.i),
-          r: at(row, layout.mic.r),
+          s: at(repaired, layout.mic.s),
+          sdd: at(repaired, layout.mic.sdd),
+          i: at(repaired, layout.mic.i),
+          r: at(repaired, layout.mic.r),
         }
       : null;
 
@@ -569,7 +674,7 @@ export function convertM100Workbook(buffer: Buffer, options: ConvertOptions = {}
         for (const base of bases) criteria.push({ row: rowNumber, criterion: {
           ...base,
           method: "DISK",
-          disk_content: at(row, layout.diskContent) || null,
+          disk_content: diskContentOf(at(repaired, layout.diskContent), agent.potency),
           disk_susceptible_min: isBlank(zoneValues.s) ? null : parseBound(zoneValues.s),
           disk_sdd_min: isBlank(zoneValues.sdd) ? null : sdd.min,
           disk_sdd_max: isBlank(zoneValues.sdd) ? null : sdd.max,

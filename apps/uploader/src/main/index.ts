@@ -20,7 +20,7 @@ import { readFile } from "node:fs/promises";
 import { basename, join, normalize } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { readDeploymentDefaults } from "../core/deployment";
+import { readDeploymentDefaults, suppliedBreakpointPath } from "../core/deployment";
 import { ORGANISMS, organismLabel, SPECIMEN_TYPES, specimenLabel } from "../core/dictionary";
 import {
   clearCorrection,
@@ -88,12 +88,23 @@ import { buildGrid, type GridRequest } from "./grid";
  * development. Its presence is what lets the sign-in screen ask for nothing but
  * a username and password.
  */
-const deployment = readDeploymentDefaults([
+const RESOURCE_DIRECTORIES = [
   process.resourcesPath ?? "",
   join(app.getAppPath(), ".."),
   app.getAppPath(),
   process.cwd(),
-]);
+  // In development the application runs from apps/uploader, and the supplied
+  // table sits under `data/` at the root of the repository. Packaged, the build
+  // copies it to `breakpoints/` beside the application, which the entries above
+  // already cover.
+  join(process.cwd(), "..", "..", "data"),
+];
+
+const deployment = readDeploymentDefaults(RESOURCE_DIRECTORIES);
+
+/** What the supplied table is called on screen. Named by its edition, so a
+ * laboratory can tell at a glance whether it is the one they report under. */
+const SUPPLIED_BREAKPOINTS_LABEL = "CLSI M100 36th edition (2026), supplied with AMRSS";
 
 const store = new LocalStore(join(app.getPath("userData"), "amrss"), deployment);
 const credentials = new CredentialStore(join(app.getPath("userData"), "amrss"));
@@ -846,6 +857,61 @@ ipcMain.handle("validation:approve", () => {
 });
 
 ipcMain.handle("breakpoints:status", () => workspace.snapshot().breakpoints);
+
+/** Whether this installation was built with a breakpoint table, so Settings can
+ * offer it rather than advertising a button that does nothing. */
+ipcMain.handle("breakpoints:supplied", () => {
+  const path = suppliedBreakpointPath(RESOURCE_DIRECTORIES);
+  return { available: path !== null, label: SUPPLIED_BREAKPOINTS_LABEL };
+});
+
+/**
+ * Load the table the installer was built with.
+ *
+ * Offered as a button and never applied on first run. A table that appeared by
+ * itself is a table nobody chose, and therefore one nobody checked against the
+ * edition their laboratory actually reports under. Pressing the button is the
+ * check; it goes through the same parser and the same method filter as any other
+ * import.
+ */
+ipcMain.handle("breakpoints:loadSupplied", async () => {
+  const path = suppliedBreakpointPath(RESOURCE_DIRECTORIES);
+  if (!path) {
+    return {
+      ok: false,
+      message: "This installation was not built with a breakpoint table.",
+    };
+  }
+
+  const parsed = parseBreakpointCsv(await readFile(path, "utf8"));
+  if (parsed.problems.length > 0) {
+    return {
+      ok: false,
+      message: `The supplied table could not be read. ${parsed.problems.slice(0, 3).join("; ")}`,
+      problems: parsed.problems.slice(0, 20),
+    };
+  }
+
+  const preference = store.read().testingMethod;
+  const criteria = parsed.criteria.filter((criterion) =>
+    matchesPreference(criterion, preference),
+  );
+  store.writeBreakpoints({
+    version: "CLSI-M100-Ed36",
+    label: SUPPLIED_BREAKPOINTS_LABEL,
+    effectiveFrom: new Date().toISOString().slice(0, 10),
+    source: "local-import",
+    syncedAt: new Date().toISOString(),
+    criteria,
+  });
+  reloadAndNotify("breakpoints");
+  return {
+    ok: true,
+    message:
+      `Loaded ${criteria.length} criteria from ${SUPPLIED_BREAKPOINTS_LABEL}. ` +
+      "Check it against your own copy of the edition before you rely on it.",
+  };
+});
 
 ipcMain.handle("breakpoints:sync", async () => {
   const state = store.read();

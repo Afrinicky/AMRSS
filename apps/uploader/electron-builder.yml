@@ -43,6 +43,14 @@ extraResources:
   - from: deployment.json
     to: deployment.json
     filter: ["**/*"]
+  # The breakpoint table the programme supplies, beside the application rather
+  # than inside the asar so a facility can replace it with its own edition
+  # without rebuilding. It is not loaded automatically: a laboratory chooses it
+  # in Settings, because a table nobody chose is a table nobody checked.
+  - from: ../../data/breakpoints/clsi_m100_ed36.csv
+    to: breakpoints/clsi_m100_ed36.csv
+  - from: ../../data/breakpoints/clsi_m100_ed36.not-converted.csv
+    to: breakpoints/clsi_m100_ed36.not-converted.csv
 
 asar: true
 # The native module cannot be executed from inside an asar archive.

@@ -10,7 +10,7 @@ service (`src/amrss`) interprets them at the bench. Two implementations of "is
 this isolate resistant" is not a code-duplication problem, it is a
 patient-safety problem, so there is exactly one.
 
-## No breakpoint values ship with this package
+## No breakpoint values live in this package
 
 CLSI M100 tables are copyrighted, revised annually, and a single mistyped
 threshold turns an R into an S on a real patient's report. The laboratory loads

@@ -21,9 +21,11 @@
  *    disagree, that disagreement is surfaced — it is a finding for the data
  *    steward, not something to paper over.
  *
- * No breakpoint values ship with AMRSS. The table is the laboratory's own
- * licensed CLSI edition, synced from the platform or imported from the same
- * template CSV the platform imports (`data/breakpoints/clsi_m100.template.csv`).
+ * No threshold is a literal in this file. The table is loaded — synced from the
+ * platform, imported from the template CSV or from a licensed CLSI M100
+ * workbook, or typed into the editor — and every criterion carries the edition
+ * it came from, so a result interpreted today stays explicable after the next
+ * edition is adopted.
  */
 
 import { clsiGroupsFor, lookupSpecimen } from "./dictionary";

@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { test } from "node:test";
 
 import {
+  advisoriesFor,
   BREAKPOINT_COLUMNS,
   breakpointCsv,
   criterionKey,
@@ -137,9 +140,12 @@ test("an agent the dictionary does not hold is refused", () => {
   );
 });
 
-test("an SDD band without its dosing regimen is refused", () => {
-  // Susceptible-dose-dependent is a statement about the dose. Without the
-  // regimen it assumes, the category cannot be acted on.
+test("an SDD band without its dosing regimen is flagged, but not refused", () => {
+  // Susceptible-dose-dependent is a statement about the dose, and without the
+  // regimen it assumes the category cannot be acted on — so it is said. It is
+  // not blocked, because the platform's importer treats it as a warning, and an
+  // uploader that refused what the platform accepts would leave a laboratory
+  // unable to correct a row it had just imported successfully.
   const sdd: BreakpointCriterion = {
     ...mic,
     mic_susceptible_max: 2,
@@ -149,8 +155,9 @@ test("an SDD band without its dosing regimen is refused", () => {
     mic_intermediate_max: undefined,
     mic_resistant_min: 16,
   };
-  assert.ok(validateCriterion(sdd).some((problem) => /dosage note/.test(problem)));
-  assert.deepEqual(validateCriterion({ ...sdd, dosage_note: "1 g q8h" }), []);
+  assert.deepEqual(validateCriterion(sdd), []);
+  assert.ok(advisoriesFor(sdd).some((note) => /dosage note/.test(note)));
+  assert.deepEqual(advisoriesFor({ ...sdd, dosage_note: "1 g q8h" }), []);
 });
 
 test("agents the modern standard names are in the dictionary", () => {
@@ -336,6 +343,121 @@ test("the MIC band is not mistaken for the zone band by the word antimicrobial",
   assert.equal(layout.zone!.s, 5);
   assert.equal(layout.mic!.s, 9);
   assert.equal(layout.firstDataRow, 2);
+});
+
+/* ------------------------------------------------------------------ *
+ * The table supplied with the software.
+ * ------------------------------------------------------------------ */
+
+/** The CLSI table committed under `data/breakpoints/`, which a laboratory loads
+ * with one button and therefore nobody re-reads before it starts deciding what
+ * an S is. */
+const SHIPPED_TABLE = join(
+  __dirname, "..", "..", "..", "..", "data", "breakpoints", "clsi_m100_ed36.csv",
+);
+
+test("the CLSI table shipped with AMRSS parses, and every criterion is sound", () => {
+  // This file is loaded by a button, so nobody re-reads it before it starts
+  // deciding what an S is. An edit that broke one row would otherwise be found
+  // by a laboratory, in its antibiogram.
+  const parsed = parseBreakpointCsv(readFileSync(SHIPPED_TABLE, "utf8"));
+
+  assert.deepEqual(parsed.problems, []);
+  assert.ok(parsed.criteria.length > 600, `expected the full table, got ${parsed.criteria.length}`);
+
+  const bad = parsed.criteria.flatMap((criterion) => {
+    const problems = validateCriterion(criterion);
+    return problems.length === 0
+      ? []
+      : [`${criterion.organism_group} / ${criterion.agent_code} / ${criterion.method}: ${problems[0]}`];
+  });
+  assert.deepEqual(bad, []);
+
+  // Every scope appears once. A duplicate would make the reported category
+  // depend on the order rows sit in, and the platform refuses the whole table.
+  const keys = parsed.criteria.map(criterionKey);
+  assert.equal(new Set(keys).size, keys.length);
+});
+
+test("the shipped table covers the combinations a surveillance antibiogram is made of", () => {
+  const { criteria } = parseBreakpointCsv(readFileSync(SHIPPED_TABLE, "utf8"));
+  const covered = new Set(criteria.map((c) => `${c.organism_group}|${c.agent_code}`));
+
+  // If a conversion change quietly dropped one of these, the coverage figure
+  // would fall and nothing else would say why.
+  for (const pair of [
+    "Enterobacterales|AMP",
+    "Enterobacterales|CRO",
+    "Enterobacterales|CIP",
+    "Enterobacterales|GEN",
+    "Enterobacterales|AMK",
+    "Enterobacterales|MEM",
+    "Enterobacterales|SXT",
+    "Enterobacterales|NIT",
+    "Staphylococcus spp.|OXA",
+    "Staphylococcus spp.|VAN",
+    "Staphylococcus spp.|CLI",
+    "Pseudomonas aeruginosa|CAZ",
+    "Pseudomonas aeruginosa|MEM",
+    "Acinetobacter spp.|MEM",
+    "Streptococcus pneumoniae|PEN",
+    "Streptococcus pneumoniae|ERY",
+    "Salmonella and Shigella spp.|CRO",
+    "Haemophilus influenzae and Haemophilus parainfluenzae|AMP",
+  ]) {
+    assert.ok(covered.has(pair), `${pair} should be covered by the shipped table`);
+  }
+});
+
+test("the gaps in the shipped table are the ones documented, and no others", () => {
+  // Some combinations a laboratory reports every day are not in this table:
+  // either the source workbook never carried them, or the extraction damaged
+  // them past the point where they could be read without guessing. They are
+  // listed in data/breakpoints/README.md and have to be added by hand.
+  //
+  // Pinned here so that a change to the converter which silently loses *more*
+  // than this is a failing test rather than a quiet drop in coverage.
+  const { criteria } = parseBreakpointCsv(readFileSync(SHIPPED_TABLE, "utf8"));
+  const covered = new Set(criteria.map((c) => `${c.organism_group}|${c.agent_code}`));
+
+  const known = new Set([
+    // Values the extraction damaged past reading.
+    "Enterobacterales|COL",
+    "Pseudomonas aeruginosa|COL",
+    "Acinetobacter spp.|COL",
+    "Neisseria gonorrhoeae|CRO",
+    "Neisseria gonorrhoeae|CFM",
+    // Printed twice under one heading for two sub-groups the extraction lost.
+    "Salmonella and Shigella spp.|CIP",
+    // Never in the source workbook at all.
+    "Staphylococcus spp.|FOX",
+    "Staphylococcus spp.|ERY",
+    "Staphylococcus spp.|GEN",
+    "Staphylococcus spp.|TEC",
+    "Staphylococcus spp.|DAP",
+    "Enterococcus spp.|GEN",
+    "Enterococcus spp.|TEC",
+    "Enterococcus spp.|DAP",
+    "Pseudomonas aeruginosa|GEN",
+  ]);
+
+  const surveillance: Record<string, string[]> = {
+    Enterobacterales: ["AMP", "AMC", "CRO", "CAZ", "FEP", "MEM", "GEN", "AMK", "CIP", "SXT", "NIT", "COL"],
+    "Salmonella and Shigella spp.": ["AMP", "CRO", "CIP", "AZM", "SXT", "CHL"],
+    "Pseudomonas aeruginosa": ["TZP", "CAZ", "FEP", "MEM", "GEN", "AMK", "TOB", "CIP", "COL"],
+    "Acinetobacter spp.": ["SAM", "MEM", "AMK", "CIP", "SXT", "COL", "MNO"],
+    "Staphylococcus spp.": ["PEN", "OXA", "FOX", "ERY", "CLI", "GEN", "CIP", "SXT", "VAN", "LNZ", "RIF", "TEC", "DAP"],
+    "Enterococcus spp.": ["AMP", "PEN", "VAN", "LNZ", "GEN", "NIT", "TEC", "DAP"],
+    "Streptococcus pneumoniae": ["PEN", "CRO", "ERY", "CLI", "SXT", "VAN", "CHL"],
+    "Neisseria gonorrhoeae": ["CRO", "CFM", "AZM", "CIP", "SPT", "TCY"],
+  };
+
+  const gaps = Object.entries(surveillance).flatMap(([group, agents]) =>
+    agents.filter((agent) => !covered.has(`${group}|${agent}`)).map((agent) => `${group}|${agent}`),
+  );
+
+  const unexpected = gaps.filter((gap) => !known.has(gap));
+  assert.deepEqual(unexpected, [], "a combination was lost that the documented gaps do not cover");
 });
 
 /* ------------------------------------------------------------------ *
