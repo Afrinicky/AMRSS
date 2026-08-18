@@ -55,10 +55,13 @@ That is what makes it safe for both sides to import.
   reorganising a table, does not require a deployment.
 - `.github/workflows/apps.yml` now triggers on `packages/**`, so breaking the
   engine cannot show green on the API that imports it.
-- **No breakpoint values ship with AMRSS.** CLSI M100 tables are copyrighted and
-  revised annually; each laboratory loads its own licensed copy through
-  `POST /api/v1/breakpoints/import`. Until it does, measurements stay pending and
-  the dashboard says so rather than inventing thresholds.
+- **No breakpoint value is compiled into AMRSS.** Tables are versioned data
+  loaded through `POST /api/v1/breakpoints/import`, never literals in the
+  engine. A converted CLSI M100 Ed36 table is committed under
+  `data/breakpoints/` at the programme owner's direction; a deployment whose
+  CLSI licence does not permit that deletes it and imports its own. With no
+  table loaded, measurements stay pending and the dashboard says so rather than
+  inventing thresholds.
 
 ## Rules this preserves
 

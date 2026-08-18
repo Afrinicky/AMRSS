@@ -4,17 +4,24 @@ How AMRSS implements CLSI methodology, and what the laboratory must supply.
 
 ---
 
-## Why no breakpoints ship with this software
+## Why no breakpoint is hardcoded
 
-CLSI M100 tables are copyrighted, they are revised every edition, and a single
-mistyped threshold turns an `R` into an `S` on a real patient's report.
-Distributing a hardcoded copy would be a licensing violation and a patient-safety
-hazard — it would go stale silently, and no reviewer could tell which edition a
-given number came from.
+CLSI M100 tables are revised every edition, and a single mistyped threshold
+turns an `R` into an `S` on a real patient's report. A copy compiled into the
+engine would go stale silently, and no reviewer could tell which edition a given
+number came from.
 
-Instead, AMRSS implements the *structure* CLSI requires and treats the numbers
-as versioned, validated, auditable data that you load from your own licensed
-copy.
+So AMRSS implements the *structure* CLSI requires and treats the numbers as
+versioned, validated, auditable data. No threshold appears as a literal anywhere
+in the interpretation engine; every one is read from a dated methodology version
+whose identifier is stamped onto the result.
+
+`data/breakpoints/clsi_m100_ed36.csv` holds the 36th edition (2026), converted
+and committed at the programme owner's direction so a new deployment is not
+starting from an empty table. **That file is derived from copyrighted CLSI
+material**: your right to use or redistribute it comes from your own CLSI
+licence, not from this repository. It is data like any other imported table —
+delete it and import your own copy if that suits your deployment better.
 
 Applies equally to M02/M07 methodology, M45 (infrequently isolated organisms),
 M60 (yeasts), M61 (filamentous fungi), and VET01 — the `standard` column

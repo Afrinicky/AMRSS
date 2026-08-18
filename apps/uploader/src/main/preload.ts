@@ -60,6 +60,16 @@ contextBridge.exposeInMainWorld("amrss", {
   breakpointStatus: () => ipcRenderer.invoke("breakpoints:status"),
   syncBreakpoints: () => ipcRenderer.invoke("breakpoints:sync"),
   importBreakpoints: () => ipcRenderer.invoke("breakpoints:import"),
+  suppliedBreakpoints: () => ipcRenderer.invoke("breakpoints:supplied"),
+  loadSuppliedBreakpoints: () => ipcRenderer.invoke("breakpoints:loadSupplied"),
+  exportBreakpoints: (input: { format?: "csv" | "xlsx" }) =>
+    ipcRenderer.invoke("breakpoints:export", input),
+  breakpointTable: (request: unknown) => ipcRenderer.invoke("breakpoints:table", request),
+  saveBreakpoint: (input: unknown) => ipcRenderer.invoke("breakpoints:save", input),
+  removeBreakpoint: (input: { key: string }) => ipcRenderer.invoke("breakpoints:remove", input),
+
+  exportMappings: () => ipcRenderer.invoke("mapping:export"),
+  importMappings: () => ipcRenderer.invoke("mapping:import"),
 
   prepareUpload: () => ipcRenderer.invoke("upload:prepare"),
   sendUpload: () => ipcRenderer.invoke("upload:send"),

@@ -1,10 +1,12 @@
 """Importing a laboratory's licensed CLSI breakpoint table.
 
-No breakpoint values ship with AMRSS. CLSI M100 tables are copyrighted, revised
-every edition, and a single mistyped threshold turns an R into an S on a real
-patient's report. The laboratory populates
-``data/breakpoints/clsi_m100.template.csv`` from its own licensed copy, and this
-module turns that file into a versioned methodology row.
+No threshold is a literal in the engine. CLSI M100 tables are revised every
+edition, and a single mistyped threshold turns an R into an S on a real
+patient's report, so the numbers are versioned data rather than code. This
+module turns a table in the shape of ``data/breakpoints/clsi_m100.template.csv``
+into a versioned methodology row — whether it came from
+``data/breakpoints/clsi_m100_ed36.csv``, from a laboratory's own licensed copy,
+or from the breakpoint editor.
 
 Validation runs before anything is stored, and any *error* blocks the import
 outright. That is the point of the module: it is the last barrier between a

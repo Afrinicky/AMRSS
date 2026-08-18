@@ -129,24 +129,95 @@ other row in that file with code `11` is urine.
 
 ## Interpretation
 
-No breakpoint values ship with AMRSS. The tables are copyrighted, revised every
-edition, and a single mistyped threshold turns an `R` into an `S`.
+No threshold is hardcoded. The breakpoint table is data the uploader loads, and
+it is what every `S`, `I` and `R` on the computer is decided by.
 
-The uploader interprets against the laboratory's own licensed table, obtained
-either way:
+**Settings → Breakpoints** asks one question first: does this laboratory read
+zone diameters, MICs, or both? A laboratory on an automated MIC panel has no
+disk measurements at all, and showing it a table three-quarters full of zone
+diameters — and a coverage figure computed over criteria it will never use — is
+showing it someone else's laboratory. The answer governs what is imported, what
+is exported, and what the coverage report counts.
 
-- **Settings → Breakpoints → Sync from platform** pulls the table the platform
-  is using (`GET /api/v1/breakpoints/active`), so both halves cite the same
-  edition.
-- **Import a CSV** loads the same template the platform imports
-  (`data/breakpoints/clsi_m100.template.csv`), for a laboratory that works
-  offline.
+The table itself arrives four ways:
+
+- **Load the supplied CLSI table** uses the copy installed beside the
+  application — CLSI M100 36th edition (2026), 707 criteria. It is offered as a
+  button and never applied on its own: a table that appeared by itself is a
+  table nobody checked against the edition the laboratory actually reports
+  under. See [`data/breakpoints/README.md`](../data/breakpoints/README.md) for
+  what it covers, what it does not, and the licensing.
+- **Sync from platform** pulls the table the platform is using
+  (`GET /api/v1/breakpoints/active`), so both halves cite the same edition.
+- **Import a table** accepts either the template CSV
+  (`data/breakpoints/clsi_m100.template.csv`) or the laboratory's own licensed
+  **CLSI M100 workbook**, converted on the way in.
+- **Type it in.** The loaded table is listed in full and is editable — add a
+  criterion, correct a threshold, remove one.
+
+**Export** writes the template CSV, and it is the file Import reads: export the
+table, correct a threshold in Excel, import it back. An Excel export is offered
+too, for reading rather than round-tripping.
+
+### Converting a CLSI workbook
+
+The workbook a laboratory holds is an extraction of a printed document, and
+extractions are lossy in specific, repeatable ways. The converter is
+conservative about every one of them, and reports what it dropped:
+
+| What it does | Why |
+|---|---|
+| Completes a name the extraction cut in half — `Trimethoprim-` | M100 prints exactly one agent starting that way; plain trimethoprim is printed separately as `Trimethoprim (U)` |
+| Keeps `(meningitis)`, `(oral)`, `(U)` as site and route qualifiers | *S. pneumoniae* prints three penicillin criteria differing only by site |
+| Emits both agents of a row printed `Ertapenem or imipenem` | One set of thresholds is stated for both |
+| Re-splits a row cut at the wrong character — `"µg ≥" \| "18" \| "– 15-17^"` | Same characters, same order, wrong cell boundaries. Accepted only if it yields exactly as many values as there are columns. Recovers gentamicin, tobramycin and amikacin against Enterobacterales |
+| Drops a row whose S column opens with the wrong operator | A zone is `≥` susceptible and an MIC is `≤`; the wrong one means the columns are offset |
+| Drops a row whose intermediate column is a bound, not a range | `I ≤2` is a susceptible value that has moved one column right |
+| Drops a row with neither a susceptible nor a resistant bound | An intermediate band alone categorises nothing |
+| Drops **both** rows where one heading covers two sub-groups | *Salmonella* and *Shigella* share a heading with different ciprofloxacin thresholds; keeping one would pick a threshold by row order |
+| Keeps one copy of a page-break repeat, silently | Identical thresholds; nothing is in doubt |
+| Passes over footnotes and reference lists in the agent column | Listing a hundred of them would bury the drops that matter |
+
+Every kept criterion carries the printed cell in its comment — `Zone as printed:
+S ≥17, I 14-16^, R ≤13` — so the transcription can be checked against the
+published table at any time. Against the CLSI M100 Ed36 workbook this yields
+**707 criteria across 15 organism groups and 95 agents, with 16 rows dropped and
+named**, and the result passes the platform's own strict importer with no errors.
+That output is what ships as `data/breakpoints/clsi_m100_ed36.csv`; what it does
+*not* cover — cefoxitin and erythromycin for staphylococci among them — is
+listed in [`data/breakpoints/README.md`](../data/breakpoints/README.md) and
+pinned by a test, so a laboratory meets those gaps in a document rather than in
+its antibiogram.
 
 With no table loaded, measurements show as `PI` — measured, pending
 interpretation. They are still uploaded, still counted as tested, and excluded
 from susceptibility rates until a table resolves them. Nothing is guessed. A
 category the laboratory recorded itself is always kept; where it disagrees with
 the table, the disagreement is reported rather than resolved.
+
+## Code mapping
+
+A code the dictionary does not hold is mapped once, in **Settings → Code
+mapping**, and the mapping then applies to every row that uses it.
+
+One at a time works for the two or three a laboratory finds during validation.
+It does not work for a WHONET configuration built up over years, and it does not
+work at all when the mappings need a microbiologist's eye — a form on one
+computer cannot be sent to anyone. So the whole book exports as one workbook and
+comes back as one workbook.
+
+WHONET keeps its codes in separate lists, and the workbook keeps that
+separation: one sheet per category (Organisms, Specimen types, Antimicrobials),
+each paired with an *(all codes)* sheet listing every code AMRSS holds with its
+name. A row on the Organisms sheet can only ever map an organism.
+
+The export arrives with the laboratory's outstanding gaps already listed — every
+code its own file used that AMRSS could not name, with the answer column blank
+beside it. Importing replaces the mappings for the categories the workbook
+covers, so a row deleted in Excel is a mapping removed, while a workbook trimmed
+to one sheet leaves the other two alone. A row naming a code AMRSS does not hold
+is reported back rather than stored: a mapping onto a code that does not exist
+would fail silently on every row that used it.
 
 ---
 
@@ -226,10 +297,14 @@ token or a linkage key.
 | `src/core/whonet.ts` | Reading the file: profile detection, one dataset every view reads. |
 | `src/core/dictionary.ts` | WHONET codes, copied from the platform's canonical dictionary. |
 | `src/core/interpret.ts` | Measurement → category, against the loaded breakpoint table. |
+| `src/core/breakpoints.ts` | The table as a file and as an editable list: export, validation, edits. |
+| `src/core/m100.ts` | Converting a licensed CLSI M100 workbook into criteria, conservatively. |
+| `src/core/codebook.ts` | The code book: every code AMRSS holds, and the local codes mapped onto them. |
 | `src/core/validation.ts` | The gate: must-fix and advisory findings. |
 | `src/core/corrections.ts` | The overlay that fixes records without touching WHONET. |
 | `src/core/analytics.ts` | Antibiogram, trends, sites, phenotypes — the platform's counting rules. |
 | `src/core/deidentify.ts` | The allow-list. What leaves the building. |
 | `src/core/xlsx.ts` | Workbook writer, no dependency. |
+| `src/core/xlsx-read.ts` | Workbook reader, no dependency. |
 | `src/core/session.ts` | Online and offline sign-in, connectivity probe, console handoff. |
 | `src/core/schedule.ts` | When to send, and everything that must be true first. |

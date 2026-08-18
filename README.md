@@ -34,12 +34,19 @@ registered from **Administration → Facility enrollment** once you can sign in.
 
 ## Two things to read before deploying
 
-**1. No breakpoint values ship with this software.**
-CLSI M100 tables are copyrighted, revised annually, and a single mistyped
-threshold turns an `R` into an `S` on a real patient's report. AMRSS is
-breakpoint-*table-driven*: you import the tables from your laboratory's
-licensed copy of the current edition, the import is validated and versioned,
-and every interpretation records which set produced it. See [docs/clsi.md](docs/clsi.md).
+**1. The breakpoint table is data you load, and it is licensed to you, not by us.**
+AMRSS is breakpoint-*table-driven*: no threshold is hardcoded anywhere in the
+engine. Tables are imported, validated and versioned, and every interpretation
+records which set produced it.
+
+`data/breakpoints/clsi_m100_ed36.csv` holds CLSI M100 36th edition (2026),
+converted for AMRSS at the programme owner's direction. **CLSI M100 is
+copyrighted by the Clinical and Laboratory Standards Institute**; whether you
+may use or redistribute that file depends on your own licence with CLSI, not on
+this repository's licence. If your deployment cannot rely on that, delete it and
+import from your own licensed copy — nothing depends on its presence. See
+[data/breakpoints/README.md](data/breakpoints/README.md) and
+[docs/clsi.md](docs/clsi.md).
 
 **2. The seeded intrinsic-resistance and expert rules need local verification.**
 `src/amrss/clsi/rules.py` ships a small, textbook subset so the system is

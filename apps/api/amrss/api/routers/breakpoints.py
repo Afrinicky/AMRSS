@@ -27,10 +27,12 @@ from fastapi import (
     Form,
     HTTPException,
     Request,
+    Response,
     UploadFile,
     status,
 )
 from pydantic import BaseModel
+from sqlalchemy import select
 
 from amrss import audit
 from amrss.analytics import interpretation as interpretation_engine
@@ -382,4 +384,420 @@ def run_interpretation(
         coverage_percent=report.coverage_percent,
         breakpoint_set_version=report.breakpoint_set_version,
         uncovered=[{"combination": key, "measurements": count} for key, count in uncovered[:50]],
+    )
+
+
+# --------------------------------------------------------------------------- #
+# The editable table.
+# --------------------------------------------------------------------------- #
+#
+# A published breakpoint version is not editable in place, and that is not an
+# oversight: every result already interpreted cites the version it was
+# interpreted under, so changing a threshold inside it would silently rewrite
+# what past antibiograms mean without leaving a trace. Editing therefore works
+# on a *draft* — a methodology row dated far enough in the future that
+# ``methodology.resolve`` will never pick it up — which is corrected as often as
+# needed and then published as a new version with its own effective date.
+#
+# The draft is validated by the same code the file import uses, over the whole
+# table rather than the edited row alone. One row's thresholds can be
+# individually sane and still duplicate another row's scope or overlap its band,
+# and the engine that catches that only sees it when it sees the set.
+
+#: Where a draft sits so no computation can resolve it. Any date beyond the
+#: programme's life would do; the maximum makes the intent unmistakable.
+DRAFT_EFFECTIVE_FROM = date(9999, 12, 31)
+
+DRAFT_VERSION_SUFFIX = "-draft"
+
+
+def _draft_row(db: DbSession, regional_block_id: uuid.UUID | None) -> MethodologyVersion | None:
+    return db.scalar(
+        select(MethodologyVersion).where(
+            MethodologyVersion.component == MethodologyComponent.AST_BREAKPOINTS,
+            MethodologyVersion.effective_from == DRAFT_EFFECTIVE_FROM,
+            MethodologyVersion.regional_block_id == regional_block_id,
+        )
+    )
+
+
+def _criteria_of(row: MethodologyVersion) -> list[dict]:
+    return list(row.parameters.get("breakpoints") or [])
+
+
+def _scope_key(criterion: dict) -> tuple[str, ...]:
+    """What the interpretation engine selects on, and so what identifies a row.
+
+    Exactly the key ``amrss_clsi.breakpoints.validate_breakpoints`` refuses
+    duplicates on. Two rows sharing it are a duplicate no engine can choose
+    between, which makes the reported category depend on the order rows happen
+    to sit in.
+
+    Disk content is deliberately absent. It looks like it belongs — 10 µg and
+    30 µg gentamicin are different tests — but the validator refuses two rows
+    differing only in disk content, so treating them as distinct here would let
+    the editor build a draft that can never be published.
+    """
+    return tuple(
+        str(criterion.get(field) or "").strip().lower()
+        for field in ("organism_group", "agent_code", "method", "site", "route")
+    )
+
+
+def _validate_table(criteria: list[dict], version: str) -> list[str]:
+    """Every problem in the draft, using the importer's own checks.
+
+    Deliberately the same path a file takes. A threshold typed into a form and a
+    threshold read from a CSV are the same claim about a patient's result, and it
+    would be indefensible for one route to be checked and the other not.
+    """
+    try:
+        parse_breakpoint_csv(to_template_csv(criteria), version=version)
+    except BreakpointImportError as exc:
+        return exc.problems
+    return []
+
+
+class DraftCriterion(BaseModel):
+    """One row of the table, in the template's own field names.
+
+    The names are the template's rather than something friendlier so that what
+    an operator edits on screen, what the CSV carries and what the engine reads
+    are visibly the same thing.
+    """
+
+    organism_group: str
+    agent_code: str
+    method: str
+    standard: str = "CLSI M100"
+    table_reference: str | None = None
+    tier: str | None = None
+    site: str | None = None
+    route: str | None = None
+    disk_content: str | None = None
+    mic_susceptible_max: str | None = None
+    mic_sdd_min: str | None = None
+    mic_sdd_max: str | None = None
+    mic_intermediate_min: str | None = None
+    mic_intermediate_max: str | None = None
+    mic_resistant_min: str | None = None
+    disk_susceptible_min: int | None = None
+    disk_sdd_min: int | None = None
+    disk_sdd_max: int | None = None
+    disk_intermediate_min: int | None = None
+    disk_intermediate_max: int | None = None
+    disk_resistant_max: int | None = None
+    dosage_note: str | None = None
+    comment: str | None = None
+
+
+class DraftResponse(BaseModel):
+    """The draft as the editor shows it."""
+
+    version: str
+    label: str | None
+    #: The published version this draft started from, so the editor can say what
+    #: is being changed rather than presenting the table as if from nowhere.
+    based_on: str | None
+    criteria_count: int
+    criteria: list[dict]
+    #: Everything wrong with the draft as it stands. A draft is allowed to be
+    #: invalid while it is being worked on; publishing is what refuses.
+    problems: list[str]
+
+
+@router.get("/export", dependencies=[Depends(requires(Permission.MANAGE_METHODOLOGY))])
+def export_breakpoint_table(
+    db: DbSession,
+    principal: CurrentPrincipal,
+    regional_block_id: uuid.UUID | None = None,
+) -> Response:
+    """The table in force, as the template CSV.
+
+    The same file the importer reads, so a programme can export the table,
+    correct a threshold in a spreadsheet and import the result as the next
+    version. Round-tripping is the point: an export in some other shape would
+    have to be reworked by hand before it could go back in, which is where
+    transcription errors come from.
+    """
+    scope = regional_block_id if regional_block_id is not None else principal.regional_block_id
+    methodology = methodology_engine.resolve(
+        db, regional_block_id=scope, components=[MethodologyComponent.AST_BREAKPOINTS]
+    )
+    component = methodology.get(MethodologyComponent.AST_BREAKPOINTS)
+    criteria = list(component.get("breakpoints") or []) if component else []
+    version = component.version if component else "none"
+
+    return Response(
+        content=to_template_csv(criteria),
+        media_type="text/csv",
+        headers={
+            "content-disposition": f'attachment; filename="amrss-breakpoints-{version}.csv"',
+        },
+    )
+
+
+@router.get(
+    "/draft",
+    response_model=DraftResponse,
+    dependencies=[Depends(requires(Permission.MANAGE_METHODOLOGY))],
+)
+def read_draft(
+    db: DbSession,
+    principal: CurrentPrincipal,
+    regional_block_id: uuid.UUID | None = None,
+) -> DraftResponse:
+    """The draft, creating one from the table in force if none exists.
+
+    Starting from the published table rather than from nothing is what makes the
+    editor usable for its commonest job: a single threshold that differs from
+    what was imported. Starting empty would mean re-entering nine hundred rows to
+    change one.
+    """
+    scope = regional_block_id if regional_block_id is not None else principal.regional_block_id
+    row = _draft_row(db, scope)
+
+    if row is None:
+        methodology = methodology_engine.resolve(
+            db, regional_block_id=scope, components=[MethodologyComponent.AST_BREAKPOINTS]
+        )
+        component = methodology.get(MethodologyComponent.AST_BREAKPOINTS)
+        based_on = component.version if component else None
+        criteria = list(component.get("breakpoints") or []) if component else []
+        row = MethodologyVersion(
+            component=MethodologyComponent.AST_BREAKPOINTS,
+            version=f"{based_on or 'new'}{DRAFT_VERSION_SUFFIX}"[:32],
+            description="Working draft of the breakpoint table. Not resolvable until published.",
+            effective_from=DRAFT_EFFECTIVE_FROM,
+            regional_block_id=scope,
+            is_provisional=True,
+            parameters={
+                "label": f"Draft from {based_on}" if based_on else "New breakpoint table",
+                "based_on": based_on,
+                "breakpoints": criteria,
+            },
+        )
+        db.add(row)
+        db.commit()
+        db.refresh(row)
+
+    criteria = _criteria_of(row)
+    return DraftResponse(
+        version=row.version,
+        label=row.parameters.get("label"),
+        based_on=row.parameters.get("based_on"),
+        criteria_count=len(criteria),
+        criteria=criteria,
+        problems=_validate_table(criteria, row.version) if criteria else [],
+    )
+
+
+@router.put(
+    "/draft/criteria",
+    response_model=DraftResponse,
+    dependencies=[Depends(requires(Permission.MANAGE_METHODOLOGY))],
+)
+def upsert_draft_criterion(
+    request: Request,
+    db: DbSession,
+    principal: CurrentPrincipal,
+    criterion: DraftCriterion,
+    regional_block_id: uuid.UUID | None = None,
+) -> DraftResponse:
+    """Add or replace one criterion in the draft.
+
+    A criterion whose scope already exists replaces it rather than joining it,
+    because two rows the engine cannot choose between is a worse state than
+    either row alone.
+    """
+    scope = regional_block_id if regional_block_id is not None else principal.regional_block_id
+    row = _draft_row(db, scope)
+    if row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="There is no draft to edit. Open the breakpoint editor first.",
+        )
+
+    incoming = criterion.model_dump()
+    incoming["agent_code"] = incoming["agent_code"].strip().upper()
+    incoming["method"] = incoming["method"].strip().upper()
+
+    key = _scope_key(incoming)
+    criteria = [c for c in _criteria_of(row) if _scope_key(c) != key]
+    criteria.append(incoming)
+
+    row.parameters = {**row.parameters, "breakpoints": criteria}
+    ip, agent = client_context(request)
+    audit.record(
+        db,
+        action=AuditAction.BREAKPOINTS_IMPORTED,
+        entity="methodology_version",
+        entity_id=row.id,
+        principal=principal,
+        after={"draft": row.version, "criterion": incoming},
+        source_ip=ip,
+        user_agent=agent,
+        note=f"Edited draft breakpoint {incoming['organism_group']} / {incoming['agent_code']}",
+    )
+    db.commit()
+
+    return DraftResponse(
+        version=row.version,
+        label=row.parameters.get("label"),
+        based_on=row.parameters.get("based_on"),
+        criteria_count=len(criteria),
+        criteria=criteria,
+        problems=_validate_table(criteria, row.version),
+    )
+
+
+@router.delete(
+    "/draft/criteria",
+    response_model=DraftResponse,
+    dependencies=[Depends(requires(Permission.MANAGE_METHODOLOGY))],
+)
+def remove_draft_criterion(
+    request: Request,
+    db: DbSession,
+    principal: CurrentPrincipal,
+    organism_group: str,
+    agent_code: str,
+    method: str,
+    site: str = "",
+    route: str = "",
+    regional_block_id: uuid.UUID | None = None,
+) -> DraftResponse:
+    """Remove one criterion from the draft, addressed by its scope."""
+    scope = regional_block_id if regional_block_id is not None else principal.regional_block_id
+    row = _draft_row(db, scope)
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="There is no draft.")
+
+    key = _scope_key(
+        {
+            "organism_group": organism_group,
+            "agent_code": agent_code,
+            "method": method,
+            "site": site,
+            "route": route,
+        }
+    )
+    criteria = [c for c in _criteria_of(row) if _scope_key(c) != key]
+    if len(criteria) == len(_criteria_of(row)):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="That criterion is no longer in the draft.",
+        )
+
+    row.parameters = {**row.parameters, "breakpoints": criteria}
+    ip, agent = client_context(request)
+    audit.record(
+        db,
+        action=AuditAction.BREAKPOINTS_IMPORTED,
+        entity="methodology_version",
+        entity_id=row.id,
+        principal=principal,
+        after={"draft": row.version, "removed": f"{organism_group} / {agent_code} / {method}"},
+        source_ip=ip,
+        user_agent=agent,
+        note=f"Removed draft breakpoint {organism_group} / {agent_code}",
+    )
+    db.commit()
+
+    return DraftResponse(
+        version=row.version,
+        label=row.parameters.get("label"),
+        based_on=row.parameters.get("based_on"),
+        criteria_count=len(criteria),
+        criteria=criteria,
+        problems=_validate_table(criteria, row.version) if criteria else [],
+    )
+
+
+class PublishRequest(BaseModel):
+    version: str
+    source_edition: str
+    effective_from: date
+    description: str = ""
+
+
+@router.post(
+    "/draft/publish",
+    response_model=ImportResponse,
+    dependencies=[Depends(requires(Permission.MANAGE_METHODOLOGY))],
+    status_code=status.HTTP_201_CREATED,
+)
+def publish_draft(
+    request: Request,
+    db: DbSession,
+    principal: CurrentPrincipal,
+    body: PublishRequest,
+    regional_block_id: uuid.UUID | None = None,
+) -> ImportResponse:
+    """Turn the draft into a new, dated version, or refuse it entire.
+
+    Publishing goes through the file importer rather than around it: the draft is
+    rendered as the template CSV and imported. One code path decides what a valid
+    breakpoint table is, so a table typed in here cannot be looser than one
+    uploaded as a file.
+
+    A single error blocks the whole publication. Accepting a table with three bad
+    rows out of nine hundred would put three wrong thresholds into clinical
+    reports, with no way afterwards to tell which results they touched.
+    """
+    scope = regional_block_id if regional_block_id is not None else principal.regional_block_id
+    row = _draft_row(db, scope)
+    if row is None or not _criteria_of(row):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="The draft is empty. There is nothing to publish.",
+        )
+
+    try:
+        result = import_breakpoints(
+            db,
+            to_template_csv(_criteria_of(row)),
+            version=body.version,
+            source_edition=body.source_edition,
+            effective_from=body.effective_from,
+            regional_block_id=scope,
+            description=body.description or f"Published from the breakpoint editor ({row.version})",
+            commit=False,
+        )
+    except BreakpointImportError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"message": str(exc), "problems": exc.problems},
+        ) from exc
+
+    # The draft has become the published version; keeping it would leave two
+    # tables in play and no way to tell which one an operator was editing.
+    db.delete(row)
+
+    ip, agent = client_context(request)
+    audit.record(
+        db,
+        action=AuditAction.BREAKPOINTS_IMPORTED,
+        entity="methodology_version",
+        principal=principal,
+        after={
+            "version": body.version,
+            "source_edition": body.source_edition,
+            "breakpoints": result.imported,
+            "published_from_draft": row.version,
+            "based_on": row.parameters.get("based_on"),
+        },
+        source_ip=ip,
+        user_agent=agent,
+        note=f"Published {result.imported} breakpoints as {body.version} from the editor",
+    )
+    db.commit()
+
+    return ImportResponse(
+        version=result.version,
+        source_edition=result.source_edition,
+        imported=result.imported,
+        warnings=result.warnings,
+        conversion=None,
     )

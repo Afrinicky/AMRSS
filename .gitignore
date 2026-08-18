@@ -30,12 +30,22 @@ build/
 !apps/uploader/build/
 
 # Local data - may contain patient information or licensed CLSI tables
-# Real breakpoint tables are the laboratory's licensed property and are never
-# committed — in either the CSV or the workbook it was extracted into.
+#
+# A breakpoint table a laboratory drops in here is its own licensed property and
+# is not committed — in either the CSV or the workbook it was extracted into.
+# The default stays "ignored" so that dropping a file in this directory cannot
+# put licensed material into a commit by accident.
+#
+# The exceptions are the two files the programme distributes deliberately: the
+# empty template, and the converted CLSI M100 Ed36 table committed at the
+# programme owner's direction. See data/breakpoints/README.md for what that
+# means for your own CLSI licence.
 data/breakpoints/*.csv
 data/breakpoints/*.xlsx
 data/breakpoints/*.xlsm
 !data/breakpoints/*.template.csv
+!data/breakpoints/clsi_m100_ed36.csv
+!data/breakpoints/clsi_m100_ed36.not-converted.csv
 *.sqlite
 *.db
 exports/

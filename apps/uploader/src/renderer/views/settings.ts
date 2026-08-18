@@ -10,7 +10,7 @@
  * interprets against.
  */
 
-import { api, type Settings } from "../api.js";
+import { api, type BreakpointTableRow, type Settings } from "../api.js";
 import type { ViewContext } from "../app.js";
 import {
   button,
@@ -19,6 +19,7 @@ import {
   count,
   definitionList,
   el,
+  modal,
   notice,
   relativeTime,
   select,
@@ -94,7 +95,7 @@ export async function renderSettings(host: HTMLElement, context: ViewContext): P
     whonet: () => whonetPanel(settings, context),
     schedule: () => schedulePanel(settings, context),
     behaviour: () => behaviourPanel(settings, context),
-    breakpoints: () => breakpointsPanel(context),
+    breakpoints: () => breakpointsPanel(settings, context),
     mapping: () => mappingPanel(context),
     connection: () => connectionPanel(settings, context),
     about: () => aboutPanel(settings, context),
@@ -594,75 +595,482 @@ function connectionPanel(settings: Settings, context: ViewContext): HTMLElement 
   );
 }
 
-function breakpointsPanel(context: ViewContext): HTMLElement {
+/* ------------------------------------------------------------------ *
+ * Breakpoints.
+ * ------------------------------------------------------------------ */
+
+/** Which slice of the table is on screen. Kept outside the render so a search
+ * survives the redraw that follows every edit. */
+let breakpointSearch = "";
+let breakpointMethod = "";
+let breakpointOffset = 0;
+
+const PAGE_SIZE = 60;
+
+async function breakpointsPanel(settings: Settings, context: ViewContext): Promise<HTMLElement> {
   const breakpoints = context.status.workspace.breakpoints;
   const coverage = context.status.workspace.coverage;
+  const preference = settings.testingMethod ?? "both";
+  const supplied = await api.suppliedBreakpoints();
+  const panel = el("div");
+
+  panel.append(
+    card(
+      "What this laboratory tests with",
+      "Disk diffusion reads a zone in millimetres; an MIC reads a concentration. Choosing here keeps the breakpoint table, the coverage figure and the imports to the method you actually use — a laboratory on an automated MIC panel should not be shown a table of zone diameters.",
+      el("div", {
+        className: "field",
+        children: [
+          el("label", { text: "Susceptibility testing method" }),
+          select(
+            [
+              { value: "both", label: "Both — disks routinely, MICs where needed" },
+              { value: "disk", label: "Disk diffusion — zone diameters in mm" },
+              { value: "mic", label: "MIC — concentrations in µg/mL" },
+            ],
+            preference,
+            (value) => {
+              void api.saveSettings({ testingMethod: value }).then(async () => {
+                toast("Testing method saved.", "ok");
+                await context.refresh();
+              });
+            },
+          ),
+        ],
+      }),
+    ),
+  );
+
+  panel.append(
+    card(
+      "Breakpoint table",
+      "Nothing here is a fixed threshold: this table is data, and it is what every S, I and R on this computer is decided by. Load the edition your laboratory reports under — the one supplied with AMRSS, the one the platform is using, your own licensed CLSI M100 workbook — or type it in below.",
+      definitionList([
+        ["Loaded", breakpoints.loaded ? "yes" : "no"],
+        ["Edition", breakpoints.label ?? breakpoints.version ?? "—"],
+        ["Criteria", count(breakpoints.criteria)],
+        [
+          "Source",
+          breakpoints.source === "platform" ? "synced from the platform" : breakpoints.source,
+        ],
+        ["Last synced", relativeTime(breakpoints.syncedAt)],
+        [
+          "Interpretation coverage",
+          coverage
+            ? `${coverage.interpreted + coverage.laboratoryReported} of ${coverage.measurements} results (${coverage.coveragePercent.toFixed(0)}%)`
+            : "—",
+        ],
+      ]),
+      coverage && coverage.conflicts > 0
+        ? notice(
+            "warn",
+            `${coverage.conflicts} result(s) carry a category that differs from what this table gives for the same measurement. The laboratory's own category is kept and the disagreement is listed in Validation.`,
+          )
+        : null,
+      el("div", {
+        className: "toolbar",
+        children: [
+          // Offered first when this installation was built with a table and none
+          // is loaded, because that is the one case where a laboratory has a
+          // working answer one click away and no way to know it.
+          supplied.available
+            ? button(
+                "Load the supplied CLSI table",
+                async () => {
+                  const result = await api.loadSuppliedBreakpoints();
+                  toast(result.message, result.ok ? "ok" : "warn");
+                  await context.refresh();
+                },
+                breakpoints.loaded ? "default" : "primary",
+                { title: supplied.label },
+              )
+            : null,
+          button(
+            "Sync from platform",
+            async () => {
+              const result = await api.syncBreakpoints();
+              toast(result.message, result.ok ? "ok" : "warn");
+              await context.refresh();
+            },
+            breakpoints.loaded || !supplied.available ? "primary" : "default",
+          ),
+          button("Import a table…", async () => {
+            const result = await api.importBreakpoints();
+            if (result.problems && result.problems.length > 0) {
+              showImportProblems("Rows that could not be read", result.message, result.problems);
+            } else {
+              toast(result.message, result.ok ? "ok" : "warn");
+            }
+            await context.refresh();
+          }),
+          button("Export as CSV", async () => {
+            const result = await api.exportBreakpoints({ format: "csv" });
+            toast(result.message, result.ok ? "ok" : "warn");
+          }),
+          button("Export as Excel", async () => {
+            const result = await api.exportBreakpoints({ format: "xlsx" });
+            toast(result.message, result.ok ? "ok" : "warn");
+          }),
+        ],
+      }),
+      el("p", {
+        className: "small muted",
+        text: "Import accepts two files: the CSV this page exports — which round-trips exactly, so you can export it, correct a threshold in Excel and put it back — or your own licensed CLSI M100 workbook, which is converted on the way in. Any row of the workbook that cannot be read is listed rather than guessed at.",
+      }),
+    ),
+  );
+
+  panel.append(await breakpointTableCard(context));
+
+  if (coverage && coverage.uncovered.length > 0) {
+    panel.append(
+      card(
+        "Combinations this table does not cover",
+        "Most frequent first — worth working through by impact rather than alphabetically. A result with no criterion reads as PI, pending interpretation: measured, counted as tested, and left out of the susceptibility rates until a criterion covers it.",
+        table(
+          [
+            { label: "Organism / agent / method", value: (row) => row.combination },
+            { label: "Results", value: (row) => count(row.measurements), numeric: true },
+          ],
+          coverage.uncovered.slice(0, 25),
+        ),
+      ),
+    );
+  }
+
+  return panel;
+
+  function showImportProblems(title: string, message: string, problems: string[]): void {
+    const close = modal(
+      title,
+      el("div", {
+        children: [
+          el("p", { text: message }),
+          el("ul", {
+            className: "problem-list",
+            children: problems.map((problem) => el("li", { text: problem })),
+          }),
+        ],
+      }),
+      [button("Close", () => close(), "primary")],
+    );
+  }
+}
+
+/**
+ * The editable table.
+ *
+ * Everything that reaches it — a synced table, a converted workbook, a typed
+ * row — is checked the same way, because a threshold typed into a form and one
+ * read from a file are the same claim about a patient's result. A row the
+ * conversion could not read is not a dead end: it is added here.
+ */
+async function breakpointTableCard(context: ViewContext): Promise<HTMLElement> {
+  const page = await api.breakpointTable({
+    search: breakpointSearch,
+    method: breakpointMethod,
+    offset: breakpointOffset,
+    limit: PAGE_SIZE,
+  });
+
+  const redraw = (): void => {
+    const host = document.querySelector(".content");
+    if (host) void renderSettings(host as HTMLElement, context);
+  };
+
+  const search = textInput(breakpointSearch, {
+    placeholder: "organism group, agent code or name",
+    onInput: (value) => {
+      breakpointSearch = value;
+      breakpointOffset = 0;
+    },
+  });
+  search.addEventListener("change", redraw);
+  search.addEventListener("keydown", (event) => {
+    if ((event as KeyboardEvent).key === "Enter") redraw();
+  });
+
+  const toolbar = el("div", {
+    className: "inline-fields",
+    children: [
+      el("div", { className: "field", children: [el("label", { text: "Find" }), search] }),
+      el("div", {
+        className: "field",
+        children: [
+          el("label", { text: "Method" }),
+          select(
+            [
+              { value: "", label: "All methods" },
+              { value: "DISK", label: "Disk diffusion" },
+              { value: "MIC", label: "MIC" },
+              { value: "GRADIENT", label: "Gradient strip" },
+            ],
+            breakpointMethod,
+            (value) => {
+              breakpointMethod = value;
+              breakpointOffset = 0;
+              redraw();
+            },
+          ),
+        ],
+      }),
+    ],
+  });
+
+  const pager = el("div", {
+    className: "toolbar",
+    children: [
+      button(
+        "Add a breakpoint",
+        () => openCriterionEditor(null, context),
+        "primary",
+        { small: true },
+      ),
+      el("div", { className: "topbar-spacer" }),
+      el("span", {
+        className: "small muted",
+        text:
+          page.matched === 0
+            ? "Nothing matches"
+            : `Showing ${page.offset + 1}–${Math.min(page.offset + PAGE_SIZE, page.matched)} of ${count(page.matched)}${
+                page.matched !== page.total ? ` (of ${count(page.total)} in the table)` : ""
+              }`,
+      }),
+      button(
+        "Previous",
+        () => {
+          breakpointOffset = Math.max(0, breakpointOffset - PAGE_SIZE);
+          redraw();
+        },
+        "ghost",
+        { small: true, disabled: page.offset === 0 },
+      ),
+      button(
+        "Next",
+        () => {
+          breakpointOffset = breakpointOffset + PAGE_SIZE;
+          redraw();
+        },
+        "ghost",
+        { small: true, disabled: page.offset + PAGE_SIZE >= page.matched },
+      ),
+    ],
+  });
 
   return card(
-    "Breakpoint table",
-    "No breakpoint values ship with AMRSS: the tables are copyrighted and revised every edition, and a mistyped threshold turns an R into an S. The table here is your laboratory's own — synced from the platform, or imported from the same template CSV the platform imports.",
-    definitionList([
-      ["Loaded", breakpoints.loaded ? "yes" : "no"],
-      ["Edition", breakpoints.label ?? breakpoints.version ?? "—"],
-      ["Criteria", count(breakpoints.criteria)],
-      ["Source", breakpoints.source === "platform" ? "synced from the platform" : breakpoints.source],
-      ["Last synced", relativeTime(breakpoints.syncedAt)],
+    "The table itself",
+    "Every criterion the software interprets against, exactly as loaded. Edit a row where your edition differs, or add one the import could not read — the same checks apply either way, and a row that would categorise every isolate as susceptible is refused with the reason.",
+    toolbar,
+    pager,
+    table(
       [
-        "Interpretation coverage",
-        coverage
-          ? `${coverage.interpreted + coverage.laboratoryReported} of ${coverage.measurements} results (${coverage.coveragePercent.toFixed(0)}%)`
-          : "—",
+        { label: "Organism group", value: (row) => row.organismGroup },
+        {
+          label: "Antimicrobial",
+          value: (row) => `${row.agentName} (${row.agentCode})`,
+        },
+        { label: "Method", value: (row) => row.method },
+        { label: "Scope", value: (row) => row.scope || "—" },
+        { label: "S", value: (row) => row.susceptible || "—" },
+        { label: "I", value: (row) => row.intermediate || "—" },
+        { label: "R", value: (row) => row.resistant || "—" },
+        { label: "Source", value: (row) => row.source || "—", title: "The edition and table this criterion cites." },
+        {
+          label: "",
+          value: (row) =>
+            el("div", {
+              className: "row-actions",
+              children: [
+                button("Edit", () => openCriterionEditor(row, context), "ghost", { small: true }),
+                button(
+                  "Remove",
+                  async () => {
+                    const result = await api.removeBreakpoint({ key: row.key });
+                    toast(result.message, result.ok ? "ok" : "warn");
+                    await context.refresh();
+                  },
+                  "ghost",
+                  { small: true },
+                ),
+              ],
+            }),
+        },
       ],
-    ]),
-    coverage && coverage.conflicts > 0
-      ? notice(
-          "warn",
-          `${coverage.conflicts} result(s) carry a category that differs from what this table gives for the same measurement. The laboratory's own category is kept and the disagreement is listed in Validation.`,
-        )
-      : null,
-    el("div", {
-      className: "toolbar",
-      children: [
-        button(
-          "Sync from platform",
-          async () => {
-            const result = await api.syncBreakpoints();
-            toast(result.message, result.ok ? "ok" : "warn");
-            await context.refresh();
-          },
-          "primary",
-        ),
-        button("Import a CSV", async () => {
-          const result = await api.importBreakpoints();
-          toast(result.message, result.ok ? "ok" : "warn");
-          await context.refresh();
-        }),
-      ],
-    }),
-    coverage && coverage.uncovered.length > 0
-      ? card(
-          "Combinations this table does not cover",
-          "Most frequent first — the next import is worth prioritising by impact rather than alphabetically.",
-          table(
-            [
-              { label: "Organism / agent / method", value: (row) => row.combination },
-              { label: "Results", value: (row) => count(row.measurements), numeric: true },
-            ],
-            coverage.uncovered.slice(0, 25),
-          ),
-        )
-      : null,
+      page.rows,
+      "No breakpoints are loaded. Sync from the platform, import your CLSI table, or add one here.",
+    ),
   );
 }
 
+/**
+ * One criterion, in a form.
+ *
+ * The disk and MIC fields are both shown, and which set applies follows the
+ * method chosen at the top, because the two run in opposite directions and a
+ * form that hid the distinction would invite the single commonest transcription
+ * error: a zone entered as though it were a concentration.
+ */
+function openCriterionEditor(row: BreakpointTableRow | null, context: ViewContext): void {
+  const fields: Record<string, HTMLInputElement> = {};
+  const field = (name: string, label: string, placeholder = ""): HTMLElement => {
+    const input = textInput("", { placeholder });
+    fields[name] = input;
+    return el("div", { className: "field", children: [el("label", { text: label }), input] });
+  };
+
+  const method = select(
+    [
+      { value: "DISK", label: "Disk diffusion — zone diameter in mm" },
+      { value: "MIC", label: "MIC — concentration in µg/mL" },
+      { value: "GRADIENT", label: "Gradient strip — read as an MIC" },
+    ],
+    row?.method === "Disk" ? "DISK" : row?.method === "Gradient" ? "GRADIENT" : "MIC",
+    (value) => {
+      diskBlock.hidden = value !== "DISK";
+      micBlock.hidden = value === "DISK";
+    },
+  );
+
+  const scope = el("div", {
+    className: "inline-fields",
+    children: [
+      field("organism_group", "Organism group", "e.g. Enterobacterales"),
+      field("agent_code", "Antimicrobial code", "e.g. CIP"),
+    ],
+  });
+
+  const qualifiers = el("div", {
+    className: "inline-fields",
+    children: [
+      field("disk_content", "Disk content", "e.g. 5 µg"),
+      field("site", "Site", "e.g. meningitis, uti"),
+      field("route", "Route", "e.g. oral, iv"),
+    ],
+  });
+
+  const diskBlock = el("div", {
+    className: "inline-fields",
+    children: [
+      field("disk_susceptible_min", "Susceptible ≥ (mm)"),
+      field("disk_intermediate_min", "Intermediate from (mm)"),
+      field("disk_intermediate_max", "Intermediate to (mm)"),
+      field("disk_resistant_max", "Resistant ≤ (mm)"),
+    ],
+  });
+
+  const micBlock = el("div", {
+    className: "inline-fields",
+    children: [
+      field("mic_susceptible_max", "Susceptible ≤ (µg/mL)"),
+      field("mic_intermediate_min", "Intermediate from"),
+      field("mic_intermediate_max", "Intermediate to"),
+      field("mic_resistant_min", "Resistant ≥ (µg/mL)"),
+    ],
+  });
+
+  const provenance = el("div", {
+    className: "inline-fields",
+    children: [
+      field("standard", "Standard", "e.g. CLSI M100"),
+      field("table_reference", "Table", "e.g. 2A-1"),
+      field("dosage_note", "Dosage note (required for SDD)"),
+    ],
+  });
+
+  diskBlock.hidden = method.value !== "DISK";
+  micBlock.hidden = method.value === "DISK";
+
+  if (row) {
+    fields.organism_group!.value = row.organismGroup;
+    fields.agent_code!.value = row.agentCode;
+    // The scope and the printed thresholds are re-entered rather than parsed
+    // back out of their display form: reading "≥17 mm" back into a number is
+    // exactly the kind of round trip that quietly loses a value.
+  }
+
+  const problems = el("div");
+
+  const close = modal(
+    row ? `Edit ${row.agentName} · ${row.organismGroup}` : "Add a breakpoint",
+    el("div", {
+      children: [
+        el("p", {
+          className: "small muted",
+          text: row
+            ? "Re-enter the thresholds for this criterion. Saving replaces the row with the same scope."
+            : "Enter the criterion as your edition prints it. A row whose bounds contradict each other is refused rather than saved.",
+        }),
+        scope,
+        el("div", { className: "field", children: [el("label", { text: "Method" }), method] }),
+        qualifiers,
+        diskBlock,
+        micBlock,
+        provenance,
+        problems,
+      ],
+    }),
+    [
+      button("Cancel", () => close(), "ghost"),
+      button(
+        "Save",
+        async () => {
+          const criterion: Record<string, unknown> = { method: method.value };
+          for (const [name, input] of Object.entries(fields)) {
+            const value = input.value.trim();
+            if (value !== "") criterion[name] = value;
+          }
+          const result = await api.saveBreakpoint({
+            criterion,
+            replacing: row?.key,
+          });
+          if (!result.ok) {
+            problems.replaceChildren(
+              el("ul", {
+                className: "problem-list",
+                children: (result.problems ?? [result.message]).map((text) =>
+                  el("li", { text }),
+                ),
+              }),
+            );
+            return;
+          }
+          close();
+          toast(result.message, "ok");
+          await context.refresh();
+        },
+        "primary",
+      ),
+    ],
+    { wide: true },
+  );
+}
+
+/* ------------------------------------------------------------------ *
+ * Code mapping.
+ * ------------------------------------------------------------------ */
+
 async function mappingPanel(context: ViewContext): Promise<HTMLElement> {
   const mappings = await api.mappings();
-  const entity = el("div");
 
-  const rows: Array<{ entity: string; from: string; to: string }> = [
-    ...Object.entries(mappings.organism).map(([from, to]) => ({ entity: "organism", from, to })),
-    ...Object.entries(mappings.specimen).map(([from, to]) => ({ entity: "specimen", from, to })),
-    ...Object.entries(mappings.antibiotic).map(([from, to]) => ({ entity: "antibiotic", from, to })),
+  const rows: Array<{ entity: string; kind: string; from: string; to: string }> = [
+    ...Object.entries(mappings.organism).map(([from, to]) => ({
+      entity: "organism",
+      kind: "Organism",
+      from,
+      to,
+    })),
+    ...Object.entries(mappings.specimen).map(([from, to]) => ({
+      entity: "specimen",
+      kind: "Specimen type",
+      from,
+      to,
+    })),
+    ...Object.entries(mappings.antibiotic).map(([from, to]) => ({
+      entity: "antibiotic",
+      kind: "Antimicrobial",
+      from,
+      to,
+    })),
   ];
 
   const kind = select(
@@ -677,67 +1085,114 @@ async function mappingPanel(context: ViewContext): Promise<HTMLElement> {
   const from = textInput("", { placeholder: "your local code, e.g. bx" });
   const to = textInput("", { placeholder: "AMRSS dictionary code, e.g. ti" });
 
-  entity.append(
+  const single = el("div", {
+    children: [
+      el("div", {
+        className: "inline-fields",
+        children: [
+          el("div", { className: "field", children: [el("label", { text: "Kind" }), kind] }),
+          el("div", { className: "field", children: [el("label", { text: "Local code" }), from] }),
+          el("div", { className: "field", children: [el("label", { text: "AMRSS code" }), to] }),
+        ],
+      }),
+      button(
+        "Add mapping",
+        async () => {
+          if (!from.value.trim() || !to.value.trim()) {
+            toast("Enter both codes.", "warn");
+            return;
+          }
+          const result = await api.mapCode({
+            entity: kind.value,
+            from: from.value.trim(),
+            to: to.value.trim(),
+          });
+          toast(result.message, result.ok ? "ok" : "warn");
+          from.value = "";
+          to.value = "";
+          await context.refresh();
+        },
+        "primary",
+      ),
+    ],
+  });
+
+  const workbook = card(
+    "The whole code book, in one workbook",
+    "Export writes every code AMRSS understands — organisms, specimen types and antimicrobials, each on its own sheet, the way WHONET keeps them — along with the codes your own file used that AMRSS could not name, waiting with a blank column beside them. Fill that column in, in Excel or with your microbiologist, and import the workbook back.",
     el("div", {
-      className: "inline-fields",
+      className: "toolbar",
       children: [
-        el("div", { className: "field", children: [el("label", { text: "Kind" }), kind] }),
-        el("div", { className: "field", children: [el("label", { text: "Local code" }), from] }),
-        el("div", {
-          className: "field",
-          children: [el("label", { text: "AMRSS code" }), to],
+        button(
+          "Export the code book",
+          async () => {
+            const result = await api.exportMappings();
+            toast(result.message, result.ok ? "ok" : "warn");
+          },
+          "primary",
+        ),
+        button("Import a completed workbook…", async () => {
+          const result = await api.importMappings();
+          if (result.problems && result.problems.length > 0) {
+            const close = modal(
+              "Rows that were not applied",
+              el("div", {
+                children: [
+                  el("p", { text: result.message }),
+                  el("ul", {
+                    className: "problem-list",
+                    children: result.problems.map((problem) => el("li", { text: problem })),
+                  }),
+                ],
+              }),
+              [button("Close", () => close(), "primary")],
+            );
+          } else {
+            toast(result.message, result.ok ? "ok" : "warn");
+          }
+          await context.refresh();
         }),
       ],
     }),
-    button(
-      "Add mapping",
-      async () => {
-        if (!from.value.trim() || !to.value.trim()) {
-          toast("Enter both codes.", "warn");
-          return;
-        }
-        const result = await api.mapCode({
-          entity: kind.value,
-          from: from.value.trim(),
-          to: to.value.trim(),
-        });
-        toast(result.message, result.ok ? "ok" : "warn");
-        from.value = "";
-        to.value = "";
-        await context.refresh();
-      },
-      "primary",
-    ),
+    el("p", {
+      className: "small muted",
+      text: "Importing replaces the mappings for the categories the workbook covers, so deleting a row in Excel removes that mapping. A row naming a code AMRSS does not hold is reported back rather than stored — a mapping onto a code that does not exist would fail silently on every row that used it.",
+    }),
   );
 
-  return card(
-    "Code mapping",
-    "When your WHONET configuration uses a code the AMRSS dictionary does not hold, map it here once. The mapping applies to every row in the file, and to everything entered afterwards — it is a statement about your configuration, not about one specimen.",
-    entity,
-    table(
-      [
-        { label: "Kind", value: (row) => row.entity },
-        { label: "Local code", value: (row) => row.from },
-        { label: "AMRSS code", value: (row) => row.to },
-        {
-          label: "",
-          value: (row) =>
-            button(
-              "Remove",
-              async () => {
-                await api.unmapCode({ entity: row.entity, from: row.from });
-                await context.refresh();
-                toast("Mapping removed.");
-              },
-              "ghost",
-              { small: true },
-            ),
-        },
-      ],
-      rows,
-      "No local codes are mapped. Validation will tell you if any are needed.",
-    ),
-  );
+  return el("div", {
+    children: [
+      workbook,
+      card(
+        "Code mapping",
+        "When your WHONET configuration uses a code the AMRSS dictionary does not hold, map it here once. The mapping applies to every row in the file, and to everything entered afterwards — it is a statement about your configuration, not about one specimen.",
+        single,
+        table(
+          [
+            { label: "Kind", value: (row) => row.kind },
+            { label: "Local code", value: (row) => row.from },
+            { label: "AMRSS code", value: (row) => row.to },
+            {
+              label: "",
+              value: (row) =>
+                button(
+                  "Remove",
+                  async () => {
+                    await api.unmapCode({ entity: row.entity, from: row.from });
+                    await context.refresh();
+                    toast("Mapping removed.");
+                  },
+                  "ghost",
+                  { small: true },
+                ),
+            },
+          ],
+          rows,
+          "No local codes are mapped. Validation will tell you if any are needed.",
+        ),
+      ),
+    ],
+  });
 }
 
 function aboutPanel(settings: Settings, context: ViewContext): HTMLElement {

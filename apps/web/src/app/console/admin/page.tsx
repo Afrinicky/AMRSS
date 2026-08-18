@@ -128,6 +128,12 @@ export default async function AdminPage() {
               available={profile.permissions.includes("mapping:review")}
             />
             <ConsoleCard
+              href="/console/admin/breakpoints"
+              title="Breakpoint table"
+              body="The thresholds every measurement is interpreted against. Edit as a draft, export as the importer's own CSV, publish as a dated version."
+              available={profile.permissions.includes("methodology:manage")}
+            />
+            <ConsoleCard
               href="/console/admin/methodology"
               title="Methodology versions"
               body="Thresholds, deduplication windows, suppression rules and loaded CLSI breakpoint tables, with their effective dates."

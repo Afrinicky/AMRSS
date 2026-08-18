@@ -203,6 +203,57 @@ export async function exchangeHandoff(
   return response.json();
 }
 
+/**
+ * One row of the breakpoint table, in the template's own field names.
+ *
+ * Named as the template names them rather than something friendlier, so that
+ * what an administrator edits on screen, what the CSV carries and what the
+ * engine reads are visibly the same thing.
+ */
+export interface BreakpointCriterion {
+  organism_group: string;
+  agent_code: string;
+  method: string;
+  standard: string;
+  table_reference?: string | null;
+  tier?: string | null;
+  site?: string | null;
+  route?: string | null;
+  disk_content?: string | null;
+  mic_susceptible_max?: string | null;
+  mic_sdd_min?: string | null;
+  mic_sdd_max?: string | null;
+  mic_intermediate_min?: string | null;
+  mic_intermediate_max?: string | null;
+  mic_resistant_min?: string | null;
+  disk_susceptible_min?: number | null;
+  disk_sdd_min?: number | null;
+  disk_sdd_max?: number | null;
+  disk_intermediate_min?: number | null;
+  disk_intermediate_max?: number | null;
+  disk_resistant_max?: number | null;
+  dosage_note?: string | null;
+  comment?: string | null;
+}
+
+export interface BreakpointDraft {
+  version: string;
+  label: string | null;
+  based_on: string | null;
+  criteria_count: number;
+  criteria: BreakpointCriterion[];
+  /** Everything wrong with the draft as it stands. A draft may be invalid while
+   * it is worked on; publishing is what refuses. */
+  problems: string[];
+}
+
+export interface BreakpointPublished {
+  version: string;
+  source_edition: string;
+  imported: number;
+  warnings: string[];
+}
+
 export const api = {
   profile: () => request<Profile>("/api/v1/auth/me"),
   antibiogram: (params?: Record<string, string | undefined>) =>
@@ -233,6 +284,25 @@ export const api = {
   mappings: (params?: Record<string, string | undefined>) =>
     request<CodeMapping[]>(`/api/v1/admin/mappings${queryString(params)}`),
   methodologyVersions: () => request<MethodologyVersionRow[]>("/api/v1/admin/methodology"),
+
+  // The breakpoint table. Reading and editing are separate endpoints because
+  // they are separate things: the table in force is what every published figure
+  // was computed against, and the draft is what someone is in the middle of
+  // correcting. Nothing edits the former.
+  breakpointDraft: () => request<BreakpointDraft>("/api/v1/breakpoints/draft"),
+  saveBreakpoint: (criterion: BreakpointCriterion) =>
+    send<BreakpointDraft>("/api/v1/breakpoints/draft/criteria", "PUT", criterion),
+  removeBreakpoint: (scope: Record<string, string>) =>
+    send<BreakpointDraft>(
+      `/api/v1/breakpoints/draft/criteria${queryString(scope)}`,
+      "DELETE",
+    ),
+  publishBreakpoints: (payload: {
+    version: string;
+    source_edition: string;
+    effective_from: string;
+    description?: string;
+  }) => send<BreakpointPublished>("/api/v1/breakpoints/draft/publish", "POST", payload),
   dictionarySummary: () => request<DictionarySummary>("/api/v1/admin/dictionary/summary"),
   createDistrict: (regionalBlockId: string, name: string) =>
     send<DistrictRef>(

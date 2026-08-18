@@ -977,6 +977,39 @@ tbody tr:hover .sticky-col {
   margin-top: 16px;
 }
 
+/* The breakpoint editor carries three rows of fields; 560px crowds them. */
+.modal.wide {
+  width: min(760px, 100%);
+}
+
+/*
+ * Why a row was refused, listed rather than summarised.
+ *
+ * A criterion can be wrong in several ways at once — inverted bounds and an
+ * overlapping band — and fixing one at a time, resubmitting between each, is a
+ * worse experience than being told all of them now.
+ */
+.problem-list {
+  margin: 12px 0 0;
+  padding-left: 18px;
+  font-size: 13px;
+  color: var(--sir-r);
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+.problem-list li {
+  margin-bottom: 6px;
+  line-height: 1.45;
+}
+
+.row-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  white-space: nowrap;
+}
+
 .toasts {
   position: fixed;
   right: 18px;
