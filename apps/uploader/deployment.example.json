@@ -1,0 +1,14 @@
+{
+  "_comment": [
+    "Copy to deployment.json before packaging, or place beside the installed",
+    "application, so a laboratory is never asked for a server address.",
+    "The build workflow writes this file from the programme's repository",
+    "variables; this example exists so the shape is obvious without reading the",
+    "workflow."
+  ],
+  "apiUrl": "https://amrss-api.example.org",
+  "webUrl": "https://amrss.example.org",
+  "facilityCode": null,
+  "facilityName": null,
+  "supportContact": "your regional Data Steward"
+}

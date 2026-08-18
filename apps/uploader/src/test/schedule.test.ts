@@ -10,7 +10,16 @@ import {
   nextRunAt,
   type SyncSchedule,
 } from "../core/schedule";
-import { apiUrlProblem, daysSince, makeVerifier, normaliseApiUrl, verifyPassword } from "../core/session";
+import {
+  apiUrlProblem,
+  daysSince,
+  looksLikeDashboardAddress,
+  makeVerifier,
+  noApiHereMessage,
+  normaliseApiUrl,
+  unreachableMessage,
+  verifyPassword,
+} from "../core/session";
 
 function schedule(overrides: Partial<SyncSchedule>): SyncSchedule {
   return { ...DEFAULT_SCHEDULE, mode: "automatic", ...overrides };
@@ -110,7 +119,7 @@ test("an unusable API address is named before anything is sent to it", () => {
   // The old default pointed at the developer's own machine; signing in against
   // it failed inside fetch and the button looked broken.
   assert.match(apiUrlProblem("http://localhost:8000") ?? "", /this computer/);
-  assert.match(apiUrlProblem("") ?? "", /No API address/);
+  assert.match(apiUrlProblem("") ?? "", /No service address/);
   assert.match(apiUrlProblem("amrss.example.org") ?? "", /not a web address/);
   assert.equal(apiUrlProblem("https://amrss-api.example.org"), null);
   assert.equal(normaliseApiUrl("https://amrss-api.example.org/"), "https://amrss-api.example.org");
@@ -146,4 +155,56 @@ test("offline sign-in is measured from the last time the server was reached", ()
   const thirtyOneDaysAgo = new Date(Date.now() - 31 * 86_400_000).toISOString();
   assert.ok(daysSince(thirtyOneDaysAgo) > 30);
   assert.ok(daysSince(new Date().toISOString()) < 1);
+});
+
+test("the dashboard address is recognised, not answered with a bare 404", () => {
+  // What a laboratory actually pastes: the address in the browser it uses every
+  // day. Reporting "the server answered 404" sends them to check their
+  // password; naming the mistake sends them to the one field that is wrong.
+  const pasted = "https://amrss.vercel.app/console/signin";
+
+  assert.equal(looksLikeDashboardAddress(pasted), true);
+  assert.match(apiUrlProblem(pasted) ?? "", /dashboard/);
+  assert.match(apiUrlProblem(pasted) ?? "", /AMRSS_API_URL/);
+  assert.match(noApiHereMessage(pasted, 404), /dashboard/);
+
+  // A real API address is not mistaken for one.
+  assert.equal(looksLikeDashboardAddress("https://amrss-api.onrender.com"), false);
+  assert.equal(apiUrlProblem("https://amrss-api.onrender.com"), null);
+});
+
+test("an address answering without an API is distinguished from a bad password", () => {
+  const message = noApiHereMessage("https://example.org", 404);
+  assert.match(message, /no AMRSS API there/);
+  assert.doesNotMatch(message, /password/i);
+});
+
+test("the endpoint and the console path are trimmed back to the base", () => {
+  // Both get pasted: one from the API docs, one from the browser's address bar.
+  assert.equal(
+    normaliseApiUrl("https://amrss-api.onrender.com/api/v1/auth/login"),
+    "https://amrss-api.onrender.com",
+  );
+  assert.equal(
+    normaliseApiUrl("https://amrss.vercel.app/console/signin"),
+    "https://amrss.vercel.app",
+  );
+  // A deployment that genuinely serves the API under a prefix keeps it: silently
+  // truncating that would break a working configuration.
+  assert.equal(
+    normaliseApiUrl("https://example.org/amrss/"),
+    "https://example.org/amrss",
+  );
+});
+
+test("what a laboratory is told and what IT is told are different sentences", () => {
+  // The person at the bench did not choose the address and cannot check it.
+  // Their sentence says the service is unreachable and who to ask; the
+  // technical wording is carried separately, for whoever can act on it.
+  const forStaff = unreachableMessage("the SECH IT desk");
+  assert.match(forStaff, /could not be reached/);
+  assert.match(forStaff, /SECH IT desk/);
+  assert.doesNotMatch(forStaff, /404|API|URL|onrender/i);
+
+  assert.match(unreachableMessage(null), /IT support/);
 });

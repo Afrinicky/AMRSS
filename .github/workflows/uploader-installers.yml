@@ -58,6 +58,32 @@ jobs:
 
       - run: npm ci
 
+      # The installer carries where this programme's service lives, so a
+      # laboratory scientist is never asked for an address. Set the repository
+      # variables AMRSS_API_URL and AMRSS_WEB_URL (Settings → Secrets and
+      # variables → Actions → Variables); without them the installer still works
+      # and simply asks IT to fill the address in once, on the machine.
+      - name: Write the deployment file
+        env:
+          API_URL: ${{ vars.AMRSS_API_URL }}
+          WEB_URL: ${{ vars.AMRSS_WEB_URL }}
+          SUPPORT_CONTACT: ${{ vars.AMRSS_SUPPORT_CONTACT }}
+        run: |
+          if [ -z "${API_URL}" ]; then
+            echo "::warning::AMRSS_API_URL is not set, so this installer ships without a service address. Whoever installs it must set one under Connection settings."
+          fi
+          node -e '
+            const fs = require("node:fs");
+            fs.writeFileSync("deployment.json", JSON.stringify({
+              apiUrl: (process.env.API_URL || "").replace(/\/+$/, ""),
+              webUrl: (process.env.WEB_URL || "").replace(/\/+$/, ""),
+              facilityCode: null,
+              facilityName: null,
+              supportContact: process.env.SUPPORT_CONTACT || null,
+            }, null, 2) + "\n");
+          '
+          cat deployment.json
+
       - name: Compile
         run: npm run build
 

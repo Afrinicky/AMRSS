@@ -34,6 +34,16 @@ files:
 # fails on the first database read — after the laboratory has installed it.
 npmRebuild: true
 
+# The deployment file the installer is built with: where this programme's
+# service lives, and optionally which facility the installer was prepared for.
+# It sits beside the application rather than inside the asar so that a facility's
+# IT can correct it after installation without rebuilding anything — and its
+# absence is handled, not fatal.
+extraResources:
+  - from: deployment.json
+    to: deployment.json
+    filter: ["**/*"]
+
 asar: true
 # The native module cannot be executed from inside an asar archive.
 asarUnpack:

@@ -20,6 +20,7 @@ import { readFile } from "node:fs/promises";
 import { join, normalize } from "node:path";
 import { pathToFileURL } from "node:url";
 
+import { readDeploymentDefaults } from "../core/deployment";
 import { ORGANISMS, organismLabel, SPECIMEN_TYPES, specimenLabel } from "../core/dictionary";
 import {
   clearCorrection,
@@ -62,7 +63,21 @@ import {
 import { Workspace } from "./workspace";
 import { buildGrid, type GridRequest } from "./grid";
 
-const store = new LocalStore(join(app.getPath("userData"), "amrss"));
+/**
+ * What this installation was pointed at when it was installed.
+ *
+ * Looked for beside the packaged application first, then in the project during
+ * development. Its presence is what lets the sign-in screen ask for nothing but
+ * a username and password.
+ */
+const deployment = readDeploymentDefaults([
+  process.resourcesPath ?? "",
+  join(app.getAppPath(), ".."),
+  app.getAppPath(),
+  process.cwd(),
+]);
+
+const store = new LocalStore(join(app.getPath("userData"), "amrss"), deployment);
 const credentials = new CredentialStore(join(app.getPath("userData"), "amrss"));
 const session = new SessionManager(credentials);
 const workspace = new Workspace(store);
@@ -194,6 +209,11 @@ function buildMenu(): void {
       label: "Help",
       submenu: [
         {
+          label: "Connection settings (IT)",
+          click: () => send("amrss:open-connection-settings", {}),
+        },
+        { type: "separator" },
+        {
           label: "About AMRSS Uploader",
           click: () => {
             void dialog.showMessageBox({
@@ -203,7 +223,8 @@ function buildMenu(): void {
               detail:
                 "Reads your WHONET database, checks it, shows you your own data, and submits " +
                 "de-identified surveillance records to the AMRSS platform. Patient identifiers " +
-                "never leave this computer.",
+                "never leave this computer." +
+                (deployment.supportContact ? `\n\nSupport: ${deployment.supportContact}` : ""),
             });
           },
         },
@@ -513,18 +534,11 @@ ipcMain.handle(
 
 ipcMain.handle(
   "auth:signIn",
-  async (_event, input: { identifier: string; password: string; apiUrl?: string }) => {
-    const state = store.read();
-    // The sign-in screen carries the address so a first run can be completed in
-    // one place; saving it here is what makes the next launch one step shorter.
-    if (input.apiUrl !== undefined && normaliseApiUrl(input.apiUrl) !== state.apiUrl) {
-      store.write({ ...state, apiUrl: normaliseApiUrl(input.apiUrl) });
-      startConnectivityMonitor();
-    }
-
+  async (_event, input: { identifier: string; password: string }) => {
     const current = store.read();
     const outcome = await session.signIn(current.apiUrl, input.identifier, input.password, {
       offlineGraceDays: current.offlineGraceDays,
+      supportContact: deployment.supportContact,
     });
 
     if (outcome.ok) {
@@ -546,6 +560,7 @@ ipcMain.handle(
       ok: outcome.ok,
       message: outcome.message,
       code: outcome.ok ? "ok" : outcome.code,
+      detail: outcome.ok ? undefined : outcome.detail,
       status: statusPayload(store.read()),
     };
   },
@@ -1048,3 +1063,29 @@ ipcMain.handle("app:openStateFolder", async () => {
 });
 
 ipcMain.handle("app:apiUrlProblem", (_event, url: string) => apiUrlProblem(url));
+
+/**
+ * Try an address without signing in.
+ *
+ * Answers in the two registers the interface needs: a sentence for whoever is
+ * standing at the machine, and the technical reason underneath for whoever
+ * fixes it.
+ */
+ipcMain.handle("connection:test", async (_event, url: string) => {
+  const problem = apiUrlProblem(url);
+  if (problem) {
+    return { ok: false, message: "That address cannot be used.", detail: problem };
+  }
+  const probe = await probeConnectivity(url);
+  if (probe.online) {
+    return {
+      ok: true,
+      message: `Connected${probe.latencyMs ? ` — answered in ${probe.latencyMs} ms.` : "."}`,
+    };
+  }
+  return {
+    ok: false,
+    message: "No AMRSS service answered at that address.",
+    detail: `${normaliseApiUrl(url)}: ${probe.detail}`,
+  };
+});

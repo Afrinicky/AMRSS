@@ -69,7 +69,7 @@ export interface Session {
 
 export type SignInOutcome =
   | { ok: true; session: Session; message: string }
-  | { ok: false; code: SignInFailure; message: string };
+  | { ok: false; code: SignInFailure; message: string; detail?: string };
 
 export type SignInFailure =
   | "no_api_url"
@@ -78,6 +78,7 @@ export type SignInFailure =
   | "offline_no_cache"
   | "offline_expired"
   | "offline_wrong_password"
+  | "no_api_here"
   | "server_error";
 
 export const ROLE_LABELS: Record<string, string> = {
@@ -94,8 +95,37 @@ export function roleLabel(role: string): string {
   return ROLE_LABELS[role] ?? role.replaceAll("_", " ");
 }
 
+/**
+ * Tidy an address into the API's base.
+ *
+ * Two paths are removed because people paste them and neither can be right.
+ * `/api/v1/...` is the endpoint rather than the base, and the console's own
+ * sign-in path is what a browser's address bar is showing when someone copies
+ * from it. Any *other* path is left alone: a deployment may legitimately host
+ * the API under a prefix, and silently truncating that would break it.
+ */
 export function normaliseApiUrl(value: string | null | undefined): string {
-  return (value ?? "").trim().replace(/\/+$/, "");
+  const trimmed = (value ?? "").trim().replace(/\/+$/, "");
+  return trimmed
+    .replace(/\/api\/v1(\/.*)?$/i, "")
+    .replace(/\/(console|signin|sign-in|login|dashboard)(\/.*)?$/i, "")
+    .replace(/\/+$/, "");
+}
+
+/** Hosts that serve the AMRSS *dashboard*. Pasting one into the uploader is the
+ * commonest setup mistake there is: it is the address a laboratory sees every
+ * day, and the API — a separate service, because a 64 MB batch cannot go
+ * through a serverless function — is the one nobody has in front of them. */
+const DASHBOARD_HOST = /(^|\.)(vercel\.app|netlify\.app|pages\.dev)$/i;
+
+export function looksLikeDashboardAddress(value: string): boolean {
+  const raw = (value ?? "").trim();
+  if (/\/(console|signin|sign-in|dashboard)(\/|$)/i.test(raw)) return true;
+  try {
+    return DASHBOARD_HOST.test(new URL(raw).hostname);
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -106,10 +136,20 @@ export function normaliseApiUrl(value: string | null | undefined): string {
  * inside fetch, the handler rejects, and the button appears to do nothing at
  * all — the exact failure this check exists to name.
  */
+/** What to tell the person at the bench when the service cannot be reached.
+ * They did not configure the address, cannot check it, and have work to do: the
+ * useful sentence is that the software still works and who to ask. */
+export function unreachableMessage(supportContact: string | null): string {
+  const ask = supportContact
+    ? `Ask ${supportContact} if it continues.`
+    : "Ask your IT support if it continues.";
+  return `AMRSS could not be reached just now. ${ask}`;
+}
+
 export function apiUrlProblem(apiUrl: string): string | null {
   const url = normaliseApiUrl(apiUrl);
   if (url === "") {
-    return "No API address is configured. Enter your AMRSS server address to sign in.";
+    return "No service address is configured for this installation.";
   }
   if (!/^https?:\/\//i.test(url)) {
     return `"${url}" is not a web address. It should start with https:// — for example https://amrss-api.example.org.`;
@@ -120,7 +160,33 @@ export function apiUrlProblem(apiUrl: string): string | null {
       `regional administrator gave you — for example https://amrss-api.example.org.`
     );
   }
+  if (looksLikeDashboardAddress(apiUrl)) {
+    return (
+      `"${apiUrl.trim()}" is the AMRSS dashboard you open in a browser, not the API the ` +
+      `uploader submits to. They are two different services. The API address usually ends ` +
+      `in .onrender.com — your regional Data Steward has it, and it is the AMRSS_API_URL ` +
+      `setting on the dashboard's own deployment.`
+    );
+  }
   return null;
+}
+
+/** The message for an address that answers but has no AMRSS API behind it —
+ * the dashboard, a company home page, a proxy. Distinguished from a wrong
+ * password, which is the user's problem to fix, and from an unreachable server,
+ * which is nobody's. */
+export function noApiHereMessage(apiUrl: string, status: number): string {
+  const base = `${normaliseApiUrl(apiUrl)} answered ${status}, but there is no AMRSS API there.`;
+  if (looksLikeDashboardAddress(apiUrl)) {
+    return (
+      `${base} That address is the dashboard you open in a browser; the uploader needs the ` +
+      `API address, which is a different service and usually ends in .onrender.com.`
+    );
+  }
+  return (
+    `${base} Check the address with your regional Data Steward — it is the same one the ` +
+    `dashboard is configured with as AMRSS_API_URL.`
+  );
 }
 
 export interface FetchOptions {
@@ -252,7 +318,9 @@ export class SessionManager {
     apiUrl: string,
     identifier: string,
     password: string,
-    options: { offlineGraceDays: number } = { offlineGraceDays: 30 },
+    options: { offlineGraceDays: number; supportContact?: string | null } = {
+      offlineGraceDays: 30,
+    },
   ): Promise<SignInOutcome> {
     const problem = apiUrlProblem(apiUrl);
     const cached = this.credentials.read();
@@ -260,10 +328,18 @@ export class SessionManager {
     if (problem) {
       // Without a usable address there is no online path at all. An installation
       // that has signed in before can still work offline; a fresh one cannot,
-      // and the message says which of the two this is.
+      // and the message says which of the two this is — in the words of someone
+      // who has a specimen in front of them, not a configuration file.
       return cached
-        ? this.signInOffline(identifier, password, cached, options.offlineGraceDays, problem)
-        : { ok: false, code: "no_api_url", message: problem };
+        ? this.signInOffline(identifier, password, cached, options.offlineGraceDays, options)
+        : {
+            ok: false,
+            code: "no_api_url",
+            message:
+              "This computer has not been connected to AMRSS yet. Ask your IT support to " +
+              "finish setting it up — it takes one step, under Connection settings.",
+            detail: problem,
+          };
     }
 
     let response: Response;
@@ -276,18 +352,20 @@ export class SessionManager {
         body: JSON.stringify({ identifier, password }),
       });
     } catch (error) {
-      const reason =
+      const detail =
         (error as Error).name === "AbortError"
-          ? `The server at ${normaliseApiUrl(apiUrl)} did not answer in time.`
-          : `The server at ${normaliseApiUrl(apiUrl)} could not be reached.`;
+          ? `${normaliseApiUrl(apiUrl)} did not answer within the timeout.`
+          : `${normaliseApiUrl(apiUrl)} could not be reached from this computer.`;
       return cached
-        ? this.signInOffline(identifier, password, cached, options.offlineGraceDays, reason)
+        ? this.signInOffline(identifier, password, cached, options.offlineGraceDays, options)
         : {
             ok: false,
             code: "offline_no_cache",
             message:
-              `${reason} This computer has not signed in successfully before, so there is no ` +
-              `offline record to check your password against. Connect to the internet and sign in once.`,
+              "AMRSS could not be reached, and nobody has signed in on this computer before, " +
+              "so there is nothing to check your password against yet. Connect to the internet " +
+              "and sign in once — after that it works offline.",
+            detail,
           };
     }
 
@@ -298,24 +376,42 @@ export class SessionManager {
         ok: false,
         code: "locked",
         message:
-          (body.detail as string) ??
-          "This account is temporarily locked after repeated failed attempts. Try again in 15 minutes.",
+          "This account is locked for a few minutes after several failed attempts. " +
+          "Wait a moment and try again.",
+        detail: (body.detail as string) ?? "HTTP 423 from the sign-in endpoint.",
       };
     }
     if (response.status === 401) {
       return {
         ok: false,
         code: "bad_credentials",
-        message: (body.detail as string) ?? "That username or password was not accepted.",
+        message: "That username or password was not recognised. Check them and try again.",
+        detail: (body.detail as string) ?? "HTTP 401 from the sign-in endpoint.",
+      };
+    }
+    // A 404 or 405 here is not a server fault: the address is pointing at
+    // something that is not this API. Saying "the server answered 404" sends a
+    // laboratory to check its password; naming the likely cause sends them to
+    // the one field that is actually wrong.
+    if (response.status === 404 || response.status === 405) {
+      // The address points at something that is not this service. That is a
+      // setup problem, and it belongs to IT: the person signing in is told the
+      // system is not reachable and who to ask, not what a 404 is.
+      return {
+        ok: false,
+        code: "no_api_here",
+        message: unreachableMessage(options.supportContact ?? null),
+        detail: noApiHereMessage(apiUrl, response.status),
       };
     }
     if (!response.ok) {
       return {
         ok: false,
         code: "server_error",
-        message:
+        message: unreachableMessage(options.supportContact ?? null),
+        detail:
           (body.detail as string) ??
-          `The server answered ${response.status}. Try again, or contact your regional Data Steward.`,
+          `The service answered ${response.status} at ${normaliseApiUrl(apiUrl)}.`,
       };
     }
 
@@ -358,15 +454,17 @@ export class SessionManager {
     password: string,
     cached: CredentialRecord,
     graceDays: number,
-    reason: string,
+    options: { supportContact?: string | null } = {},
   ): SignInOutcome {
+    const offline = "AMRSS cannot be reached at the moment.";
     if (cached.identifier !== identifier.trim().toLowerCase()) {
       return {
         ok: false,
         code: "offline_no_cache",
         message:
-          `${reason} Only ${cached.identifier} can sign in on this computer while it is ` +
-          `offline — that is the account that last signed in online here.`,
+          `${offline} While it is offline, only ${cached.identifier} can sign in here — ` +
+          `that is the account that last signed in with a connection.`,
+        detail: options.supportContact ? `Support contact: ${options.supportContact}` : undefined,
       };
     }
 
@@ -374,7 +472,9 @@ export class SessionManager {
       return {
         ok: false,
         code: "offline_wrong_password",
-        message: `${reason} The password does not match the one last used on this computer.`,
+        message:
+          `${offline} The password does not match the one last used on this computer, ` +
+          `so it cannot be checked without a connection.`,
       };
     }
 
@@ -384,9 +484,9 @@ export class SessionManager {
         ok: false,
         code: "offline_expired",
         message:
-          `${reason} This computer last reached the server ${Math.floor(elapsed)} days ago, and ` +
-          `offline sign-in is limited to ${graceDays} days. Connect to the internet and sign in ` +
-          `once to continue working offline.`,
+          `${offline} This computer last connected ${Math.floor(elapsed)} days ago, and working ` +
+          `offline is allowed for ${graceDays}. Connect to the internet and sign in once to ` +
+          `carry on.`,
       };
     }
 
@@ -403,8 +503,9 @@ export class SessionManager {
       ok: true,
       session: this.session,
       message:
-        `${reason} You are signed in offline as ${cached.profile.fullName}. Everything on this ` +
-        `computer works; uploading resumes when the connection does.`,
+        `Signed in offline as ${cached.profile.fullName}. Everything on this computer works — ` +
+        `your data, the checks and the analysis — and uploading resumes on its own when the ` +
+        `connection returns.`,
     };
   }
 
