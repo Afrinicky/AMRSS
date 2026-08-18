@@ -7,6 +7,7 @@
     python -m amrss.cli create-user <email> <full-name> <role> [--block CODE] [--facility CODE]
     python -m amrss.cli list-users
     python -m amrss.cli reset-password <email-or-username> [--require-change]
+    python -m amrss.cli import-breakpoints <version> <source-edition> <file.csv>
 
 The reason this exists rather than an endpoint: a deployment has to be able to
 create its *first* administrator, and every write in this system requires an
@@ -24,6 +25,7 @@ from __future__ import annotations
 
 import argparse
 import getpass
+import pathlib
 import secrets
 import sys
 from typing import TYPE_CHECKING
@@ -356,6 +358,86 @@ def _cmd_reset_password(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_import_breakpoints(args: argparse.Namespace) -> int:
+    """Load a breakpoint table from the host.
+
+    The same importer, the same validation and the same versioning the API
+    endpoint uses — this is the shell entry to it, for a deployment being set up
+    before anyone has a browser session, or one where the table is loaded by
+    whoever runs the database rather than by an administrator clicking.
+
+    A single validation error refuses the whole file. Accepting a table with
+    three bad rows out of nine hundred would put three wrong thresholds into
+    clinical reports, with no way afterwards to tell which results they touched.
+    """
+    from datetime import date
+
+    from amrss import audit
+    from amrss.analytics.breakpoint_import import BreakpointImportError, import_breakpoints
+    from amrss.audit import AuditAction
+    from amrss.db import SessionLocal
+
+    path = pathlib.Path(args.file)
+    if not path.exists():
+        print(f"No such file: {path}", file=sys.stderr)
+        return 1
+
+    try:
+        text = path.read_text(encoding="utf-8-sig")
+    except UnicodeDecodeError:
+        print(
+            f"{path} is not UTF-8 text. A workbook has to be converted first — "
+            "upload it through the API, or export it from your spreadsheet as CSV (UTF-8).",
+            file=sys.stderr,
+        )
+        return 1
+
+    effective = date.fromisoformat(args.effective_from) if args.effective_from else date.today()
+
+    with SessionLocal() as db:
+        try:
+            result = import_breakpoints(
+                db,
+                text,
+                version=args.version,
+                source_edition=args.source_edition,
+                effective_from=effective,
+                description=args.description,
+                commit=False,
+            )
+        except BreakpointImportError as exc:
+            db.rollback()
+            print(f"The table was not imported. {len(exc.problems)} problem(s):", file=sys.stderr)
+            for problem in exc.problems[:40]:
+                print(f"  {problem}", file=sys.stderr)
+            if len(exc.problems) > 40:
+                print(f"  … and {len(exc.problems) - 40} more", file=sys.stderr)
+            return 1
+
+        audit.record(
+            db,
+            action=AuditAction.BREAKPOINTS_IMPORTED,
+            entity="methodology_version",
+            actor_label=_actor(),
+            after={
+                "version": result.version,
+                "source_edition": result.source_edition,
+                "breakpoints": result.imported,
+                "file": str(path),
+            },
+            note="Imported from the command line",
+        )
+        db.commit()
+
+    print(f"Imported {result.imported} criteria as {result.version}, effective {effective}.")
+    for warning in result.warnings[:20]:
+        print(f"  warning: {warning}")
+    if len(result.warnings) > 20:
+        print(f"  … and {len(result.warnings) - 20} more warnings")
+    print("Results interpreted on or after that date cite this version.")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="amrss", description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -402,6 +484,22 @@ def build_parser() -> argparse.ArgumentParser:
         help="force the account to change the password at next sign-in",
     )
     p.set_defaults(func=_cmd_reset_password)
+
+    p = sub.add_parser(
+        "import-breakpoints",
+        help="load a breakpoint table (template CSV) as a new, dated methodology version",
+    )
+    p.add_argument("version", help="e.g. M100-Ed36; stamped onto every figure computed with it")
+    p.add_argument("source_edition", help='e.g. "CLSI M100 36th ed. (2026)"')
+    p.add_argument("file", help="the template CSV, e.g. data/breakpoints/clsi_m100_ed36.csv")
+    p.add_argument(
+        "--effective-from",
+        dest="effective_from",
+        default=None,
+        help="ISO date the table takes effect (default: today)",
+    )
+    p.add_argument("--description", default="", help="free text recorded with the version")
+    p.set_defaults(func=_cmd_import_breakpoints)
 
     return parser
 
