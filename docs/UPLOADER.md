@@ -72,6 +72,7 @@ anything.
 | **Antimicrobials** | Each agent pooled across the organisms tested against it. |
 | **Specimens & sites** | Sites of infection, care setting, age, ward, department. |
 | **Trends** | Resistance and workload over time. |
+| **Breakpoints** | The CLSI table itself, laid out as the standard prints it, editable in place. |
 | **Upload history** | Every batch sent from this computer, hash-chained. |
 | **Settings** | Facility, schedule, alerts, breakpoints, code mapping. |
 
@@ -132,12 +133,31 @@ other row in that file with code `11` is urine.
 No threshold is hardcoded. The breakpoint table is data the uploader loads, and
 it is what every `S`, `I` and `R` on the computer is decided by.
 
-**Settings → Breakpoints** asks one question first: does this laboratory read
-zone diameters, MICs, or both? A laboratory on an automated MIC panel has no
-disk measurements at all, and showing it a table three-quarters full of zone
+**Settings → Breakpoints** asks one question: does this laboratory read zone
+diameters, MICs, or both? A laboratory on an automated MIC panel has no disk
+measurements at all, and showing it a table three-quarters full of zone
 diameters — and a coverage figure computed over criteria it will never use — is
-showing it someone else's laboratory. The answer governs what is imported, what
-is exported, and what the coverage report counts.
+showing it someone else's laboratory. The answer governs which half of the table
+opens first, what an import keeps, and what the coverage report counts.
+
+The table itself is the **Breakpoints** module, not a settings panel: it is
+reference material read while working, consulted far more often than it is
+configured. It is laid out as the printed standard lays it out — one section per
+organism group in M100's order, drug-class rules within each (`PENICILLINS`,
+`β-LACTAM COMBINATION AGENTS`, `CEPHEMS`…), agents alphabetically under those,
+and the thresholds written the way the standard writes them, `≥17 mm` and
+`≤0.5`. Someone checking a row against the book is comparing like with like.
+
+Zone diameters and MICs are shown one at a time, because they are separate
+tables in the printed document too and putting them side by side is how a zone
+gets read as a concentration.
+
+**Every threshold is editable where it sits.** Click a value, type, press Enter.
+The edit is checked against the whole criterion rather than the cell, so a
+susceptible zone typed below the resistant one is refused there and then, with
+the reason, and the old value comes back — the table on screen never shows a
+threshold the software would not accept. **Add an antimicrobial** on any section
+adds a row, pre-set to that organism group.
 
 The table itself arrives four ways:
 

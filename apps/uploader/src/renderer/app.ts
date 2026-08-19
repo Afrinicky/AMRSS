@@ -22,6 +22,7 @@ import {
   renderSpecimens,
   renderTrends,
 } from "./views/analysis.js";
+import { renderBreakpoints } from "./views/breakpoints.js";
 import { renderHistory } from "./views/history.js";
 import { renderSettings } from "./views/settings.js";
 
@@ -51,6 +52,14 @@ const NAV: Array<{ group: string; items: Array<{ route: string; label: string; v
       { route: "antibiotics", label: "Antimicrobials", view: renderAntibiotics },
       { route: "specimens", label: "Specimens & sites", view: renderSpecimens },
       { route: "trends", label: "Trends", view: renderTrends },
+    ],
+  },
+  {
+    group: "Reference",
+    items: [
+      // Its own module, not a settings panel: this is the table a laboratory
+      // reads while it works, consulted far more often than it is configured.
+      { route: "breakpoints", label: "Breakpoints", view: renderBreakpoints },
     ],
   },
   {
@@ -208,6 +217,11 @@ function body(): HTMLElement {
       }
       if (item.route === "upload" && state.gate.allowed) {
         node.append(el("span", { className: "badge ok", text: "ready" }));
+      }
+      // With no table loaded every measurement reads as pending, and the
+      // dashboard flag alone has not been enough to say where to go about it.
+      if (item.route === "breakpoints" && !state.workspace.breakpoints.loaded) {
+        node.append(el("span", { className: "badge warn", text: "none" }));
       }
       sidebar.append(node);
     }

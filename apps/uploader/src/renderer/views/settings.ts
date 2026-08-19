@@ -607,17 +607,26 @@ let breakpointOffset = 0;
 
 const PAGE_SIZE = 60;
 
+/**
+ * Breakpoints, as configuration.
+ *
+ * Only what is genuinely a setting lives here: which method this laboratory
+ * tests with, and where its table came from. The table itself is a module of
+ * its own — it is reference material read while working, not something
+ * configured once — and this panel points at it rather than reproducing it.
+ */
 async function breakpointsPanel(settings: Settings, context: ViewContext): Promise<HTMLElement> {
   const breakpoints = context.status.workspace.breakpoints;
   const coverage = context.status.workspace.coverage;
   const preference = settings.testingMethod ?? "both";
   const supplied = await api.suppliedBreakpoints();
+
   const panel = el("div");
 
   panel.append(
     card(
       "What this laboratory tests with",
-      "Disk diffusion reads a zone in millimetres; an MIC reads a concentration. Choosing here keeps the breakpoint table, the coverage figure and the imports to the method you actually use — a laboratory on an automated MIC panel should not be shown a table of zone diameters.",
+      "Disk diffusion reads a zone in millimetres; an MIC reads a concentration. Choosing here decides which half of the breakpoint table opens first, what an import keeps, and what the coverage figure below is measured against — a laboratory on an automated MIC panel should not be shown a table of zone diameters.",
       el("div", {
         className: "field",
         children: [
@@ -643,8 +652,8 @@ async function breakpointsPanel(settings: Settings, context: ViewContext): Promi
 
   panel.append(
     card(
-      "Breakpoint table",
-      "Nothing here is a fixed threshold: this table is data, and it is what every S, I and R on this computer is decided by. Load the edition your laboratory reports under — the one supplied with AMRSS, the one the platform is using, your own licensed CLSI M100 workbook — or type it in below.",
+      "The table in use",
+      "Nothing here is a fixed threshold: this table is data, and it is what every S, I and R on this computer is decided by.",
       definitionList([
         ["Loaded", breakpoints.loaded ? "yes" : "no"],
         ["Edition", breakpoints.label ?? breakpoints.version ?? "—"],
@@ -670,10 +679,12 @@ async function breakpointsPanel(settings: Settings, context: ViewContext): Promi
       el("div", {
         className: "toolbar",
         children: [
-          // Offered first when this installation was built with a table and none
-          // is loaded, because that is the one case where a laboratory has a
-          // working answer one click away and no way to know it.
-          supplied.available
+          button(
+            breakpoints.loaded ? "Open the breakpoint table" : "Set up the breakpoint table",
+            () => context.navigate("breakpoints"),
+            "primary",
+          ),
+          supplied.available && !breakpoints.loaded
             ? button(
                 "Load the supplied CLSI table",
                 async () => {
@@ -681,46 +692,14 @@ async function breakpointsPanel(settings: Settings, context: ViewContext): Promi
                   toast(result.message, result.ok ? "ok" : "warn");
                   await context.refresh();
                 },
-                breakpoints.loaded ? "default" : "primary",
+                "default",
                 { title: supplied.label },
               )
             : null,
-          button(
-            "Sync from platform",
-            async () => {
-              const result = await api.syncBreakpoints();
-              toast(result.message, result.ok ? "ok" : "warn");
-              await context.refresh();
-            },
-            breakpoints.loaded || !supplied.available ? "primary" : "default",
-          ),
-          button("Import a table…", async () => {
-            const result = await api.importBreakpoints();
-            if (result.problems && result.problems.length > 0) {
-              showImportProblems("Rows that could not be read", result.message, result.problems);
-            } else {
-              toast(result.message, result.ok ? "ok" : "warn");
-            }
-            await context.refresh();
-          }),
-          button("Export as CSV", async () => {
-            const result = await api.exportBreakpoints({ format: "csv" });
-            toast(result.message, result.ok ? "ok" : "warn");
-          }),
-          button("Export as Excel", async () => {
-            const result = await api.exportBreakpoints({ format: "xlsx" });
-            toast(result.message, result.ok ? "ok" : "warn");
-          }),
         ],
-      }),
-      el("p", {
-        className: "small muted",
-        text: "Import accepts two files: the CSV this page exports — which round-trips exactly, so you can export it, correct a threshold in Excel and put it back — or your own licensed CLSI M100 workbook, which is converted on the way in. Any row of the workbook that cannot be read is listed rather than guessed at.",
       }),
     ),
   );
-
-  panel.append(await breakpointTableCard(context));
 
   if (coverage && coverage.uncovered.length > 0) {
     panel.append(
@@ -739,310 +718,6 @@ async function breakpointsPanel(settings: Settings, context: ViewContext): Promi
   }
 
   return panel;
-
-  function showImportProblems(title: string, message: string, problems: string[]): void {
-    const close = modal(
-      title,
-      el("div", {
-        children: [
-          el("p", { text: message }),
-          el("ul", {
-            className: "problem-list",
-            children: problems.map((problem) => el("li", { text: problem })),
-          }),
-        ],
-      }),
-      [button("Close", () => close(), "primary")],
-    );
-  }
-}
-
-/**
- * The editable table.
- *
- * Everything that reaches it — a synced table, a converted workbook, a typed
- * row — is checked the same way, because a threshold typed into a form and one
- * read from a file are the same claim about a patient's result. A row the
- * conversion could not read is not a dead end: it is added here.
- */
-async function breakpointTableCard(context: ViewContext): Promise<HTMLElement> {
-  const page = await api.breakpointTable({
-    search: breakpointSearch,
-    method: breakpointMethod,
-    offset: breakpointOffset,
-    limit: PAGE_SIZE,
-  });
-
-  const redraw = (): void => {
-    const host = document.querySelector(".content");
-    if (host) void renderSettings(host as HTMLElement, context);
-  };
-
-  const search = textInput(breakpointSearch, {
-    placeholder: "organism group, agent code or name",
-    onInput: (value) => {
-      breakpointSearch = value;
-      breakpointOffset = 0;
-    },
-  });
-  search.addEventListener("change", redraw);
-  search.addEventListener("keydown", (event) => {
-    if ((event as KeyboardEvent).key === "Enter") redraw();
-  });
-
-  const toolbar = el("div", {
-    className: "inline-fields",
-    children: [
-      el("div", { className: "field", children: [el("label", { text: "Find" }), search] }),
-      el("div", {
-        className: "field",
-        children: [
-          el("label", { text: "Method" }),
-          select(
-            [
-              { value: "", label: "All methods" },
-              { value: "DISK", label: "Disk diffusion" },
-              { value: "MIC", label: "MIC" },
-              { value: "GRADIENT", label: "Gradient strip" },
-            ],
-            breakpointMethod,
-            (value) => {
-              breakpointMethod = value;
-              breakpointOffset = 0;
-              redraw();
-            },
-          ),
-        ],
-      }),
-    ],
-  });
-
-  const pager = el("div", {
-    className: "toolbar",
-    children: [
-      button(
-        "Add a breakpoint",
-        () => openCriterionEditor(null, context),
-        "primary",
-        { small: true },
-      ),
-      el("div", { className: "topbar-spacer" }),
-      el("span", {
-        className: "small muted",
-        text:
-          page.matched === 0
-            ? "Nothing matches"
-            : `Showing ${page.offset + 1}–${Math.min(page.offset + PAGE_SIZE, page.matched)} of ${count(page.matched)}${
-                page.matched !== page.total ? ` (of ${count(page.total)} in the table)` : ""
-              }`,
-      }),
-      button(
-        "Previous",
-        () => {
-          breakpointOffset = Math.max(0, breakpointOffset - PAGE_SIZE);
-          redraw();
-        },
-        "ghost",
-        { small: true, disabled: page.offset === 0 },
-      ),
-      button(
-        "Next",
-        () => {
-          breakpointOffset = breakpointOffset + PAGE_SIZE;
-          redraw();
-        },
-        "ghost",
-        { small: true, disabled: page.offset + PAGE_SIZE >= page.matched },
-      ),
-    ],
-  });
-
-  return card(
-    "The table itself",
-    "Every criterion the software interprets against, exactly as loaded. Edit a row where your edition differs, or add one the import could not read — the same checks apply either way, and a row that would categorise every isolate as susceptible is refused with the reason.",
-    toolbar,
-    pager,
-    table(
-      [
-        { label: "Organism group", value: (row) => row.organismGroup },
-        {
-          label: "Antimicrobial",
-          value: (row) => `${row.agentName} (${row.agentCode})`,
-        },
-        { label: "Method", value: (row) => row.method },
-        { label: "Scope", value: (row) => row.scope || "—" },
-        { label: "S", value: (row) => row.susceptible || "—" },
-        { label: "I", value: (row) => row.intermediate || "—" },
-        { label: "R", value: (row) => row.resistant || "—" },
-        { label: "Source", value: (row) => row.source || "—", title: "The edition and table this criterion cites." },
-        {
-          label: "",
-          value: (row) =>
-            el("div", {
-              className: "row-actions",
-              children: [
-                button("Edit", () => openCriterionEditor(row, context), "ghost", { small: true }),
-                button(
-                  "Remove",
-                  async () => {
-                    const result = await api.removeBreakpoint({ key: row.key });
-                    toast(result.message, result.ok ? "ok" : "warn");
-                    await context.refresh();
-                  },
-                  "ghost",
-                  { small: true },
-                ),
-              ],
-            }),
-        },
-      ],
-      page.rows,
-      "No breakpoints are loaded. Sync from the platform, import your CLSI table, or add one here.",
-    ),
-  );
-}
-
-/**
- * One criterion, in a form.
- *
- * The disk and MIC fields are both shown, and which set applies follows the
- * method chosen at the top, because the two run in opposite directions and a
- * form that hid the distinction would invite the single commonest transcription
- * error: a zone entered as though it were a concentration.
- */
-function openCriterionEditor(row: BreakpointTableRow | null, context: ViewContext): void {
-  const fields: Record<string, HTMLInputElement> = {};
-  const field = (name: string, label: string, placeholder = ""): HTMLElement => {
-    const input = textInput("", { placeholder });
-    fields[name] = input;
-    return el("div", { className: "field", children: [el("label", { text: label }), input] });
-  };
-
-  const method = select(
-    [
-      { value: "DISK", label: "Disk diffusion — zone diameter in mm" },
-      { value: "MIC", label: "MIC — concentration in µg/mL" },
-      { value: "GRADIENT", label: "Gradient strip — read as an MIC" },
-    ],
-    row?.method === "Disk" ? "DISK" : row?.method === "Gradient" ? "GRADIENT" : "MIC",
-    (value) => {
-      diskBlock.hidden = value !== "DISK";
-      micBlock.hidden = value === "DISK";
-    },
-  );
-
-  const scope = el("div", {
-    className: "inline-fields",
-    children: [
-      field("organism_group", "Organism group", "e.g. Enterobacterales"),
-      field("agent_code", "Antimicrobial code", "e.g. CIP"),
-    ],
-  });
-
-  const qualifiers = el("div", {
-    className: "inline-fields",
-    children: [
-      field("disk_content", "Disk content", "e.g. 5 µg"),
-      field("site", "Site", "e.g. meningitis, uti"),
-      field("route", "Route", "e.g. oral, iv"),
-    ],
-  });
-
-  const diskBlock = el("div", {
-    className: "inline-fields",
-    children: [
-      field("disk_susceptible_min", "Susceptible ≥ (mm)"),
-      field("disk_intermediate_min", "Intermediate from (mm)"),
-      field("disk_intermediate_max", "Intermediate to (mm)"),
-      field("disk_resistant_max", "Resistant ≤ (mm)"),
-    ],
-  });
-
-  const micBlock = el("div", {
-    className: "inline-fields",
-    children: [
-      field("mic_susceptible_max", "Susceptible ≤ (µg/mL)"),
-      field("mic_intermediate_min", "Intermediate from"),
-      field("mic_intermediate_max", "Intermediate to"),
-      field("mic_resistant_min", "Resistant ≥ (µg/mL)"),
-    ],
-  });
-
-  const provenance = el("div", {
-    className: "inline-fields",
-    children: [
-      field("standard", "Standard", "e.g. CLSI M100"),
-      field("table_reference", "Table", "e.g. 2A-1"),
-      field("dosage_note", "Dosage note (required for SDD)"),
-    ],
-  });
-
-  diskBlock.hidden = method.value !== "DISK";
-  micBlock.hidden = method.value === "DISK";
-
-  if (row) {
-    fields.organism_group!.value = row.organismGroup;
-    fields.agent_code!.value = row.agentCode;
-    // The scope and the printed thresholds are re-entered rather than parsed
-    // back out of their display form: reading "≥17 mm" back into a number is
-    // exactly the kind of round trip that quietly loses a value.
-  }
-
-  const problems = el("div");
-
-  const close = modal(
-    row ? `Edit ${row.agentName} · ${row.organismGroup}` : "Add a breakpoint",
-    el("div", {
-      children: [
-        el("p", {
-          className: "small muted",
-          text: row
-            ? "Re-enter the thresholds for this criterion. Saving replaces the row with the same scope."
-            : "Enter the criterion as your edition prints it. A row whose bounds contradict each other is refused rather than saved.",
-        }),
-        scope,
-        el("div", { className: "field", children: [el("label", { text: "Method" }), method] }),
-        qualifiers,
-        diskBlock,
-        micBlock,
-        provenance,
-        problems,
-      ],
-    }),
-    [
-      button("Cancel", () => close(), "ghost"),
-      button(
-        "Save",
-        async () => {
-          const criterion: Record<string, unknown> = { method: method.value };
-          for (const [name, input] of Object.entries(fields)) {
-            const value = input.value.trim();
-            if (value !== "") criterion[name] = value;
-          }
-          const result = await api.saveBreakpoint({
-            criterion,
-            replacing: row?.key,
-          });
-          if (!result.ok) {
-            problems.replaceChildren(
-              el("ul", {
-                className: "problem-list",
-                children: (result.problems ?? [result.message]).map((text) =>
-                  el("li", { text }),
-                ),
-              }),
-            );
-            return;
-          }
-          close();
-          toast(result.message, "ok");
-          await context.refresh();
-        },
-        "primary",
-      ),
-    ],
-    { wide: true },
-  );
 }
 
 /* ------------------------------------------------------------------ *

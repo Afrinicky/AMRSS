@@ -438,3 +438,360 @@ export function describeSet(set: BreakpointSet): string {
   const name = set.label ?? set.version ?? "Breakpoint table";
   return set.criteria.length === 0 ? "No breakpoint table loaded" : `${name} — ${where}`;
 }
+
+/* ------------------------------------------------------------------ *
+ * The table as CLSI prints it.
+ * ------------------------------------------------------------------ */
+
+/**
+ * The drug-class headings M100 sets its rows under, in the order it sets them.
+ *
+ * A laboratory reading this screen has the printed table open beside it. Rows
+ * in the same order, under the same headings, is the difference between
+ * checking a threshold in five seconds and hunting for it — and an antimicrobial
+ * list sorted alphabetically puts cefepime between cefazolin and cefotaxime,
+ * which is right, and ertapenem between erythromycin and ethambutol, which is
+ * not how anyone reads a breakpoint table.
+ */
+const CLASS_ORDER: Array<{ key: string; label: string }> = [
+  // Set in the casing M100 prints them, rather than upper-cased by CSS: a
+  // `text-transform` turns the β of "β-LACTAM" into a capital Beta, which is a
+  // different letter and reads as a typo to anyone who knows the table.
+  { key: "penicillin", label: "PENICILLINS" },
+  { key: "beta_lactam_inhibitor", label: "β-LACTAM COMBINATION AGENTS" },
+  { key: "cephalosporin", label: "CEPHEMS" },
+  { key: "monobactam", label: "MONOBACTAMS" },
+  { key: "carbapenem", label: "CARBAPENEMS" },
+  { key: "aminoglycoside", label: "AMINOGLYCOSIDES" },
+  { key: "tetracycline", label: "TETRACYCLINES" },
+  { key: "fluoroquinolone", label: "FLUOROQUINOLONES" },
+  { key: "folate_inhibitor", label: "FOLATE PATHWAY ANTAGONISTS" },
+  { key: "phenicol", label: "PHENICOLS" },
+  { key: "macrolide", label: "MACROLIDES" },
+  { key: "lincosamide", label: "LINCOSAMIDES" },
+  { key: "glycopeptide", label: "GLYCOPEPTIDES AND LIPOGLYCOPEPTIDES" },
+  { key: "oxazolidinone", label: "OXAZOLIDINONES" },
+  { key: "polymyxin", label: "LIPOPEPTIDES AND POLYMYXINS" },
+  { key: "nitrofuran", label: "NITROFURANS" },
+  { key: "azole", label: "AZOLES" },
+  { key: "echinocandin", label: "ECHINOCANDINS" },
+  { key: "polyene", label: "POLYENES" },
+  { key: "pyrimidine_analogue", label: "PYRIMIDINE ANALOGUES" },
+  { key: "other", label: "OTHER AGENTS" },
+];
+
+const CLASS_LABELS = new Map(CLASS_ORDER.map((entry, index) => [entry.key, { ...entry, index }]));
+
+/**
+ * The order organism groups are printed in.
+ *
+ * M100 runs Gram-negatives before Gram-positives and puts Enterobacterales
+ * first, because that is the order a laboratory works through them. Anything
+ * not named here follows, alphabetically, so a laboratory's own group is
+ * visible rather than dropped.
+ */
+const GROUP_ORDER = [
+  "Enterobacterales",
+  "Salmonella and Shigella spp.",
+  "Pseudomonas aeruginosa",
+  "Acinetobacter spp.",
+  "Burkholderia cepacia complex",
+  "Stenotrophomonas maltophilia",
+  "Other Non-Enterobacterales",
+  "Staphylococcus spp.",
+  "Enterococcus spp.",
+  "Streptococcus pneumoniae",
+  "Streptococcus spp. β-Hemolytic Group",
+  "Streptococcus spp. Viridans Group",
+  "Haemophilus influenzae and Haemophilus parainfluenzae",
+  "Neisseria gonorrhoeae",
+  "Neisseria meningitidis",
+  "Anaerobes",
+];
+
+export interface CatalogueRow {
+  key: string;
+  agentCode: string;
+  agentName: string;
+  /** Disk potency, or the site/route qualifier for an MIC row — whatever
+   * distinguishes this criterion from another for the same agent. */
+  qualifier: string;
+  susceptible: string;
+  sdd: string;
+  intermediate: string;
+  resistant: string;
+  comment: string;
+  /** The stored numbers, unformatted, for the editor to put back in the boxes
+   * rather than parsing "≥17 mm" back into 17 — the round trip that loses a
+   * value. */
+  values: {
+    susceptible: string;
+    sddMin: string;
+    sddMax: string;
+    intermediateMin: string;
+    intermediateMax: string;
+    resistant: string;
+    diskContent: string;
+    site: string;
+    route: string;
+    dosageNote: string;
+    comment: string;
+    standard: string;
+    tableReference: string;
+  };
+  /** Anything true but worth saying — an SDD band with no dosing regimen. */
+  advisories: string[];
+}
+
+export interface CatalogueSection {
+  organismGroup: string;
+  /** The M100 table this group's rows cite, e.g. "2A-1". */
+  tableReference: string;
+  classes: Array<{ label: string; rows: CatalogueRow[] }>;
+  rowCount: number;
+}
+
+export interface Catalogue {
+  /** Which half of the table is on screen. */
+  method: "DISK" | "MIC";
+  unit: string;
+  loaded: boolean;
+  edition: string;
+  /** Criteria in the whole table, both methods. */
+  criteria: number;
+  /** Criteria for the method shown. */
+  shown: number;
+  sections: CatalogueSection[];
+  /** Organism groups that have criteria under the *other* method only, so a
+   * laboratory does not conclude an organism is missing when it is simply
+   * covered by MICs and the zone view is open. */
+  onlyUnderOtherMethod: string[];
+}
+
+function plain(value: unknown): string {
+  return value === null || value === undefined ? "" : String(value).trim();
+}
+
+/** One criterion as a row of the printed table. */
+function catalogueRow(criterion: BreakpointCriterion, disk: boolean): CatalogueRow {
+  const unit = disk ? " mm" : "";
+  const s = numberOf(disk ? criterion.disk_susceptible_min : criterion.mic_susceptible_max);
+  const r = numberOf(disk ? criterion.disk_resistant_max : criterion.mic_resistant_min);
+  const intermediate = bandText(
+    disk ? criterion.disk_intermediate_min : criterion.mic_intermediate_min,
+    disk ? criterion.disk_intermediate_max : criterion.mic_intermediate_max,
+  );
+  const sdd = bandText(
+    disk ? criterion.disk_sdd_min : criterion.mic_sdd_min,
+    disk ? criterion.disk_sdd_max : criterion.mic_sdd_max,
+  );
+
+  const qualifier = [criterion.disk_content, criterion.site, criterion.route]
+    .map(plain)
+    .filter((part) => part !== "")
+    .join(" · ");
+
+  return {
+    key: criterionKey(criterion),
+    agentCode: plain(criterion.agent_code),
+    agentName: antibioticLabel(plain(criterion.agent_code)),
+    qualifier,
+    susceptible: s === null ? "—" : `${disk ? "≥" : "≤"}${s}${unit}`,
+    sdd: sdd ? `${sdd}${unit}` : "—",
+    intermediate: intermediate ? `${intermediate}${unit}` : "—",
+    resistant: r === null ? "—" : `${disk ? "≤" : "≥"}${r}${unit}`,
+    comment: plain(criterion.comment),
+    values: {
+      susceptible: plain(disk ? criterion.disk_susceptible_min : criterion.mic_susceptible_max),
+      sddMin: plain(disk ? criterion.disk_sdd_min : criterion.mic_sdd_min),
+      sddMax: plain(disk ? criterion.disk_sdd_max : criterion.mic_sdd_max),
+      intermediateMin: plain(
+        disk ? criterion.disk_intermediate_min : criterion.mic_intermediate_min,
+      ),
+      intermediateMax: plain(
+        disk ? criterion.disk_intermediate_max : criterion.mic_intermediate_max,
+      ),
+      resistant: plain(disk ? criterion.disk_resistant_max : criterion.mic_resistant_min),
+      diskContent: plain(criterion.disk_content),
+      site: plain(criterion.site),
+      route: plain(criterion.route),
+      dosageNote: plain(criterion.dosage_note),
+      comment: plain(criterion.comment),
+      standard: plain(criterion.standard) || "CLSI M100",
+      tableReference: plain(criterion.table_reference),
+    },
+    advisories: advisoriesFor(criterion),
+  };
+}
+
+export interface CatalogueOptions {
+  /** Which half to show. A laboratory that reads zones has no use for the MIC
+   * half, and reading both at once is how a zone gets entered as an MIC. */
+  method: "DISK" | "MIC";
+  /** Free text over organism group, agent code and agent name. */
+  search?: string;
+  /** Show only this organism group. */
+  organismGroup?: string;
+}
+
+/**
+ * The loaded table, arranged the way CLSI prints it.
+ *
+ * One section per organism group, in the order M100 runs them; within each, the
+ * drug-class headings in M100's order; within each class, the agents
+ * alphabetically, which is how the printed table sets them. A gradient-strip
+ * criterion is shown with the MICs, because that is what it is.
+ */
+export function catalogue(set: BreakpointSet, options: CatalogueOptions): Catalogue {
+  const disk = options.method === "DISK";
+  const search = (options.search ?? "").trim().toLowerCase();
+  const wanted = (options.organismGroup ?? "").trim();
+
+  const forMethod = set.criteria.filter((criterion) => {
+    const method = plain(criterion.method).toUpperCase();
+    return disk ? method === "DISK" : method === "MIC" || method === "GRADIENT";
+  });
+
+  const groupsWithAny = new Set(set.criteria.map((criterion) => plain(criterion.organism_group)));
+  const groupsHere = new Set(forMethod.map((criterion) => plain(criterion.organism_group)));
+
+  const matching = forMethod.filter((criterion) => {
+    if (wanted && plain(criterion.organism_group) !== wanted) return false;
+    if (!search) return true;
+    const haystack = `${criterion.organism_group} ${criterion.agent_code} ${antibioticLabel(
+      plain(criterion.agent_code),
+    )}`.toLowerCase();
+    return haystack.includes(search);
+  });
+
+  const byGroup = new Map<string, BreakpointCriterion[]>();
+  for (const criterion of matching) {
+    const group = plain(criterion.organism_group);
+    byGroup.set(group, [...(byGroup.get(group) ?? []), criterion]);
+  }
+
+  const rank = (group: string): number => {
+    const index = GROUP_ORDER.indexOf(group);
+    return index < 0 ? GROUP_ORDER.length : index;
+  };
+
+  const sections: CatalogueSection[] = [...byGroup.entries()]
+    .sort(([a], [b]) => rank(a) - rank(b) || a.localeCompare(b))
+    .map(([organismGroup, criteria]) => {
+      const byClass = new Map<string, CatalogueRow[]>();
+      for (const criterion of criteria) {
+        const agent = lookupAntibiotic(canonicalAntibioticCode(plain(criterion.agent_code)));
+        const key = agent?.antimicrobialClass ?? "other";
+        byClass.set(key, [...(byClass.get(key) ?? []), catalogueRow(criterion, disk)]);
+      }
+
+      const classes = [...byClass.entries()]
+        .sort(
+          ([a], [b]) =>
+            (CLASS_LABELS.get(a)?.index ?? CLASS_ORDER.length) -
+            (CLASS_LABELS.get(b)?.index ?? CLASS_ORDER.length),
+        )
+        .map(([key, rows]) => ({
+          label: CLASS_LABELS.get(key)?.label ?? "OTHER AGENTS",
+          rows: rows.sort(
+            (a, b) => a.agentName.localeCompare(b.agentName) || a.qualifier.localeCompare(b.qualifier),
+          ),
+        }));
+
+      return {
+        organismGroup,
+        tableReference:
+          criteria.map((criterion) => plain(criterion.table_reference)).find((ref) => ref !== "") ??
+          "",
+        classes,
+        rowCount: criteria.length,
+      };
+    });
+
+  return {
+    method: options.method,
+    unit: disk ? "mm" : "µg/mL",
+    loaded: set.criteria.length > 0,
+    edition: describeSet(set),
+    criteria: set.criteria.length,
+    shown: forMethod.length,
+    sections,
+    onlyUnderOtherMethod: [...groupsWithAny]
+      .filter((group) => group !== "" && !groupsHere.has(group))
+      .sort(),
+  };
+}
+
+/** Every organism group in the table, for the section jump-list. */
+export function organismGroupsIn(set: BreakpointSet): string[] {
+  const groups = [...new Set(set.criteria.map((criterion) => plain(criterion.organism_group)))]
+    .filter((group) => group !== "");
+  const rank = (group: string): number => {
+    const index = GROUP_ORDER.indexOf(group);
+    return index < 0 ? GROUP_ORDER.length : index;
+  };
+  return groups.sort((a, b) => rank(a) - rank(b) || a.localeCompare(b));
+}
+
+/**
+ * Change one threshold in place.
+ *
+ * The editor writes a single cell at a time, because that is how a person
+ * corrects a table against a printed page: one number, checked, then the next.
+ * The whole criterion is re-validated on every change, so a correction that
+ * makes the row self-contradictory is refused at the moment it is made rather
+ * than at publication, when its author has moved on.
+ */
+export type CellField =
+  | "susceptible"
+  | "sddMin"
+  | "sddMax"
+  | "intermediateMin"
+  | "intermediateMax"
+  | "resistant";
+
+const DISK_FIELDS: Record<CellField, string> = {
+  susceptible: "disk_susceptible_min",
+  sddMin: "disk_sdd_min",
+  sddMax: "disk_sdd_max",
+  intermediateMin: "disk_intermediate_min",
+  intermediateMax: "disk_intermediate_max",
+  resistant: "disk_resistant_max",
+};
+
+const MIC_FIELDS: Record<CellField, string> = {
+  susceptible: "mic_susceptible_max",
+  sddMin: "mic_sdd_min",
+  sddMax: "mic_sdd_max",
+  intermediateMin: "mic_intermediate_min",
+  intermediateMax: "mic_intermediate_max",
+  resistant: "mic_resistant_min",
+};
+
+export function setCell(
+  criteria: BreakpointCriterion[],
+  key: string,
+  method: "DISK" | "MIC",
+  field: CellField,
+  value: string,
+): TableEdit {
+  const index = criteria.findIndex((criterion) => criterionKey(criterion) === key);
+  if (index < 0) return { criteria, problems: ["That row is no longer in the table."] };
+
+  const column = (method === "DISK" ? DISK_FIELDS : MIC_FIELDS)[field];
+  const text = value.trim();
+  if (text !== "" && !Number.isFinite(Number(text))) {
+    return { criteria, problems: [`"${value}" is not a number.`] };
+  }
+
+  const updated: BreakpointCriterion = {
+    ...criteria[index]!,
+    [column]: text === "" ? null : text,
+  };
+  const problems = validateCriterion(updated);
+  if (problems.length > 0) return { criteria, problems };
+
+  const next = [...criteria];
+  next[index] = updated;
+  return { criteria: next, problems: [] };
+}

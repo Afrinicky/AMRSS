@@ -19,7 +19,7 @@ import {
 } from "./deidentify";
 
 export const PAYLOAD_VERSION = "1.0";
-export const UPLOADER_VERSION = "0.4.0";
+export const UPLOADER_VERSION = "0.4.1";
 
 export interface QcAttestationInput {
   periodStart: Date;

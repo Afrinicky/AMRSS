@@ -6,6 +6,9 @@ import { test } from "node:test";
 import {
   advisoriesFor,
   BREAKPOINT_COLUMNS,
+  catalogue,
+  organismGroupsIn,
+  setCell,
   breakpointCsv,
   criterionKey,
   criterionRow,
@@ -458,6 +461,146 @@ test("the gaps in the shipped table are the ones documented, and no others", () 
 
   const unexpected = gaps.filter((gap) => !known.has(gap));
   assert.deepEqual(unexpected, [], "a combination was lost that the documented gaps do not cover");
+});
+
+/* ------------------------------------------------------------------ *
+ * The table as CLSI prints it.
+ * ------------------------------------------------------------------ */
+
+function loadedSet() {
+  const { criteria } = parseBreakpointCsv(readFileSync(SHIPPED_TABLE, "utf8"));
+  return {
+    version: "M100-Ed36",
+    label: "CLSI M100 36th edition (2026)",
+    effectiveFrom: null,
+    source: "local-import" as const,
+    syncedAt: null,
+    criteria,
+  };
+}
+
+test("the two methods are separate tables, as the printed document has them", () => {
+  // Side by side is how a zone diameter gets read as a concentration: the two
+  // run in opposite directions and share nothing but the agent name.
+  const set = loadedSet();
+  const zones = catalogue(set, { method: "DISK" });
+  const mics = catalogue(set, { method: "MIC" });
+
+  assert.equal(zones.unit, "mm");
+  assert.equal(mics.unit, "µg/mL");
+  assert.ok(zones.shown > 250);
+  assert.ok(mics.shown > 350);
+  assert.equal(zones.shown + mics.shown, set.criteria.length);
+
+  // Every row on the zone page is a zone; nothing leaks across.
+  const rows = zones.sections.flatMap((s) => s.classes.flatMap((c) => c.rows));
+  assert.ok(rows.every((row) => row.susceptible === "—" || /mm$/.test(row.susceptible)));
+});
+
+test("a section is laid out the way M100 lays it out", () => {
+  const first = catalogue(loadedSet(), { method: "DISK" }).sections[0]!;
+
+  // Enterobacterales first, as the standard runs them — not alphabetically,
+  // which would open on Acinetobacter.
+  assert.equal(first.organismGroup, "Enterobacterales");
+  assert.equal(first.tableReference, "2A-1");
+
+  const headings = first.classes.map((group) => group.label);
+  assert.equal(headings[0], "PENICILLINS");
+  assert.ok(headings.indexOf("CEPHEMS") < headings.indexOf("CARBAPENEMS"));
+  assert.ok(headings.indexOf("CARBAPENEMS") < headings.indexOf("AMINOGLYCOSIDES"));
+
+  // The β of β-LACTAM is the symbol, not a capital Beta. `text-transform`
+  // would change the letter, so the casing is carried in the label itself.
+  assert.ok(headings.includes("β-LACTAM COMBINATION AGENTS"));
+});
+
+test("a threshold is written the way the standard writes it", () => {
+  const zones = catalogue(loadedSet(), { method: "DISK", search: "ampicillin" });
+  const row = zones.sections
+    .find((section) => section.organismGroup === "Enterobacterales")!
+    .classes.flatMap((group) => group.rows)
+    .find((candidate) => candidate.agentCode === "AMP")!;
+
+  assert.equal(row.susceptible, "≥17 mm");
+  assert.equal(row.intermediate, "14–16 mm");
+  assert.equal(row.resistant, "≤13 mm");
+  assert.equal(row.qualifier, "10 µg");
+  // The editor gets the stored numbers, not the formatted text: reading
+  // "≥17 mm" back into 17 is the round trip that loses a value.
+  assert.equal(row.values.susceptible, "17");
+  assert.equal(row.values.intermediateMax, "16");
+});
+
+test("an organism covered only by MICs is named rather than silently absent", () => {
+  // Otherwise a laboratory on the zone page concludes the organism is missing
+  // from its table when it is simply covered the other way.
+  const zones = catalogue(loadedSet(), { method: "DISK" });
+  assert.ok(zones.onlyUnderOtherMethod.length > 0);
+  assert.ok(zones.onlyUnderOtherMethod.every((group) => group !== ""));
+});
+
+test("the search covers what a person would type", () => {
+  const set = loadedSet();
+  const byCode = catalogue(set, { method: "DISK", search: "CIP" });
+  const byName = catalogue(set, { method: "DISK", search: "ciprofloxacin" });
+  const byOrganism = catalogue(set, { method: "DISK", search: "staphylococcus" });
+
+  assert.ok(byCode.sections.length > 0);
+  assert.ok(byName.sections.length > 0);
+  assert.ok(byOrganism.sections.every((s) => /staphylo/i.test(s.organismGroup)));
+});
+
+test("every organism group is offered for the jump list, in the printed order", () => {
+  const groups = organismGroupsIn(loadedSet());
+  assert.equal(groups[0], "Enterobacterales");
+  assert.ok(groups.includes("Staphylococcus spp."));
+  assert.ok(groups.indexOf("Enterobacterales") < groups.indexOf("Staphylococcus spp."));
+});
+
+/* ------------------------------------------------------------------ *
+ * Editing a threshold where it sits.
+ * ------------------------------------------------------------------ */
+
+test("one threshold is corrected without disturbing the rest of the row", () => {
+  const edit = setCell([disk], criterionKey(disk), "DISK", "susceptible", "18");
+  assert.deepEqual(edit.problems, []);
+  assert.equal(edit.criteria[0]!.disk_susceptible_min, "18");
+  // Everything else survives, including the printed cell in the comment.
+  assert.equal(edit.criteria[0]!.disk_resistant_max, 13);
+  assert.equal(edit.criteria[0]!.comment, disk.comment);
+});
+
+test("a correction that contradicts the rest of the row is refused as it is made", () => {
+  // Not at publication, when whoever typed it has moved on: susceptible 12 mm
+  // sits below the resistant bound of 13 and would call every isolate
+  // susceptible.
+  const edit = setCell([disk], criterionKey(disk), "DISK", "susceptible", "12");
+  assert.ok(edit.problems.length > 0);
+  assert.equal(edit.criteria[0]!.disk_susceptible_min, 17);
+});
+
+test("a threshold can be cleared, and text that is not a number cannot be entered", () => {
+  const cleared = setCell([disk], criterionKey(disk), "DISK", "intermediateMin", "");
+  assert.deepEqual(cleared.problems, []);
+  assert.equal(cleared.criteria[0]!.disk_intermediate_min, null);
+
+  const rubbish = setCell([disk], criterionKey(disk), "DISK", "susceptible", "eighteen");
+  assert.ok(rubbish.problems.some((problem) => /is not a number/.test(problem)));
+});
+
+test("editing addresses the row by scope, and says so when it is gone", () => {
+  const edit = setCell([disk], "no|SUCH|ROW||", "DISK", "susceptible", "18");
+  assert.ok(edit.problems.some((problem) => /no longer in the table/.test(problem)));
+});
+
+test("the MIC cell writes the MIC column, never the zone column", () => {
+  // The two run in opposite directions; writing one into the other is the
+  // error the whole method split exists to prevent.
+  const edit = setCell([mic], criterionKey(mic), "MIC", "susceptible", "4");
+  assert.deepEqual(edit.problems, []);
+  assert.equal(edit.criteria[0]!.mic_susceptible_max, "4");
+  assert.equal(edit.criteria[0]!.disk_susceptible_min, undefined);
 });
 
 /* ------------------------------------------------------------------ *
