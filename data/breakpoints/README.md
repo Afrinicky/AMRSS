@@ -106,13 +106,16 @@ converter that loses more than this fails rather than passing quietly.
 
 ## Loading it
 
-**Platform.** `POST /api/v1/breakpoints/import` with the CSV, a version, the
-source edition and an effective date; or the CLI:
+**Platform.** From the console at **/console/admin/breakpoints**, through
+`POST /api/v1/breakpoints/import`, or from the host:
 
 ```bash
 python -m amrss.cli import-breakpoints M100-Ed36 "CLSI M100 36th ed. (2026)" \
-  data/breakpoints/clsi_m100_ed36.csv
+  data/breakpoints/clsi_m100_ed36.csv --effective-from 2026-01-01
 ```
+
+The command is the way to load a table on a deployment being set up, before
+anyone has a browser session.
 
 **Uploader.** Settings → Breakpoints → **Import a table**, and choose this file.
 A copy is installed beside the application, so *Load the supplied CLSI M100

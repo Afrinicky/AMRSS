@@ -345,6 +345,55 @@ export interface BreakpointTableRow {
   comment: string;
 }
 
+/** One row of the table as CLSI prints it. */
+export interface CatalogueRow {
+  key: string;
+  agentCode: string;
+  agentName: string;
+  qualifier: string;
+  susceptible: string;
+  sdd: string;
+  intermediate: string;
+  resistant: string;
+  comment: string;
+  values: {
+    susceptible: string;
+    sddMin: string;
+    sddMax: string;
+    intermediateMin: string;
+    intermediateMax: string;
+    resistant: string;
+    diskContent: string;
+    site: string;
+    route: string;
+    dosageNote: string;
+    comment: string;
+    standard: string;
+    tableReference: string;
+  };
+  advisories: string[];
+}
+
+export interface CatalogueSection {
+  organismGroup: string;
+  tableReference: string;
+  classes: Array<{ label: string; rows: CatalogueRow[] }>;
+  rowCount: number;
+}
+
+export interface Catalogue {
+  method: "DISK" | "MIC";
+  unit: string;
+  loaded: boolean;
+  edition: string;
+  criteria: number;
+  shown: number;
+  sections: CatalogueSection[];
+  onlyUnderOtherMethod: string[];
+  organismGroups: string[];
+  testingMethod: "disk" | "mic" | "both";
+}
+
 export interface BreakpointTable {
   description: string;
   total: number;
@@ -436,6 +485,17 @@ export interface Bridge {
     offset?: number;
     limit?: number;
   }): Promise<BreakpointTable>;
+  breakpointCatalogue(request: {
+    method?: "DISK" | "MIC";
+    search?: string;
+    organismGroup?: string;
+  }): Promise<Catalogue>;
+  setBreakpointCell(input: {
+    key: string;
+    method: "DISK" | "MIC";
+    field: string;
+    value: string;
+  }): Promise<Outcome & { problems?: string[] }>;
   saveBreakpoint(input: {
     criterion: Record<string, unknown>;
     replacing?: string;

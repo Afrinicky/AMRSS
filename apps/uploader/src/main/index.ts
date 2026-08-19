@@ -36,10 +36,14 @@ import {
   BREAKPOINT_COLUMNS,
   breakpointCsv,
   breakpointSheetRows,
+  catalogue,
+  type CellField,
   criterionRow,
   describeSet,
   matchesPreference,
+  organismGroupsIn,
   removeCriterion,
+  setCell,
   upsertCriterion,
 } from "../core/breakpoints";
 import { convertM100Workbook } from "../core/m100";
@@ -1123,6 +1127,54 @@ ipcMain.handle(
     });
     reloadAndNotify("breakpoints");
     return { ok: true, message: "Breakpoint saved." };
+  },
+);
+
+/**
+ * The table arranged the way CLSI prints it.
+ *
+ * Built here rather than in the renderer: the whole table is several hundred
+ * criteria and the grouping is the same work every time, so doing it once per
+ * request in the process that already holds the data beats sending all of it
+ * across the bridge for the renderer to sort.
+ */
+ipcMain.handle(
+  "breakpoints:catalogue",
+  (_event, input: { method?: "DISK" | "MIC"; search?: string; organismGroup?: string } = {}) => {
+    const set = store.readBreakpoints();
+    // Which half opens first follows what the laboratory said it tests with, so
+    // a disk laboratory is not shown a page of concentrations it never reads.
+    const preference = store.read().testingMethod;
+    const method = input.method ?? (preference === "mic" ? "MIC" : "DISK");
+    return {
+      ...catalogue(set, { method, search: input.search, organismGroup: input.organismGroup }),
+      organismGroups: organismGroupsIn(set),
+      testingMethod: preference,
+    };
+  },
+);
+
+/** One threshold, corrected in place. Re-validated on every change, so a
+ * correction that makes the row self-contradictory is refused as it is made. */
+ipcMain.handle(
+  "breakpoints:setCell",
+  (
+    _event,
+    input: { key: string; method: "DISK" | "MIC"; field: CellField; value: string },
+  ) => {
+    const set = store.readBreakpoints();
+    const result = setCell(set.criteria, input.key, input.method, input.field, input.value);
+    if (result.problems.length > 0) {
+      return { ok: false, message: result.problems[0]!, problems: result.problems };
+    }
+    store.writeBreakpoints({
+      ...set,
+      source: "local-import",
+      label: set.source === "platform" ? `${set.label ?? "Platform table"} (edited here)` : set.label,
+      criteria: result.criteria,
+    });
+    reloadAndNotify("breakpoints");
+    return { ok: true, message: "Saved." };
   },
 );
 

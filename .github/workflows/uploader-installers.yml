@@ -11,15 +11,33 @@
 # correctness checks already run elsewhere. Trigger it when you actually want an
 # installer:
 #
-#   • Actions tab → "Uploader installers" → Run workflow      (an ad-hoc build)
-#   • push a tag  uploader-v0.1.0                              (a release build,
+#   • Actions tab → "Uploader installers" → Run workflow      (an ad-hoc build,
+#                                                               downloadable as a
+#                                                               run artifact)
+#   • the same, with "release tag" filled in                   (a release build,
+#                                                               tagged and
 #                                                               attached to a
 #                                                               GitHub Release)
+#   • push a tag  uploader-v0.1.0                              (the same, for
+#                                                               whoever can push
+#                                                               tags)
+#
+# The dispatch input exists because a run artifact is a poor way to hand an
+# installer to a laboratory: it expires, it arrives as a zip, and it cannot be
+# downloaded without a GitHub account. A Release is a plain link to an .exe. Not
+# everyone who needs to cut one can push a tag, so the workflow can create it.
 
 name: Uploader installers
 
 on:
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: >-
+          Publish a GitHub Release with this tag, e.g. uploader-v0.4.0.
+          Leave empty for an ad-hoc build downloadable from this run.
+        required: false
+        default: ""
   push:
     tags:
       - "uploader-v*"
@@ -131,18 +149,27 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      # On a release tag, put the installer somewhere durable and linkable rather
-      # than only inside a workflow run that expires.
-      - name: Attach the installer to the Release
-        if: startsWith(github.ref, 'refs/tags/')
+      # Put the installer somewhere durable and linkable rather than only inside
+      # a workflow run that expires. From a tag push the tag already exists; from
+      # a dispatch the release is created against the commit that was built, so
+      # the tag names exactly what is in the .exe.
+      - name: Attach the installer to a Release
+        if: startsWith(github.ref, 'refs/tags/') || inputs.release_tag != ''
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
-          notes="Windows installer for the offline AMRSS uploader."
+          tag="${RELEASE_TAG:-${GITHUB_REF_NAME}}"
+          notes="Windows installer for the offline AMRSS uploader, built from ${GITHUB_SHA}."
           if [ -z "${WIN_CSC_LINK}" ]; then
             notes="${notes} This build is unsigned; Windows SmartScreen will warn on first run until a code-signing certificate is configured."
           fi
-          gh release create "${GITHUB_REF_NAME}" release/*.exe \
-            --title "AMRSS Uploader ${GITHUB_REF_NAME}" \
+          gh release create "${tag}" release/*.exe \
+            --target "${GITHUB_SHA}" \
+            --title "AMRSS Uploader ${tag}" \
             --notes "${notes}" \
-          || gh release upload "${GITHUB_REF_NAME}" release/*.exe --clobber
+          || gh release upload "${tag}" release/*.exe --clobber
+
+          echo "### Installer" >> "${GITHUB_STEP_SUMMARY}"
+          gh release view "${tag}" --json assets \
+            --jq '.assets[] | "  \(.name) — \(.url)"' >> "${GITHUB_STEP_SUMMARY}"

@@ -1081,3 +1081,277 @@ tbody tr:hover .sticky-col {
     transform: rotate(360deg);
   }
 }
+
+/* ------------------------------------------------------------------ *
+ * The breakpoint table.
+ *
+ * Set to read like the printed standard rather than like a database dump: a
+ * page per organism group, drug-class rules across it, agent names in the
+ * left-hand column, and the four categories in fixed, narrow columns so the
+ * eye runs down S, I and R without re-finding them on every row. Tabular
+ * figures throughout, because a column of thresholds that does not line up is
+ * a column nobody can scan.
+ * ------------------------------------------------------------------ */
+
+.bp-toolbar {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.bp-toolbar .field {
+  margin: 0;
+}
+
+.bp-toolbar .field label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-muted);
+}
+
+/* Zone diameters or MICs. The single most consequential choice on the page, so
+   it reads as a choice rather than as a dropdown someone has to open. */
+.segmented {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.segmented .segment {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 9px 18px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+
+.segmented .segment + .segment {
+  border-left: 1px solid var(--line);
+}
+
+.segmented .segment:hover {
+  background: var(--surface-muted);
+  color: var(--ink);
+}
+
+.segmented .segment.active {
+  background: var(--brand-600);
+  color: #fff;
+}
+
+.bp-section {
+  padding: 0;
+  overflow: hidden;
+}
+
+.bp-section-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 20px;
+  background: var(--surface-tint);
+  border-bottom: 1px solid var(--line);
+}
+
+.bp-section-head h3 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.bp-section-head p {
+  margin: 2px 0 0;
+}
+
+/* A wide table on a narrow window scrolls inside its own section rather than
+   pushing the whole page sideways. */
+.bp-scroll {
+  overflow-x: auto;
+}
+
+.bp-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  /* Thresholds that do not line up cannot be scanned. */
+  font-variant-numeric: tabular-nums;
+}
+
+.bp-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  padding: 8px 12px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
+
+.bp-table th.bp-value,
+.bp-table td.bp-value {
+  text-align: center;
+  width: 116px;
+}
+
+.bp-table td.bp-band {
+  width: 150px;
+}
+
+.bp-table th.bp-actions {
+  width: 1%;
+}
+
+/* The drug-class rules M100 sets its rows under. */
+.bp-class td {
+  padding: 14px 12px 5px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--brand-700);
+  border-bottom: 1px solid var(--line);
+}
+
+.bp-row td {
+  padding: 3px 12px;
+  border-bottom: 1px solid var(--surface-muted);
+  vertical-align: middle;
+}
+
+.bp-row:hover td {
+  background: var(--surface-muted);
+}
+
+.bp-agent {
+  min-width: 220px;
+}
+
+.bp-agent-name {
+  display: block;
+  color: var(--ink);
+}
+
+.bp-agent-code {
+  display: block;
+  font-size: 11px;
+  color: var(--ink-muted);
+  letter-spacing: 0.03em;
+}
+
+.bp-qualifier {
+  min-width: 130px;
+  color: var(--ink-muted);
+  font-size: 12px;
+}
+
+/* A row whose SDD band has no dosing regimen: true, allowed, and worth saying. */
+.bp-row.flagged .bp-agent-name::after {
+  content: "•";
+  margin-left: 6px;
+  color: var(--accent-strong);
+}
+
+.bp-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+}
+
+.bp-operator,
+.bp-dash {
+  color: var(--ink-muted);
+  font-size: 12px;
+}
+
+/* Editable where it sits. Bordered only on hover and focus, so a full table
+   reads as a table rather than as three hundred form fields. */
+.bp-input {
+  width: 52px;
+  padding: 4px 6px;
+  text-align: center;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+}
+
+.bp-input:hover {
+  border-color: var(--line);
+  background: var(--surface);
+}
+
+.bp-input:focus {
+  outline: none;
+  border-color: var(--brand-600);
+  background: var(--surface);
+  box-shadow: 0 0 0 3px rgb(31 122 76 / 0.14);
+}
+
+.bp-input.rejected {
+  border-color: var(--sir-r);
+  background: rgb(194 53 43 / 0.08);
+}
+
+.bp-actions {
+  white-space: nowrap;
+  text-align: right;
+}
+
+/* Row controls stay out of the way until the row is under the pointer. */
+.bp-row .bp-actions button {
+  opacity: 0;
+}
+
+.bp-row:hover .bp-actions button,
+.bp-row:focus-within .bp-actions button {
+  opacity: 1;
+}
+
+.bp-empty {
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: 40px 32px;
+  text-align: center;
+  max-width: 620px;
+  margin: 8px auto 0;
+}
+
+.bp-empty h3 {
+  font-size: 17px;
+  margin-bottom: 8px;
+}
+
+.bp-empty p {
+  color: var(--ink-muted);
+  margin: 0 auto 18px;
+  max-width: 46ch;
+  line-height: 1.55;
+}
+
+.bp-empty .toolbar {
+  justify-content: center;
+  margin-top: 18px;
+}
+
+.bp-footnote {
+  margin-top: 16px;
+}
