@@ -21,7 +21,7 @@ from pydantic import ValidationError
 
 from amrss.analytics.methodology import MethodologySet, ResolvedMethodology
 from amrss.api.routers import breakpoints as breakpoints_router
-from amrss.models.enums import MethodologyComponent
+from amrss.models.enums import MethodologyComponent, Role
 from amrss.security.scope import Principal
 from amrss.security.tokens import (
     HANDOFF_TTL,
@@ -79,12 +79,21 @@ class _Row:
         self.effective_from = effective_from
 
 
-def _principal(regional_block_id: uuid.UUID | None = None) -> Principal:
+def _principal(
+    regional_block_id: uuid.UUID | None = None, role: Role = Role.SUPERADMIN
+) -> Principal:
+    """A caller for the router-level tests.
+
+    Superadmin by default because most of what these tests exercise is the
+    national table — the one published with no block, which now needs national
+    authority to reach. Tests about a regional administrator's confinement pass
+    the role explicitly.
+    """
     return Principal(
         user_id=uuid.uuid4(),
         email="lab@example.test",
         full_name="A Scientist",
-        role=None,
+        role=role,
         facility_id=None,
         regional_block_id=regional_block_id,
     )
@@ -156,7 +165,11 @@ class TestActiveBreakpoints:
         self, monkeypatch: pytest.MonkeyPatch
     ):
         """A block that has adopted a different edition must not have another
-        block's thresholds handed to its laboratories."""
+        block's thresholds handed to its laboratories.
+
+        Read with a regional account: a national one resolves to the national
+        table by design, which is a different question and is asserted below.
+        """
         seen: dict[str, object] = {}
 
         def _resolve(_db, **kwargs):
@@ -166,9 +179,50 @@ class TestActiveBreakpoints:
         monkeypatch.setattr(breakpoints_router.methodology_engine, "resolve", _resolve)
 
         block = uuid.uuid4()
-        breakpoints_router.active_breakpoints(_FakeSession(), _principal(block))
+        breakpoints_router.active_breakpoints(
+            _FakeSession(), _principal(block, role=Role.REGIONAL_AMR_ADMINISTRATOR)
+        )
 
         assert seen["regional_block_id"] == block
+
+    def test_a_national_account_reads_the_national_table(self, monkeypatch: pytest.MonkeyPatch):
+        """A superadmin may be recorded in a block — many are seconded from one —
+        and still reads the table it publishes for the whole programme, not that
+        block's local variant."""
+        seen: dict[str, object] = {}
+
+        def _resolve(_db, **kwargs):
+            seen.update(kwargs)
+            return _methodology({"breakpoints": []})
+
+        monkeypatch.setattr(breakpoints_router.methodology_engine, "resolve", _resolve)
+
+        breakpoints_router.active_breakpoints(_FakeSession(), _principal(uuid.uuid4()))
+
+        assert seen["regional_block_id"] is None
+
+    def test_a_laboratory_cannot_read_another_blocks_table_by_asking(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        """The block parameter exists for a national account switching between
+        regions. A regional one naming somebody else's block falls back to its
+        own rather than being handed the other's thresholds."""
+        seen: dict[str, object] = {}
+
+        def _resolve(_db, **kwargs):
+            seen.update(kwargs)
+            return _methodology({"breakpoints": []})
+
+        monkeypatch.setattr(breakpoints_router.methodology_engine, "resolve", _resolve)
+
+        mine, theirs = uuid.uuid4(), uuid.uuid4()
+        breakpoints_router.active_breakpoints(
+            _FakeSession(),
+            _principal(mine, role=Role.REGIONAL_AMR_ADMINISTRATOR),
+            regional_block_id=theirs,
+        )
+
+        assert seen["regional_block_id"] == mine
 
     def test_an_endpoint_caller_may_not_be_anonymous(self):
         """The signature requires a principal; FastAPI resolves it from the

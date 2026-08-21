@@ -50,9 +50,11 @@ from amrss.analytics.m100_workbook import (
 )
 from amrss.api.deps import CurrentPrincipal, DbSession, client_context, requires
 from amrss.audit import AuditAction
-from amrss.models import MethodologyVersion
+from amrss.models import Facility, MethodologyVersion
 from amrss.models.enums import MethodologyComponent
+from amrss.security import breakpoint_scope
 from amrss.security.permissions import Permission
+from amrss.security.scope import resolve_block_id
 
 router = APIRouter(prefix="/breakpoints", tags=["breakpoints"])
 
@@ -289,6 +291,52 @@ class ActiveBreakpointsResponse(BaseModel):
     criteria: list[dict]
 
 
+class BreakpointAuthorityResponse(BaseModel):
+    """What the signed-in account may do to breakpoints, and where its table
+    comes from.
+
+    Clients ask this once at sign-in rather than inferring it from the
+    permission list. Local editing needs three things to line up — a permission,
+    a facility grant and a scope — and an interface that guessed at the
+    combination would offer an editable table the server then refuses, which is
+    the worst of both.
+    """
+
+    #: May publish the national table every facility reads by default.
+    may_publish_national: bool
+    #: May grant or revoke another facility's local override.
+    may_grant_override: bool
+    #: May edit breakpoints for the facility in question.
+    may_edit_locally: bool
+    #: Whether the facility carries the national authority's grant at all,
+    #: independent of whether *this* account could use it.
+    facility_override_granted: bool
+    #: Why local editing is refused, in words worth showing. Empty when allowed.
+    refusal: str
+    #: "national" or "facility" — whose table this facility interprets against.
+    source: str
+
+
+@router.get("/authority", response_model=BreakpointAuthorityResponse)
+def breakpoint_authority(
+    db: DbSession,
+    principal: CurrentPrincipal,
+    facility_id: uuid.UUID | None = None,
+) -> BreakpointAuthorityResponse:
+    """Resolve breakpoint authority for a facility, defaulting to one's own."""
+    resolved = breakpoint_scope.authority(db, principal, facility_id=facility_id)
+    facility = db.get(Facility, resolved.facility_id) if resolved.facility_id else None
+    granted = bool(facility and facility.breakpoint_override_granted)
+    return BreakpointAuthorityResponse(
+        may_publish_national=resolved.may_publish_national,
+        may_grant_override=resolved.may_grant_override,
+        may_edit_locally=resolved.may_edit_locally,
+        facility_override_granted=granted,
+        refusal=resolved.refusal,
+        source="facility" if granted else "national",
+    )
+
+
 @router.get("/active", response_model=ActiveBreakpointsResponse)
 def active_breakpoints(
     db: DbSession,
@@ -307,7 +355,7 @@ def active_breakpoints(
     yet imported its tables gets measurements marked pending, which is the honest
     answer, not a failed sync it cannot act on.
     """
-    scope = regional_block_id if regional_block_id is not None else principal.regional_block_id
+    scope = _reading_scope(db, principal, regional_block_id)
     methodology = methodology_engine.resolve(
         db,
         regional_block_id=scope,
@@ -403,6 +451,64 @@ def run_interpretation(
 # table rather than the edited row alone. One row's thresholds can be
 # individually sane and still duplicate another row's scope or overlap its band,
 # and the engine that catches that only sees it when it sees the set.
+
+def _reading_scope(
+    db: DbSession, principal: CurrentPrincipal, regional_block_id: uuid.UUID | None
+) -> uuid.UUID | None:
+    """Whose table this caller *reads*.
+
+    Deliberately permissive where publication is strict. Every account needs to
+    read the table in force — a laboratory syncing its uploader holds no
+    administrative permission at all — and reading a block's published
+    thresholds discloses nothing a published table was meant to keep. What it
+    must not do is let a caller read a *different* block's table by editing a
+    query parameter, so an out-of-scope request falls back to the caller's own
+    scope rather than being honoured.
+    """
+    if regional_block_id is None:
+        return resolve_block_id(db, principal)
+    if principal.is_national or regional_block_id == resolve_block_id(db, principal):
+        return regional_block_id
+    return resolve_block_id(db, principal)
+
+
+def _publication_scope(
+    db: DbSession, principal: CurrentPrincipal, regional_block_id: uuid.UUID | None
+) -> uuid.UUID | None:
+    """Which table this caller is editing: the national one, or a block's.
+
+    ``None`` means national — the table every facility falls back to, and the
+    one ``methodology.resolve`` reaches when no block-scoped row applies. That
+    is precisely why it needs its own permission: a block-scoped edit affects
+    one region, a national one affects the whole programme, and the two arrive
+    at this router through the same endpoints.
+
+    A regional administrator therefore always lands on its own block, even if it
+    asks for another or for none. Only national authority resolves to ``None``.
+    """
+    scope = regional_block_id if regional_block_id is not None else principal.regional_block_id
+
+    if scope is None:
+        if not principal.has(Permission.PUBLISH_NATIONAL_BREAKPOINTS):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=(
+                    "Publishing the national breakpoint table requires "
+                    "superadmin authority. Name a regional block to edit that "
+                    "block's table instead."
+                ),
+            )
+        return None
+
+    if not principal.is_national and scope != principal.regional_block_id:
+        # Reaching into another region's table. 404 rather than 403 for the same
+        # reason as everywhere else: the existence of the block is not this
+        # caller's business.
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Unknown regional block"
+        )
+    return scope
+
 
 #: Where a draft sits so no computation can resolve it. Any date beyond the
 #: programme's life would do; the maximum makes the intent unmistakable.
@@ -520,7 +626,7 @@ def export_breakpoint_table(
     have to be reworked by hand before it could go back in, which is where
     transcription errors come from.
     """
-    scope = regional_block_id if regional_block_id is not None else principal.regional_block_id
+    scope = _publication_scope(db, principal, regional_block_id)
     methodology = methodology_engine.resolve(
         db, regional_block_id=scope, components=[MethodologyComponent.AST_BREAKPOINTS]
     )
@@ -554,7 +660,7 @@ def read_draft(
     what was imported. Starting empty would mean re-entering nine hundred rows to
     change one.
     """
-    scope = regional_block_id if regional_block_id is not None else principal.regional_block_id
+    scope = _publication_scope(db, principal, regional_block_id)
     row = _draft_row(db, scope)
 
     if row is None:
@@ -610,7 +716,7 @@ def upsert_draft_criterion(
     because two rows the engine cannot choose between is a worse state than
     either row alone.
     """
-    scope = regional_block_id if regional_block_id is not None else principal.regional_block_id
+    scope = _publication_scope(db, principal, regional_block_id)
     row = _draft_row(db, scope)
     if row is None:
         raise HTTPException(
@@ -668,7 +774,7 @@ def remove_draft_criterion(
     regional_block_id: uuid.UUID | None = None,
 ) -> DraftResponse:
     """Remove one criterion from the draft, addressed by its scope."""
-    scope = regional_block_id if regional_block_id is not None else principal.regional_block_id
+    scope = _publication_scope(db, principal, regional_block_id)
     row = _draft_row(db, scope)
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="There is no draft.")
@@ -745,7 +851,7 @@ def publish_draft(
     rows out of nine hundred would put three wrong thresholds into clinical
     reports, with no way afterwards to tell which results they touched.
     """
-    scope = regional_block_id if regional_block_id is not None else principal.regional_block_id
+    scope = _publication_scope(db, principal, regional_block_id)
     row = _draft_row(db, scope)
     if row is None or not _criteria_of(row):
         raise HTTPException(

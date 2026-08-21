@@ -12,7 +12,7 @@ rather than a release.
 """
 
 import uuid
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -291,6 +291,11 @@ class FacilityResponse(BaseModel):
     available_transitions: list[FacilityStatus]
     #: Enrollment fields still outstanding before activation is possible.
     blocking_activation: list[str]
+    #: Whether this facility may hold its own breakpoint table rather than
+    #: reading the national one, and on what stated grounds.
+    breakpoint_override_granted: bool
+    breakpoint_override_note: str | None
+    breakpoint_override_granted_at: datetime | None
 
 
 class FacilityCreate(BaseModel):
@@ -343,6 +348,9 @@ def _facility_response(facility: Facility) -> FacilityResponse:
         last_accepted_upload_at=facility.last_accepted_upload_at,
         qc_status=facility.qc_status.value,
         eqa_status=facility.eqa_status.value,
+        breakpoint_override_granted=facility.breakpoint_override_granted,
+        breakpoint_override_note=facility.breakpoint_override_note,
+        breakpoint_override_granted_at=facility.breakpoint_override_granted_at,
         available_transitions=sorted(
             enrollment.ALLOWED_TRANSITIONS[facility.status], key=lambda s: s.value
         ),
@@ -357,11 +365,16 @@ def _facility_response(facility: Facility) -> FacilityResponse:
 )
 def list_facilities(
     db: DbSession,
+    principal: CurrentPrincipal,
     regional_block_id: uuid.UUID | None = None,
     facility_status: FacilityStatus | None = None,
 ) -> list[FacilityResponse]:
     query = select(Facility).join(District).order_by(District.name, Facility.name)
+    scope = resolve_block_id(db, principal)
+    if scope is not None:
+        query = query.where(District.regional_block_id == scope)
     if regional_block_id is not None:
+        _assert_block_in_scope(db, principal, regional_block_id)
         query = query.where(District.regional_block_id == regional_block_id)
     if facility_status is not None:
         query = query.where(Facility.status == facility_status)
@@ -502,6 +515,88 @@ def transition_facility(
 # to type a confirmation so a reset is never a single misplaced click. The
 # deletion logic lives in amrss.admin.purge; the audit record it writes outlives
 # the data it removed.
+
+
+class BreakpointOverrideRequest(BaseModel):
+    """Permit — or withdraw — one facility's departure from the national table."""
+
+    granted: bool
+    #: Why. Required when granting: an exception nobody wrote a reason for is
+    #: one nobody can review a year later, and this is the exception that lets a
+    #: laboratory report a different S/I/R than the rest of the programme.
+    reason: str = Field(default="", max_length=512)
+
+
+@router.post(
+    "/facilities/{facility_id}/breakpoint-override",
+    response_model=FacilityResponse,
+    dependencies=[Depends(requires(Permission.GRANT_BREAKPOINT_OVERRIDE))],
+)
+def set_breakpoint_override(
+    request: Request,
+    db: DbSession,
+    principal: CurrentPrincipal,
+    facility_id: uuid.UUID,
+    payload: BreakpointOverrideRequest,
+) -> FacilityResponse:
+    """Grant or revoke a facility's licence to keep its own breakpoints.
+
+    National authority only, and that is the whole design: breakpoints are set
+    once for the programme so that an S at one laboratory means what an S means
+    at every other. A laboratory running a method the national table does not
+    cover needs a documented exception rather than a quiet local edit, and this
+    endpoint is where that document is written.
+
+    Revoking does not delete anything the facility has already entered. It stops
+    it being edited further, and the facility falls back to the national table
+    at its next sync — which is recoverable, where discarding a laboratory's
+    work on a suspicion would not be.
+    """
+    facility = db.get(Facility, facility_id)
+    if facility is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unknown facility")
+
+    reason = payload.reason.strip()
+    if payload.granted and not reason:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                "State why this facility may depart from the national breakpoint "
+                "table. The reason is what makes the exception reviewable."
+            ),
+        )
+
+    before = {
+        "breakpoint_override_granted": facility.breakpoint_override_granted,
+        "breakpoint_override_note": facility.breakpoint_override_note,
+    }
+    facility.breakpoint_override_granted = payload.granted
+    facility.breakpoint_override_note = reason or None
+    facility.breakpoint_override_granted_at = datetime.now(UTC) if payload.granted else None
+
+    ip, agent = client_context(request)
+    audit.record(
+        db,
+        action=AuditAction.PERMISSION_CHANGED,
+        entity="facility",
+        entity_id=facility.id,
+        principal=principal,
+        before=before,
+        after={
+            "breakpoint_override_granted": facility.breakpoint_override_granted,
+            "breakpoint_override_note": facility.breakpoint_override_note,
+        },
+        source_ip=ip,
+        user_agent=agent,
+        note=(
+            f"{facility.code}: local breakpoint override "
+            f"{'granted' if payload.granted else 'revoked'}"
+            + (f" — {reason}" if reason else "")
+        ),
+    )
+    db.commit()
+    db.refresh(facility)
+    return _facility_response(facility)
 
 
 class PurgeResult(BaseModel):
