@@ -39,9 +39,7 @@ class FakeDb:
     """
 
     def __init__(self, facility_blocks=None, remaining: int = 1) -> None:
-        self.facility_blocks = (
-            FACILITY_BLOCKS if facility_blocks is None else facility_blocks
-        )
+        self.facility_blocks = FACILITY_BLOCKS if facility_blocks is None else facility_blocks
         self.remaining = remaining
 
     def scalar(self, statement):

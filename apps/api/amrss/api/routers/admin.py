@@ -590,8 +590,7 @@ def set_breakpoint_override(
         user_agent=agent,
         note=(
             f"{facility.code}: local breakpoint override "
-            f"{'granted' if payload.granted else 'revoked'}"
-            + (f" — {reason}" if reason else "")
+            f"{'granted' if payload.granted else 'revoked'}" + (f" — {reason}" if reason else "")
         ),
     )
     db.commit()

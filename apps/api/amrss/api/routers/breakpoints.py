@@ -456,6 +456,7 @@ def run_interpretation(
 # individually sane and still duplicate another row's scope or overlap its band,
 # and the engine that catches that only sees it when it sees the set.
 
+
 def _reading_scope(
     db: DbSession, principal: CurrentPrincipal, regional_block_id: uuid.UUID | None
 ) -> uuid.UUID | None:
@@ -508,9 +509,7 @@ def _publication_scope(
         # Reaching into another region's table. 404 rather than 403 for the same
         # reason as everywhere else: the existence of the block is not this
         # caller's business.
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Unknown regional block"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unknown regional block")
     return scope
 
 

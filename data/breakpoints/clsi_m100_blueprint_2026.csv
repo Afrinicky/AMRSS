@@ -1,0 +1,737 @@
+organism_group,agent_code,method,disk_content,site,route,standard,table_reference,tier,mic_susceptible_max,mic_sdd_min,mic_sdd_max,mic_intermediate_min,mic_intermediate_max,mic_resistant_min,disk_susceptible_min,disk_sdd_min,disk_sdd_max,disk_intermediate_min,disk_intermediate_max,disk_resistant_max,dosage_note,comment
+Enterobacterales,AMC,DISK,20/10 µg,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,AMC,MIC,,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,AMK,DISK,30 µg,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,AMK,MIC,,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,AMP,DISK,10 µg,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,AMP,MIC,,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,ATM,DISK,30 µg,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,ATM,MIC,,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,AZA,DISK,30/20 µg,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,AZA,MIC,,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,CAT,DISK,10 µg,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,CAT,MIC,,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,CAZ,DISK,30 µg,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,CAZ,MIC,,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,CDR,DISK,5 µg,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,CDR,MIC,,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,CEC,DISK,30 µg,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,CEC,MIC,,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,CFM,DISK,5 µg,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,CFM,MIC,,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,CFP,DISK,75 µg,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,CFP,MIC,,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,CHL,DISK,30 µg,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,CHL,MIC,,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,CID,DISK,30 µg,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,CID,MIC,,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,CIN,DISK,100 µg,uti,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,CIN,MIC,,uti,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,CIP,DISK,5 µg,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,CIP,MIC,,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,CMZ,DISK,30 µg,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,CMZ,MIC,,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,COL,MIC,,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — the conversion could not read this one; read it off the printed table.
+Enterobacterales,CPD,DISK,10 µg,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,CPD,MIC,,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,CPR,DISK,30 µg,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,CPR,MIC,,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,CPT,DISK,30 µg,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,CPT,MIC,,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,CRO,DISK,30 µg,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,CRO,MIC,,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,CTB,DISK,30 µg,uti,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,CTB,MIC,,uti,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,CTT,DISK,30 µg,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,CTT,MIC,,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,CTX,DISK,30 µg,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,CTX,MIC,,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,CXM,DISK,30 µg,,iv,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,CXM,DISK,30 µg,,oral,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,CXM,MIC,,,iv,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,CXM,MIC,,,oral,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,CZA,DISK,30/20 µg,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,CZA,MIC,,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,CZO,DISK,30 µg,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,CZO,DISK,30 µg,uti,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,CZO,MIC,,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,CZO,MIC,,uti,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,CZT,DISK,30/10 µg,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,CZT,MIC,,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,CZX,DISK,30 µg,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,CZX,MIC,,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,DOR,DISK,10 µg,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,DOR,MIC,,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,DOX,DISK,30 µg,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,DOX,MIC,,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,ENX,DISK,10 µg,uti,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,ENX,MIC,,uti,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,ETP,DISK,10 µg,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,ETP,MIC,,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,FDC,DISK,30 µg,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,FDC,MIC,,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,FEP,DISK,30 µg,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,FEP,MIC,,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,FLE,DISK,5 µg,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,FLE,MIC,,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,FOS,DISK,200 µg,uti,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,FOS,MIC,,uti,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,FOX,DISK,30 µg,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,FOX,MIC,,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,GAT,DISK,5 µg,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,GAT,MIC,,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,GEM,DISK,5 µg,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,GEM,MIC,,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,GEN,DISK,10 µg,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,GEN,MIC,,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,GRX,DISK,5 µg,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,GRX,MIC,,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,IMR,DISK,10/25 µg,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,IMR,MIC,,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,IPM,DISK,10 µg,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,IPM,MIC,,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,KAN,DISK,30 µg,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,KAN,MIC,,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,LOM,DISK,10 µg,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,LOM,MIC,,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,LOR,DISK,30 µg,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,LOR,MIC,,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,LVX,DISK,5 µg,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,LVX,MIC,,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,MAN,DISK,30 µg,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,MAN,MIC,,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,MEC,DISK,10 µg,uti,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,MEC,MIC,,uti,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,MEM,DISK,10 µg,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,MEM,MIC,,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,MEV,DISK,20/10 µg,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,MEV,MIC,,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,MNO,DISK,30 µg,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,MNO,MIC,,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,MOX,DISK,30 µg,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,MOX,MIC,,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,NAL,DISK,30 µg,uti,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,NAL,MIC,,uti,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,NET,DISK,30 µg,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,NET,MIC,,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,NIT,DISK,300 µg,uti,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,NIT,MIC,,uti,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,NOR,DISK,10 µg,uti,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,NOR,MIC,,uti,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,OFX,DISK,5 µg,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,OFX,MIC,,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,PIP,MIC,,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,PLZ,DISK,30 µg,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,PLZ,MIC,,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,PMB,MIC,,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — the conversion could not read this one; read it off the printed table.
+Enterobacterales,SAM,DISK,10/10 µg,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,SAM,MIC,,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,SMX,MIC,,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,SSS,DISK,250 or,uti,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,SSS,MIC,,uti,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,STR,DISK,10 µg,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,SXT,DISK,1.25/,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,SXT,MIC,,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — the conversion could not read this one; read it off the printed table.
+Enterobacterales,TCC,DISK,75/10 µg,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,TCC,MIC,,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,TCY,DISK,30 µg,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,TCY,MIC,,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,TMP,DISK,5 µg,uti,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,TMP,MIC,,uti,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,TOB,DISK,10 µg,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,TOB,MIC,,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,TZP,DISK,100/10 µg,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterobacterales,TZP,MIC,,,,CLSI M100,2A-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Salmonella and Shigella spp.,AMP,DISK,10 µg,,,CLSI M100,2A-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Salmonella and Shigella spp.,AMP,MIC,,,,CLSI M100,2A-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Salmonella and Shigella spp.,AZM,DISK,15 µg,,,CLSI M100,2A-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Salmonella and Shigella spp.,AZM,MIC,,,,CLSI M100,2A-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Salmonella and Shigella spp.,CHL,DISK,30 µg,,,CLSI M100,2A-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Salmonella and Shigella spp.,CHL,MIC,,,,CLSI M100,2A-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Salmonella and Shigella spp.,CIP,DISK,,,,CLSI M100,2A-2,,,,,,,,,,,,,,,Blueprint row — the conversion could not read this one; read it off the printed table.
+Salmonella and Shigella spp.,CIP,MIC,,,,CLSI M100,2A-2,,,,,,,,,,,,,,,Blueprint row — the conversion could not read this one; read it off the printed table.
+Salmonella and Shigella spp.,CRO,DISK,30 µg,,,CLSI M100,2A-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Salmonella and Shigella spp.,CRO,MIC,,,,CLSI M100,2A-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Salmonella and Shigella spp.,CTX,DISK,30 µg,,,CLSI M100,2A-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Salmonella and Shigella spp.,CTX,MIC,,,,CLSI M100,2A-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Salmonella and Shigella spp.,DOX,DISK,30 µg,,,CLSI M100,2A-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Salmonella and Shigella spp.,DOX,MIC,,,,CLSI M100,2A-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Salmonella and Shigella spp.,ETP,DISK,10 µg,,,CLSI M100,2A-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Salmonella and Shigella spp.,ETP,MIC,,,,CLSI M100,2A-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Salmonella and Shigella spp.,IPM,DISK,10 µg,,,CLSI M100,2A-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Salmonella and Shigella spp.,IPM,MIC,,,,CLSI M100,2A-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Salmonella and Shigella spp.,LVX,DISK,5 µg,,,CLSI M100,2A-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Salmonella and Shigella spp.,LVX,MIC,,,,CLSI M100,2A-2,,,,,,,,,,,,,,,Blueprint row — the conversion could not read this one; read it off the printed table.
+Salmonella and Shigella spp.,MEM,DISK,10 µg,,,CLSI M100,2A-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Salmonella and Shigella spp.,MEM,MIC,,,,CLSI M100,2A-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Salmonella and Shigella spp.,MNO,DISK,30 µg,,,CLSI M100,2A-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Salmonella and Shigella spp.,MNO,MIC,,,,CLSI M100,2A-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Salmonella and Shigella spp.,OFX,DISK,5 µg,,,CLSI M100,2A-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Salmonella and Shigella spp.,OFX,MIC,,,,CLSI M100,2A-2,,,,,,,,,,,,,,,Blueprint row — the conversion could not read this one; read it off the printed table.
+Salmonella and Shigella spp.,PEF,DISK,5 µg,,,CLSI M100,2A-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Salmonella and Shigella spp.,SXT,DISK,1.25/,,,CLSI M100,2A-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Salmonella and Shigella spp.,SXT,MIC,,,,CLSI M100,2A-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Salmonella and Shigella spp.,TCY,DISK,30 µg,,,CLSI M100,2A-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Salmonella and Shigella spp.,TCY,MIC,,,,CLSI M100,2A-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Pseudomonas aeruginosa,AMK,DISK,30 µg,uti,,CLSI M100,2B-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Pseudomonas aeruginosa,AMK,MIC,,uti,,CLSI M100,2B-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Pseudomonas aeruginosa,ATM,DISK,30 µg,,,CLSI M100,2B-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Pseudomonas aeruginosa,ATM,MIC,,,,CLSI M100,2B-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Pseudomonas aeruginosa,CAZ,DISK,30 µg,,,CLSI M100,2B-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Pseudomonas aeruginosa,CAZ,MIC,,,,CLSI M100,2B-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Pseudomonas aeruginosa,CIP,DISK,5 µg,,,CLSI M100,2B-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Pseudomonas aeruginosa,CIP,MIC,,,,CLSI M100,2B-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Pseudomonas aeruginosa,COL,MIC,,,,CLSI M100,2B-1,,,,,,,,,,,,,,,Blueprint row — the conversion could not read this one; read it off the printed table.
+Pseudomonas aeruginosa,CZA,DISK,30/20 µg,,,CLSI M100,2B-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Pseudomonas aeruginosa,CZA,MIC,,,,CLSI M100,2B-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Pseudomonas aeruginosa,CZT,DISK,30/10 µg,,,CLSI M100,2B-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Pseudomonas aeruginosa,CZT,MIC,,,,CLSI M100,2B-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Pseudomonas aeruginosa,DOR,DISK,10 µg,,,CLSI M100,2B-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Pseudomonas aeruginosa,DOR,MIC,,,,CLSI M100,2B-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Pseudomonas aeruginosa,FDC,DISK,30 µg,,,CLSI M100,2B-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Pseudomonas aeruginosa,FDC,MIC,,,,CLSI M100,2B-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Pseudomonas aeruginosa,FEP,DISK,30 µg,,,CLSI M100,2B-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Pseudomonas aeruginosa,FEP,MIC,,,,CLSI M100,2B-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Pseudomonas aeruginosa,GAT,DISK,5 µg,,,CLSI M100,2B-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Pseudomonas aeruginosa,GAT,MIC,,,,CLSI M100,2B-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Pseudomonas aeruginosa,GEN,DISK,10 µg,,,CLSI M100,2B-1,,,,,,,,,,,,,,,Blueprint row — printed in M100 but absent from the converted table; enter it from your licensed copy.
+Pseudomonas aeruginosa,GEN,MIC,,,,CLSI M100,2B-1,,,,,,,,,,,,,,,Blueprint row — printed in M100 but absent from the converted table; enter it from your licensed copy.
+Pseudomonas aeruginosa,IMR,DISK,10/25 µg,,,CLSI M100,2B-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Pseudomonas aeruginosa,IMR,MIC,,,,CLSI M100,2B-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Pseudomonas aeruginosa,IPM,DISK,10 µg,,,CLSI M100,2B-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Pseudomonas aeruginosa,IPM,MIC,,,,CLSI M100,2B-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Pseudomonas aeruginosa,LOM,DISK,10 µg,uti,,CLSI M100,2B-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Pseudomonas aeruginosa,LOM,MIC,,uti,,CLSI M100,2B-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Pseudomonas aeruginosa,LVX,DISK,5 µg,,,CLSI M100,2B-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Pseudomonas aeruginosa,LVX,MIC,,,,CLSI M100,2B-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Pseudomonas aeruginosa,MEM,DISK,10 µg,,,CLSI M100,2B-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Pseudomonas aeruginosa,MEM,MIC,,,,CLSI M100,2B-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Pseudomonas aeruginosa,NET,DISK,30 µg,,,CLSI M100,2B-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Pseudomonas aeruginosa,NET,MIC,,,,CLSI M100,2B-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Pseudomonas aeruginosa,NOR,DISK,10 µg,uti,,CLSI M100,2B-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Pseudomonas aeruginosa,NOR,MIC,,uti,,CLSI M100,2B-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Pseudomonas aeruginosa,OFX,DISK,5 µg,,,CLSI M100,2B-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Pseudomonas aeruginosa,OFX,MIC,,,,CLSI M100,2B-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Pseudomonas aeruginosa,PIP,DISK,100 µg,,,CLSI M100,2B-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Pseudomonas aeruginosa,PIP,MIC,,,,CLSI M100,2B-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Pseudomonas aeruginosa,PMB,MIC,,,,CLSI M100,2B-1,,,,,,,,,,,,,,,Blueprint row — the conversion could not read this one; read it off the printed table.
+Pseudomonas aeruginosa,TCC,DISK,75/10 µg,,,CLSI M100,2B-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Pseudomonas aeruginosa,TCC,MIC,,,,CLSI M100,2B-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Pseudomonas aeruginosa,TOB,DISK,10 µg,,,CLSI M100,2B-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Pseudomonas aeruginosa,TOB,MIC,,,,CLSI M100,2B-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Pseudomonas aeruginosa,TZP,DISK,100/10 µg,,,CLSI M100,2B-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Pseudomonas aeruginosa,TZP,MIC,,,,CLSI M100,2B-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Acinetobacter spp.,AMK,DISK,30 µg,,,CLSI M100,2B-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Acinetobacter spp.,AMK,MIC,,,,CLSI M100,2B-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Acinetobacter spp.,CAZ,DISK,30 µg,,,CLSI M100,2B-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Acinetobacter spp.,CAZ,MIC,,,,CLSI M100,2B-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Acinetobacter spp.,CIP,DISK,5 µg,,,CLSI M100,2B-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Acinetobacter spp.,CIP,MIC,,,,CLSI M100,2B-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Acinetobacter spp.,COL,MIC,,,,CLSI M100,2B-2,,,,,,,,,,,,,,,Blueprint row — the conversion could not read this one; read it off the printed table.
+Acinetobacter spp.,CRO,DISK,30 µg,,,CLSI M100,2B-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Acinetobacter spp.,CRO,MIC,,,,CLSI M100,2B-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Acinetobacter spp.,CTX,DISK,30 µg,,,CLSI M100,2B-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Acinetobacter spp.,CTX,MIC,,,,CLSI M100,2B-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Acinetobacter spp.,DOR,DISK,10 µg,,,CLSI M100,2B-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Acinetobacter spp.,DOR,MIC,,,,CLSI M100,2B-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Acinetobacter spp.,FDC,DISK,30 µg,,,CLSI M100,2B-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Acinetobacter spp.,FDC,MIC,,,,CLSI M100,2B-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Acinetobacter spp.,FEP,DISK,30 µg,,,CLSI M100,2B-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Acinetobacter spp.,FEP,MIC,,,,CLSI M100,2B-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Acinetobacter spp.,GAT,DISK,5 µg,,,CLSI M100,2B-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Acinetobacter spp.,GAT,MIC,,,,CLSI M100,2B-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Acinetobacter spp.,GEN,DISK,10 µg,,,CLSI M100,2B-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Acinetobacter spp.,GEN,MIC,,,,CLSI M100,2B-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Acinetobacter spp.,IPM,DISK,10 µg,,,CLSI M100,2B-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Acinetobacter spp.,IPM,MIC,,,,CLSI M100,2B-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Acinetobacter spp.,LVX,DISK,5 µg,,,CLSI M100,2B-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Acinetobacter spp.,LVX,MIC,,,,CLSI M100,2B-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Acinetobacter spp.,MEM,DISK,10 µg,,,CLSI M100,2B-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Acinetobacter spp.,MEM,MIC,,,,CLSI M100,2B-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Acinetobacter spp.,MNO,DISK,30 µg,,,CLSI M100,2B-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Acinetobacter spp.,MNO,MIC,,,,CLSI M100,2B-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Acinetobacter spp.,NET,MIC,,,,CLSI M100,2B-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Acinetobacter spp.,PIP,DISK,100 µg,,,CLSI M100,2B-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Acinetobacter spp.,PIP,MIC,,,,CLSI M100,2B-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Acinetobacter spp.,PMB,MIC,,,,CLSI M100,2B-2,,,,,,,,,,,,,,,Blueprint row — the conversion could not read this one; read it off the printed table.
+Acinetobacter spp.,SAM,DISK,10/10 µg,,,CLSI M100,2B-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Acinetobacter spp.,SAM,MIC,,,,CLSI M100,2B-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Acinetobacter spp.,SUD,DISK,10/10 µg,,,CLSI M100,2B-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Acinetobacter spp.,SUD,MIC,,,,CLSI M100,2B-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Acinetobacter spp.,SXT,DISK,1.25/23.75 µg,,,CLSI M100,2B-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Acinetobacter spp.,SXT,MIC,,,,CLSI M100,2B-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Acinetobacter spp.,TCC,DISK,75/10 µg,,,CLSI M100,2B-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Acinetobacter spp.,TCC,MIC,,,,CLSI M100,2B-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Acinetobacter spp.,TOB,DISK,10 µg,,,CLSI M100,2B-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Acinetobacter spp.,TOB,MIC,,,,CLSI M100,2B-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Acinetobacter spp.,TZP,DISK,100/10 µg,,,CLSI M100,2B-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Acinetobacter spp.,TZP,MIC,,,,CLSI M100,2B-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Stenotrophomonas maltophilia,CHL,MIC,,,,CLSI M100,2B-4,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Stenotrophomonas maltophilia,FDC,DISK,30 µg,,,CLSI M100,2B-4,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Stenotrophomonas maltophilia,FDC,MIC,,,,CLSI M100,2B-4,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Stenotrophomonas maltophilia,LVX,DISK,5 µg,,,CLSI M100,2B-4,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Stenotrophomonas maltophilia,LVX,MIC,,,,CLSI M100,2B-4,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Stenotrophomonas maltophilia,MNO,DISK,30 µg,,,CLSI M100,2B-4,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Stenotrophomonas maltophilia,MNO,MIC,,,,CLSI M100,2B-4,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Stenotrophomonas maltophilia,SXT,DISK,1.25/,,,CLSI M100,2B-4,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Stenotrophomonas maltophilia,SXT,MIC,,,,CLSI M100,2B-4,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Stenotrophomonas maltophilia,TCC,MIC,,,,CLSI M100,2B-4,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Other Non-Enterobacterales,AMK,MIC,,,,CLSI M100,2B-5,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Other Non-Enterobacterales,ATM,MIC,,,,CLSI M100,2B-5,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Other Non-Enterobacterales,CAZ,MIC,,,,CLSI M100,2B-5,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Other Non-Enterobacterales,CFP,MIC,,,,CLSI M100,2B-5,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Other Non-Enterobacterales,CHL,MIC,,,,CLSI M100,2B-5,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Other Non-Enterobacterales,CIP,MIC,,,,CLSI M100,2B-5,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Other Non-Enterobacterales,CRO,MIC,,,,CLSI M100,2B-5,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Other Non-Enterobacterales,CTX,MIC,,,,CLSI M100,2B-5,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Other Non-Enterobacterales,CZX,MIC,,,,CLSI M100,2B-5,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Other Non-Enterobacterales,DOX,MIC,,,,CLSI M100,2B-5,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Other Non-Enterobacterales,FEP,MIC,,,,CLSI M100,2B-5,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Other Non-Enterobacterales,GAT,MIC,,,,CLSI M100,2B-5,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Other Non-Enterobacterales,GEN,MIC,,,,CLSI M100,2B-5,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Other Non-Enterobacterales,IPM,MIC,,,,CLSI M100,2B-5,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Other Non-Enterobacterales,LOM,MIC,,,,CLSI M100,2B-5,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Other Non-Enterobacterales,LVX,MIC,,,,CLSI M100,2B-5,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Other Non-Enterobacterales,MEM,MIC,,,,CLSI M100,2B-5,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Other Non-Enterobacterales,MNO,MIC,,,,CLSI M100,2B-5,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Other Non-Enterobacterales,MOX,MIC,,,,CLSI M100,2B-5,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Other Non-Enterobacterales,NET,MIC,,,,CLSI M100,2B-5,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Other Non-Enterobacterales,NOR,MIC,,uti,,CLSI M100,2B-5,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Other Non-Enterobacterales,OFX,MIC,,,,CLSI M100,2B-5,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Other Non-Enterobacterales,PIP,MIC,,,,CLSI M100,2B-5,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Other Non-Enterobacterales,SSS,MIC,,uti,,CLSI M100,2B-5,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Other Non-Enterobacterales,SXT,MIC,,,,CLSI M100,2B-5,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Other Non-Enterobacterales,TCC,MIC,,,,CLSI M100,2B-5,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Other Non-Enterobacterales,TCY,MIC,,uti,,CLSI M100,2B-5,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Other Non-Enterobacterales,TOB,MIC,,,,CLSI M100,2B-5,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Other Non-Enterobacterales,TZP,MIC,,,,CLSI M100,2B-5,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Staphylococcus spp.,AZM,DISK,15 µg,,,CLSI M100,2C,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Staphylococcus spp.,AZM,MIC,,,,CLSI M100,2C,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Staphylococcus spp.,CHL,DISK,30 µg,,,CLSI M100,2C,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Staphylococcus spp.,CHL,MIC,,,,CLSI M100,2C,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Staphylococcus spp.,CIP,DISK,5 µg,,,CLSI M100,2C,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Staphylococcus spp.,CIP,MIC,,,,CLSI M100,2C,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Staphylococcus spp.,CLI,DISK,2 µg,,,CLSI M100,2C,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Staphylococcus spp.,CLI,MIC,,,,CLSI M100,2C,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Staphylococcus spp.,CLR,DISK,15 µg,,,CLSI M100,2C,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Staphylococcus spp.,CLR,MIC,,,,CLSI M100,2C,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Staphylococcus spp.,CPT,DISK,30 µg,,,CLSI M100,2C,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Staphylococcus spp.,CPT,MIC,,,,CLSI M100,2C,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Staphylococcus spp.,DAP,MIC,,,,CLSI M100,2C,,,,,,,,,,,,,,,Blueprint row — printed in M100 but absent from the converted table; enter it from your licensed copy.
+Staphylococcus spp.,DIR,DISK,15 µg,,,CLSI M100,2C,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Staphylococcus spp.,DIR,MIC,,,,CLSI M100,2C,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Staphylococcus spp.,DOX,DISK,30 µg,,,CLSI M100,2C,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Staphylococcus spp.,DOX,MIC,,,,CLSI M100,2C,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Staphylococcus spp.,ENX,DISK,10 µg,uti,,CLSI M100,2C,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Staphylococcus spp.,ENX,MIC,,uti,,CLSI M100,2C,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Staphylococcus spp.,ERY,DISK,15 µg,,,CLSI M100,2C,,,,,,,,,,,,,,,Blueprint row — printed in M100 but absent from the converted table; enter it from your licensed copy.
+Staphylococcus spp.,ERY,MIC,,,,CLSI M100,2C,,,,,,,,,,,,,,,Blueprint row — printed in M100 but absent from the converted table; enter it from your licensed copy.
+Staphylococcus spp.,FLE,DISK,5 µg,,,CLSI M100,2C,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Staphylococcus spp.,FLE,MIC,,,,CLSI M100,2C,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Staphylococcus spp.,FOX,DISK,30 µg,,,CLSI M100,2C,,,,,,,,,,,,,,,Blueprint row — printed in M100 but absent from the converted table; enter it from your licensed copy.
+Staphylococcus spp.,FOX,MIC,,,,CLSI M100,2C,,,,,,,,,,,,,,,Blueprint row — printed in M100 but absent from the converted table; enter it from your licensed copy.
+Staphylococcus spp.,GAT,DISK,5 µg,,,CLSI M100,2C,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Staphylococcus spp.,GAT,MIC,,,,CLSI M100,2C,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Staphylococcus spp.,GEN,DISK,10 µg,,,CLSI M100,2C,,,,,,,,,,,,,,,Blueprint row — printed in M100 but absent from the converted table; enter it from your licensed copy.
+Staphylococcus spp.,GEN,MIC,,,,CLSI M100,2C,,,,,,,,,,,,,,,Blueprint row — printed in M100 but absent from the converted table; enter it from your licensed copy.
+Staphylococcus spp.,GRX,DISK,5 µg,,,CLSI M100,2C,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Staphylococcus spp.,GRX,MIC,,,,CLSI M100,2C,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Staphylococcus spp.,LFM,DISK,20 µg,,,CLSI M100,2C,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Staphylococcus spp.,LFM,MIC,,,,CLSI M100,2C,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Staphylococcus spp.,LNZ,DISK,30 µg,,,CLSI M100,2C,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Staphylococcus spp.,LNZ,MIC,,,,CLSI M100,2C,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Staphylococcus spp.,LOM,DISK,10 µg,,,CLSI M100,2C,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Staphylococcus spp.,LOM,MIC,,,,CLSI M100,2C,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Staphylococcus spp.,LVX,DISK,5 µg,,,CLSI M100,2C,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Staphylococcus spp.,LVX,MIC,,,,CLSI M100,2C,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Staphylococcus spp.,MFX,DISK,5 µg,,,CLSI M100,2C,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Staphylococcus spp.,MFX,MIC,,,,CLSI M100,2C,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Staphylococcus spp.,MNO,DISK,30 µg,,,CLSI M100,2C,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Staphylococcus spp.,MNO,MIC,,,,CLSI M100,2C,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Staphylococcus spp.,NIT,DISK,300 µg,uti,,CLSI M100,2C,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Staphylococcus spp.,NIT,MIC,,uti,,CLSI M100,2C,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Staphylococcus spp.,NOR,DISK,10 µg,uti,,CLSI M100,2C,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Staphylococcus spp.,NOR,MIC,,uti,,CLSI M100,2C,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Staphylococcus spp.,OFX,DISK,5 µg,,,CLSI M100,2C,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Staphylococcus spp.,OFX,MIC,,,,CLSI M100,2C,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Staphylococcus spp.,OXA,DISK,1 µg,,,CLSI M100,2C,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Staphylococcus spp.,OXA,MIC,,,,CLSI M100,2C,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Staphylococcus spp.,PEN,DISK,10 units,,,CLSI M100,2C,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Staphylococcus spp.,PEN,MIC,,,,CLSI M100,2C,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Staphylococcus spp.,QDA,DISK,15 µg,,,CLSI M100,2C,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Staphylococcus spp.,QDA,MIC,,,,CLSI M100,2C,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Staphylococcus spp.,RIF,DISK,5 µg,,,CLSI M100,2C,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Staphylococcus spp.,RIF,MIC,,,,CLSI M100,2C,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Staphylococcus spp.,SPX,DISK,5 µg,,,CLSI M100,2C,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Staphylococcus spp.,SPX,MIC,,,,CLSI M100,2C,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Staphylococcus spp.,SSS,DISK,250 or,uti,,CLSI M100,2C,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Staphylococcus spp.,SSS,MIC,,uti,,CLSI M100,2C,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Staphylococcus spp.,SXT,DISK,1.25/,,,CLSI M100,2C,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Staphylococcus spp.,SXT,MIC,,,,CLSI M100,2C,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Staphylococcus spp.,TCY,DISK,30 µg,,,CLSI M100,2C,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Staphylococcus spp.,TCY,MIC,,,,CLSI M100,2C,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Staphylococcus spp.,TEC,MIC,,,,CLSI M100,2C,,,,,,,,,,,,,,,Blueprint row — printed in M100 but absent from the converted table; enter it from your licensed copy.
+Staphylococcus spp.,TMP,DISK,5 µg,uti,,CLSI M100,2C,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Staphylococcus spp.,TMP,MIC,,uti,,CLSI M100,2C,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Staphylococcus spp.,TZD,DISK,2 µg,,,CLSI M100,2C,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Staphylococcus spp.,TZD,MIC,,,,CLSI M100,2C,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Staphylococcus spp.,VAN,MIC,,,,CLSI M100,2C,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterococcus spp.,AMP,DISK,10 µg,,,CLSI M100,2D,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterococcus spp.,AMP,MIC,,,,CLSI M100,2D,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterococcus spp.,CHL,DISK,30 µg,,,CLSI M100,2D,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterococcus spp.,CHL,MIC,,,,CLSI M100,2D,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterococcus spp.,CIP,DISK,5 µg,uti,,CLSI M100,2D,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterococcus spp.,CIP,MIC,,uti,,CLSI M100,2D,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterococcus spp.,DAP,MIC,,,,CLSI M100,2D,,,,,,,,,,,,,,,Blueprint row — the conversion could not read this one; read it off the printed table.
+Enterococcus spp.,DOX,DISK,30 µg,,,CLSI M100,2D,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterococcus spp.,DOX,MIC,,,,CLSI M100,2D,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterococcus spp.,ERY,DISK,15 µg,,,CLSI M100,2D,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterococcus spp.,ERY,MIC,,,,CLSI M100,2D,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterococcus spp.,FOS,DISK,200 µg,uti,,CLSI M100,2D,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterococcus spp.,FOS,MIC,,uti,,CLSI M100,2D,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterococcus spp.,GAT,DISK,5 µg,,,CLSI M100,2D,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterococcus spp.,GAT,MIC,,,,CLSI M100,2D,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterococcus spp.,GEN,DISK,120 µg,,,CLSI M100,2D,,,,,,,,,,,,,,,Blueprint row — printed in M100 but absent from the converted table; enter it from your licensed copy.
+Enterococcus spp.,GEN,MIC,,,,CLSI M100,2D,,,,,,,,,,,,,,,Blueprint row — printed in M100 but absent from the converted table; enter it from your licensed copy.
+Enterococcus spp.,LNZ,DISK,30 µg,,,CLSI M100,2D,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterococcus spp.,LNZ,MIC,,,,CLSI M100,2D,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterococcus spp.,LVX,DISK,5 µg,uti,,CLSI M100,2D,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterococcus spp.,LVX,MIC,,uti,,CLSI M100,2D,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterococcus spp.,MNO,DISK,30 µg,,,CLSI M100,2D,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterococcus spp.,MNO,MIC,,,,CLSI M100,2D,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterococcus spp.,NIT,DISK,300 µg,uti,,CLSI M100,2D,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterococcus spp.,NIT,MIC,,uti,,CLSI M100,2D,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterococcus spp.,NOR,DISK,10 µg,uti,,CLSI M100,2D,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterococcus spp.,NOR,MIC,,uti,,CLSI M100,2D,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterococcus spp.,PEN,DISK,10 units,,,CLSI M100,2D,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterococcus spp.,PEN,MIC,,,,CLSI M100,2D,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterococcus spp.,QDA,DISK,15 µg,,,CLSI M100,2D,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterococcus spp.,QDA,MIC,,,,CLSI M100,2D,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterococcus spp.,RIF,DISK,5 µg,,,CLSI M100,2D,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterococcus spp.,RIF,MIC,,,,CLSI M100,2D,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterococcus spp.,TCY,DISK,30 µg,uti,,CLSI M100,2D,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterococcus spp.,TCY,MIC,,uti,,CLSI M100,2D,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterococcus spp.,TEC,MIC,,,,CLSI M100,2D,,,,,,,,,,,,,,,Blueprint row — printed in M100 but absent from the converted table; enter it from your licensed copy.
+Enterococcus spp.,TZD,MIC,,,,CLSI M100,2D,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterococcus spp.,VAN,DISK,30 µg,,,CLSI M100,2D,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Enterococcus spp.,VAN,MIC,,,,CLSI M100,2D,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus pneumoniae,AMC,MIC,,non_meningitis,,CLSI M100,2G,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus pneumoniae,AMX,MIC,,non_meningitis,,CLSI M100,2G,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus pneumoniae,AZM,DISK,15 µg,,,CLSI M100,2G,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus pneumoniae,AZM,MIC,,,,CLSI M100,2G,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus pneumoniae,CDR,MIC,,,,CLSI M100,2G,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus pneumoniae,CEC,MIC,,,,CLSI M100,2G,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus pneumoniae,CHL,DISK,30 µg,,,CLSI M100,2G,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus pneumoniae,CHL,MIC,,,,CLSI M100,2G,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus pneumoniae,CLI,DISK,2 µg,,,CLSI M100,2G,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus pneumoniae,CLI,MIC,,,,CLSI M100,2G,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus pneumoniae,CLR,DISK,15 µg,,,CLSI M100,2G,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus pneumoniae,CLR,MIC,,,,CLSI M100,2G,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus pneumoniae,CPD,MIC,,,,CLSI M100,2G,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus pneumoniae,CPR,MIC,,,,CLSI M100,2G,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus pneumoniae,CPT,DISK,30 µg,non_meningitis,,CLSI M100,2G,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus pneumoniae,CPT,MIC,,non_meningitis,,CLSI M100,2G,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus pneumoniae,CRO,MIC,,meningitis,,CLSI M100,2G,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus pneumoniae,CRO,MIC,,non_meningitis,,CLSI M100,2G,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus pneumoniae,CTX,MIC,,meningitis,,CLSI M100,2G,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus pneumoniae,CTX,MIC,,non_meningitis,,CLSI M100,2G,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus pneumoniae,CXM,MIC,,,iv,CLSI M100,2G,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus pneumoniae,CXM,MIC,,,oral,CLSI M100,2G,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus pneumoniae,DIR,DISK,15 µg,,,CLSI M100,2G,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus pneumoniae,DIR,MIC,,,,CLSI M100,2G,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus pneumoniae,DOR,MIC,,,,CLSI M100,2G,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus pneumoniae,DOX,DISK,30 µg,,,CLSI M100,2G,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus pneumoniae,DOX,MIC,,,,CLSI M100,2G,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus pneumoniae,ERY,DISK,15 µg,,,CLSI M100,2G,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus pneumoniae,ERY,MIC,,,,CLSI M100,2G,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus pneumoniae,ETP,MIC,,,,CLSI M100,2G,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus pneumoniae,FEP,MIC,,meningitis,,CLSI M100,2G,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus pneumoniae,FEP,MIC,,non_meningitis,,CLSI M100,2G,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus pneumoniae,GAT,DISK,5 µg,,,CLSI M100,2G,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus pneumoniae,GAT,MIC,,,,CLSI M100,2G,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus pneumoniae,GEM,DISK,5 µg,,,CLSI M100,2G,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus pneumoniae,GEM,MIC,,,,CLSI M100,2G,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus pneumoniae,IPM,MIC,,,,CLSI M100,2G,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus pneumoniae,LFM,DISK,20 µg,,,CLSI M100,2G,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus pneumoniae,LFM,MIC,,,,CLSI M100,2G,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus pneumoniae,LNZ,DISK,30 µg,,,CLSI M100,2G,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus pneumoniae,LNZ,MIC,,,,CLSI M100,2G,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus pneumoniae,LOR,MIC,,,,CLSI M100,2G,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus pneumoniae,LVX,DISK,5 µg,,,CLSI M100,2G,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus pneumoniae,LVX,MIC,,,,CLSI M100,2G,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus pneumoniae,MEM,MIC,,,,CLSI M100,2G,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus pneumoniae,MFX,DISK,5 µg,,,CLSI M100,2G,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus pneumoniae,MFX,MIC,,,,CLSI M100,2G,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus pneumoniae,OFX,DISK,5 µg,,,CLSI M100,2G,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus pneumoniae,OFX,MIC,,,,CLSI M100,2G,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus pneumoniae,PEN,DISK,1 µg,,,CLSI M100,2G,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus pneumoniae,PEN,MIC,,,oral,CLSI M100,2G,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus pneumoniae,PEN,MIC,,meningitis,iv,CLSI M100,2G,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus pneumoniae,PEN,MIC,,non_meningitis,iv,CLSI M100,2G,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus pneumoniae,QDA,DISK,15 µg,,,CLSI M100,2G,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus pneumoniae,QDA,MIC,,,,CLSI M100,2G,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus pneumoniae,RIF,DISK,5 µg,,,CLSI M100,2G,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus pneumoniae,RIF,MIC,,,,CLSI M100,2G,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus pneumoniae,SPX,DISK,5 µg,,,CLSI M100,2G,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus pneumoniae,SPX,MIC,,,,CLSI M100,2G,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus pneumoniae,SXT,DISK,1.25/,,,CLSI M100,2G,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus pneumoniae,SXT,MIC,,,,CLSI M100,2G,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus pneumoniae,TCY,DISK,30 µg,,,CLSI M100,2G,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus pneumoniae,TCY,MIC,,,,CLSI M100,2G,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus pneumoniae,VAN,DISK,30 µg,,,CLSI M100,2G,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus pneumoniae,VAN,MIC,,,,CLSI M100,2G,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. β-Hemolytic Group,AMP,DISK,10 µg,,,CLSI M100,2H-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. β-Hemolytic Group,AMP,MIC,,,,CLSI M100,2H-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. β-Hemolytic Group,AZM,DISK,15 µg,,,CLSI M100,2H-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. β-Hemolytic Group,AZM,MIC,,,,CLSI M100,2H-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. β-Hemolytic Group,CHL,DISK,30 µg,,,CLSI M100,2H-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. β-Hemolytic Group,CHL,MIC,,,,CLSI M100,2H-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. β-Hemolytic Group,CLI,DISK,2 µg,,,CLSI M100,2H-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. β-Hemolytic Group,CLI,MIC,,,,CLSI M100,2H-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. β-Hemolytic Group,CLR,DISK,15 µg,,,CLSI M100,2H-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. β-Hemolytic Group,CLR,MIC,,,,CLSI M100,2H-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. β-Hemolytic Group,CPT,DISK,30 µg,,,CLSI M100,2H-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. β-Hemolytic Group,CPT,MIC,,,,CLSI M100,2H-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. β-Hemolytic Group,CRO,DISK,30 µg,,,CLSI M100,2H-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. β-Hemolytic Group,CRO,MIC,,,,CLSI M100,2H-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. β-Hemolytic Group,CTX,DISK,30 µg,,,CLSI M100,2H-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. β-Hemolytic Group,CTX,MIC,,,,CLSI M100,2H-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. β-Hemolytic Group,DAL,MIC,,,,CLSI M100,2H-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. β-Hemolytic Group,DAP,MIC,,,,CLSI M100,2H-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. β-Hemolytic Group,DIR,DISK,15 µg,,,CLSI M100,2H-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. β-Hemolytic Group,DIR,MIC,,,,CLSI M100,2H-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. β-Hemolytic Group,DOR,MIC,,,,CLSI M100,2H-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. β-Hemolytic Group,ERY,DISK,15 µg,,,CLSI M100,2H-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. β-Hemolytic Group,ERY,MIC,,,,CLSI M100,2H-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. β-Hemolytic Group,ETP,MIC,,,,CLSI M100,2H-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. β-Hemolytic Group,FEP,DISK,30 µg,,,CLSI M100,2H-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. β-Hemolytic Group,FEP,MIC,,,,CLSI M100,2H-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. β-Hemolytic Group,GAT,DISK,5 µg,,,CLSI M100,2H-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. β-Hemolytic Group,GAT,MIC,,,,CLSI M100,2H-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. β-Hemolytic Group,GRX,DISK,5 µg,,,CLSI M100,2H-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. β-Hemolytic Group,GRX,MIC,,,,CLSI M100,2H-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. β-Hemolytic Group,LNZ,DISK,30 µg,,,CLSI M100,2H-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. β-Hemolytic Group,LNZ,MIC,,,,CLSI M100,2H-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. β-Hemolytic Group,LVX,DISK,5 µg,,,CLSI M100,2H-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. β-Hemolytic Group,LVX,MIC,,,,CLSI M100,2H-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. β-Hemolytic Group,MEM,MIC,,,,CLSI M100,2H-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. β-Hemolytic Group,OFX,DISK,5 µg,,,CLSI M100,2H-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. β-Hemolytic Group,OFX,MIC,,,,CLSI M100,2H-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. β-Hemolytic Group,ORI,MIC,,,,CLSI M100,2H-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. β-Hemolytic Group,PEN,DISK,10 units,,,CLSI M100,2H-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. β-Hemolytic Group,PEN,MIC,,,,CLSI M100,2H-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. β-Hemolytic Group,QDA,DISK,15 µg,,,CLSI M100,2H-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. β-Hemolytic Group,QDA,MIC,,,,CLSI M100,2H-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. β-Hemolytic Group,SXT,MIC,,,,CLSI M100,2H-1,,,,,,,,,,,,,,,Blueprint row — the conversion could not read this one; read it off the printed table.
+Streptococcus spp. β-Hemolytic Group,TCY,DISK,30 µg,,,CLSI M100,2H-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. β-Hemolytic Group,TCY,MIC,,,,CLSI M100,2H-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. β-Hemolytic Group,TLV,MIC,,,,CLSI M100,2H-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. β-Hemolytic Group,TVA,DISK,10 µg,,,CLSI M100,2H-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. β-Hemolytic Group,TVA,MIC,,,,CLSI M100,2H-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. β-Hemolytic Group,TZD,DISK,2 µg,,,CLSI M100,2H-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. β-Hemolytic Group,TZD,MIC,,,,CLSI M100,2H-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. β-Hemolytic Group,VAN,DISK,30 µg,,,CLSI M100,2H-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. β-Hemolytic Group,VAN,MIC,,,,CLSI M100,2H-1,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. Viridans Group,AMP,MIC,,,,CLSI M100,2H-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. Viridans Group,AZM,DISK,15 µg,,,CLSI M100,2H-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. Viridans Group,AZM,MIC,,,,CLSI M100,2H-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. Viridans Group,CHL,DISK,30 µg,,,CLSI M100,2H-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. Viridans Group,CHL,MIC,,,,CLSI M100,2H-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. Viridans Group,CLI,DISK,2 µg,,,CLSI M100,2H-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. Viridans Group,CLI,MIC,,,,CLSI M100,2H-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. Viridans Group,CLR,DISK,15 µg,,,CLSI M100,2H-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. Viridans Group,CLR,MIC,,,,CLSI M100,2H-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. Viridans Group,CRO,DISK,30 µg,,,CLSI M100,2H-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. Viridans Group,CRO,MIC,,,,CLSI M100,2H-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. Viridans Group,CTX,DISK,30 µg,,,CLSI M100,2H-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. Viridans Group,CTX,MIC,,,,CLSI M100,2H-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. Viridans Group,CZT,MIC,,,,CLSI M100,2H-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. Viridans Group,DAL,MIC,,,,CLSI M100,2H-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. Viridans Group,DAP,MIC,,,,CLSI M100,2H-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. Viridans Group,DIR,DISK,15 µg,,,CLSI M100,2H-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. Viridans Group,DIR,MIC,,,,CLSI M100,2H-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. Viridans Group,DOR,MIC,,,,CLSI M100,2H-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. Viridans Group,ERY,DISK,15 µg,,,CLSI M100,2H-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. Viridans Group,ERY,MIC,,,,CLSI M100,2H-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. Viridans Group,ETP,MIC,,,,CLSI M100,2H-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. Viridans Group,FEP,DISK,30 µg,,,CLSI M100,2H-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. Viridans Group,FEP,MIC,,,,CLSI M100,2H-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. Viridans Group,GAT,DISK,5 µg,,,CLSI M100,2H-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. Viridans Group,GAT,MIC,,,,CLSI M100,2H-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. Viridans Group,GRX,DISK,5 µg,,,CLSI M100,2H-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. Viridans Group,GRX,MIC,,,,CLSI M100,2H-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. Viridans Group,LNZ,DISK,30 µg,,,CLSI M100,2H-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. Viridans Group,LNZ,MIC,,,,CLSI M100,2H-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. Viridans Group,LVX,DISK,5 µg,,,CLSI M100,2H-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. Viridans Group,LVX,MIC,,,,CLSI M100,2H-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. Viridans Group,MEM,MIC,,,,CLSI M100,2H-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. Viridans Group,OFX,DISK,5 µg,,,CLSI M100,2H-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. Viridans Group,OFX,MIC,,,,CLSI M100,2H-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. Viridans Group,ORI,MIC,,,,CLSI M100,2H-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. Viridans Group,PEN,MIC,,,,CLSI M100,2H-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. Viridans Group,QDA,DISK,15 µg,,,CLSI M100,2H-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. Viridans Group,QDA,MIC,,,,CLSI M100,2H-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. Viridans Group,TCY,DISK,30 µg,,,CLSI M100,2H-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. Viridans Group,TCY,MIC,,,,CLSI M100,2H-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. Viridans Group,TLV,MIC,,,,CLSI M100,2H-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. Viridans Group,TVA,DISK,10 µg,,,CLSI M100,2H-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. Viridans Group,TVA,MIC,,,,CLSI M100,2H-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. Viridans Group,TZD,DISK,2 µg,,,CLSI M100,2H-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. Viridans Group,TZD,MIC,,,,CLSI M100,2H-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. Viridans Group,VAN,DISK,30 µg,,,CLSI M100,2H-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Streptococcus spp. Viridans Group,VAN,MIC,,,,CLSI M100,2H-2,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,AMC,MIC,,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,AMP,DISK,10 µg,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,AMP,MIC,,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,ATM,DISK,30 µg,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,ATM,MIC,,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,AZM,DISK,15 µg,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,AZM,MIC,,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,CAT,DISK,10 µg,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,CAT,MIC,,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,CAZ,DISK,30 µg,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,CAZ,MIC,,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,CDR,DISK,5 µg,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,CDR,MIC,,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,CEC,DISK,30 µg,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,CEC,MIC,,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,CFM,DISK,5 µg,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,CFM,MIC,,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,CHL,DISK,30 µg,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,CHL,MIC,,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,CID,DISK,30 µg,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,CID,MIC,,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,CIP,DISK,5 µg,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,CIP,MIC,,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,CLR,DISK,15 µg,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,CLR,MIC,,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,CPD,DISK,10 µg,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,CPD,MIC,,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,CPR,DISK,30 µg,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,CPR,MIC,,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,CPT,DISK,30 µg,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,CPT,MIC,,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,CRO,DISK,30 µg,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,CRO,MIC,,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,CTB,DISK,30 µg,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,CTB,MIC,,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,CTX,DISK,30 µg,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,CTX,MIC,,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,CXM,DISK,30 µg,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,CXM,MIC,,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,CZT,MIC,,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,CZX,DISK,30 µg,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,CZX,MIC,,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,DOR,DISK,10 µg,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,DOR,MIC,,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,ETP,DISK,10 µg,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,ETP,MIC,,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,FEP,DISK,30 µg,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,FEP,MIC,,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,FLE,DISK,5 µg,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,FLE,MIC,,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,GAT,DISK,5 µg,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,GAT,MIC,,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,GEM,DISK,5 µg,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,GEM,MIC,,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,GRX,DISK,5 µg,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,GRX,MIC,,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,IPM,DISK,10 µg,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,IPM,MIC,,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,LFM,DISK,20 µg,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,LFM,MIC,,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,LOM,DISK,10 µg,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,LOM,MIC,,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,LOR,DISK,30 µg,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,LOR,MIC,,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,LVX,DISK,5 µg,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,LVX,MIC,,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,MAN,MIC,,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,MEM,DISK,10 µg,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,MEM,MIC,,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,MFX,DISK,5 µg,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,MFX,MIC,,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,OFX,DISK,5 µg,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,OFX,MIC,,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,RIF,DISK,5 µg,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,RIF,MIC,,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,SAM,DISK,10/10 µg,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,SAM,MIC,,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,SMX,MIC,,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — the conversion could not read this one; read it off the printed table.
+Haemophilus influenzae and Haemophilus parainfluenzae,SPX,MIC,,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,SXT,DISK,1.25/,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,SXT,MIC,,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,TCY,DISK,30 µg,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,TCY,MIC,,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,TVA,DISK,10 µg,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,TVA,MIC,,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,TZP,DISK,100/10 µg,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Haemophilus influenzae and Haemophilus parainfluenzae,TZP,MIC,,,,CLSI M100,2E,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Neisseria gonorrhoeae,AZM,DISK,15 µg,,,CLSI M100,2F,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Neisseria gonorrhoeae,AZM,MIC,,,,CLSI M100,2F,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Neisseria gonorrhoeae,CFM,MIC,,,,CLSI M100,2F,,,,,,,,,,,,,,,Blueprint row — the conversion could not read this one; read it off the printed table.
+Neisseria gonorrhoeae,CIP,DISK,5 µg,,,CLSI M100,2F,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Neisseria gonorrhoeae,CIP,MIC,,,,CLSI M100,2F,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Neisseria gonorrhoeae,CPD,DISK,10 µg,,,CLSI M100,2F,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Neisseria gonorrhoeae,CPD,MIC,,,,CLSI M100,2F,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Neisseria gonorrhoeae,CRO,MIC,,,,CLSI M100,2F,,,,,,,,,,,,,,,Blueprint row — the conversion could not read this one; read it off the printed table.
+Neisseria gonorrhoeae,CTT,DISK,30 µg,,,CLSI M100,2F,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Neisseria gonorrhoeae,CTT,MIC,,,,CLSI M100,2F,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Neisseria gonorrhoeae,CTX,DISK,30 µg,,,CLSI M100,2F,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Neisseria gonorrhoeae,CTX,MIC,,,,CLSI M100,2F,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Neisseria gonorrhoeae,CZX,DISK,30 µg,,,CLSI M100,2F,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Neisseria gonorrhoeae,CZX,MIC,,,,CLSI M100,2F,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Neisseria gonorrhoeae,FEP,DISK,30 µg,,,CLSI M100,2F,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Neisseria gonorrhoeae,FEP,MIC,,,,CLSI M100,2F,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Neisseria gonorrhoeae,FOX,DISK,30 µg,,,CLSI M100,2F,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Neisseria gonorrhoeae,FOX,MIC,,,,CLSI M100,2F,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Neisseria gonorrhoeae,PEN,DISK,10 units,,,CLSI M100,2F,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Neisseria gonorrhoeae,PEN,MIC,,,,CLSI M100,2F,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Neisseria gonorrhoeae,SPT,DISK,100 µg,,,CLSI M100,2F,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Neisseria gonorrhoeae,SPT,MIC,,,,CLSI M100,2F,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Neisseria gonorrhoeae,TCY,DISK,30 µg,,,CLSI M100,2F,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Neisseria gonorrhoeae,TCY,MIC,,,,CLSI M100,2F,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Neisseria meningitidis,AMP,MIC,,,,CLSI M100,2I,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Neisseria meningitidis,AZM,DISK,15 µg,,,CLSI M100,2I,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Neisseria meningitidis,AZM,MIC,,,,CLSI M100,2I,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Neisseria meningitidis,CHL,DISK,30 µg,,,CLSI M100,2I,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Neisseria meningitidis,CHL,MIC,,,,CLSI M100,2I,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Neisseria meningitidis,CIP,DISK,5 µg,,,CLSI M100,2I,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Neisseria meningitidis,CIP,MIC,,,,CLSI M100,2I,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Neisseria meningitidis,CRO,DISK,30 µg,,,CLSI M100,2I,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Neisseria meningitidis,CRO,MIC,,,,CLSI M100,2I,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Neisseria meningitidis,CTX,DISK,30 µg,,,CLSI M100,2I,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Neisseria meningitidis,CTX,MIC,,,,CLSI M100,2I,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Neisseria meningitidis,LVX,MIC,,,,CLSI M100,2I,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Neisseria meningitidis,MEM,DISK,10 µg,,,CLSI M100,2I,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Neisseria meningitidis,MEM,MIC,,,,CLSI M100,2I,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Neisseria meningitidis,MNO,DISK,30 µg,,,CLSI M100,2I,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Neisseria meningitidis,MNO,MIC,,,,CLSI M100,2I,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Neisseria meningitidis,PEN,MIC,,,,CLSI M100,2I,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Neisseria meningitidis,RIF,DISK,5 µg,,,CLSI M100,2I,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Neisseria meningitidis,RIF,MIC,,,,CLSI M100,2I,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Neisseria meningitidis,SXT,DISK,1.25/,,,CLSI M100,2I,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Neisseria meningitidis,SXT,MIC,,,,CLSI M100,2I,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Anaerobes,AMC,MIC,,,,CLSI M100,2J,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Anaerobes,AMP,MIC,,,,CLSI M100,2J,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Anaerobes,CFP,MIC,,,,CLSI M100,2J,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Anaerobes,CHL,MIC,,,,CLSI M100,2J,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Anaerobes,CLI,MIC,,,,CLSI M100,2J,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Anaerobes,CMZ,MIC,,,,CLSI M100,2J,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Anaerobes,CRO,MIC,,,,CLSI M100,2J,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Anaerobes,CTT,MIC,,,,CLSI M100,2J,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Anaerobes,CTX,MIC,,,,CLSI M100,2J,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Anaerobes,CZX,MIC,,,,CLSI M100,2J,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Anaerobes,DOR,MIC,,,,CLSI M100,2J,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Anaerobes,ETP,MIC,,,,CLSI M100,2J,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Anaerobes,FOX,MIC,,,,CLSI M100,2J,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Anaerobes,IMR,MIC,,,,CLSI M100,2J,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Anaerobes,IPM,MIC,,,,CLSI M100,2J,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Anaerobes,MEM,MIC,,,,CLSI M100,2J,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Anaerobes,MFX,MIC,,,,CLSI M100,2J,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Anaerobes,MTZ,MIC,,,,CLSI M100,2J,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Anaerobes,PEN,MIC,,,,CLSI M100,2J,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Anaerobes,SAM,MIC,,,,CLSI M100,2J,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Anaerobes,TCC,MIC,,,,CLSI M100,2J,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Anaerobes,TCY,MIC,,,,CLSI M100,2J,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.
+Anaerobes,TZP,MIC,,,,CLSI M100,2J,,,,,,,,,,,,,,,Blueprint row — enter the thresholds from your licensed M100.

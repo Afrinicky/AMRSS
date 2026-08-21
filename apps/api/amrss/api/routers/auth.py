@@ -360,9 +360,7 @@ def _breakpoint_standing(db: DbSession, principal: Principal) -> BreakpointStand
     resolved = breakpoint_scope.authority(db, principal)
     facility = db.get(Facility, resolved.facility_id) if resolved.facility_id else None
     return BreakpointStanding(
-        source=(
-            "facility" if facility and facility.breakpoint_override_granted else "national"
-        ),
+        source=("facility" if facility and facility.breakpoint_override_granted else "national"),
         may_edit_locally=resolved.may_edit_locally,
         may_publish_national=resolved.may_publish_national,
         may_grant_override=resolved.may_grant_override,
