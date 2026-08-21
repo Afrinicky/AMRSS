@@ -36,6 +36,29 @@ class Permission(StrEnum):
     ACKNOWLEDGE_SIGNAL = "signal:acknowledge"
     MANAGE_METHODOLOGY = "methodology:manage"
 
+    #: Bring a regional block into existence, or retire one.
+    #:
+    #: Separate from MANAGE_BLOCK, which is *running* the block you belong to.
+    #: A regional administrator configures its own region; deciding that a new
+    #: region exists at all is a national act, and a role that could do it would
+    #: be able to mint itself a second region to administer.
+    CREATE_BLOCK = "block:create"
+
+    # Breakpoint governance
+    #:
+    #: Publish the table the whole programme interprets against. National, and
+    #: national only: two authorities publishing breakpoints means two
+    #: definitions of resistance in one surveillance dataset.
+    PUBLISH_NATIONAL_BREAKPOINTS = "breakpoints:publish_national"
+    #: Decide which facilities may depart from that table locally. Held with the
+    #: publishing permission, because permitting an exception and defining the
+    #: rule are the same job.
+    GRANT_BREAKPOINT_OVERRIDE = "breakpoints:grant_override"
+    #: Edit breakpoints for one's own facility. Necessary but not sufficient:
+    #: the facility must also carry the grant above. See
+    #: ``amrss.security.breakpoint_scope``.
+    EDIT_LOCAL_BREAKPOINTS = "breakpoints:edit_local"
+
     # Accountability
     READ_AUDIT = "audit:read"
 
@@ -54,16 +77,19 @@ class Permission(StrEnum):
 
 #: SDD 7, rendered as data.
 #:
-#: One separation remains deliberate and must not be collapsed: the Auditor
-#: reads the trail but holds no operational permission, so accountability stays
-#: independent of the administration it examines.
+#: Two separations are deliberate and must not be collapsed.
 #:
-#: The Regional AMR Administrator is the platform's single overall authority. It
-#: previously shared that authority with a separate System Administrator, but
-#: splitting infrastructure and account management away from regional oversight
-#: created two accounts where a regional programme has one accountable owner. The
-#: two are now one role, which enrols facilities, sets methodology, manages every
-#: account, and can reset the system to begin a new surveillance cycle.
+#: **The Auditor** reads the trail but holds no operational permission, so
+#: accountability stays independent of the administration it examines.
+#:
+#: **National authority is not regional authority.** The Superadmin holds every
+#: permission there is; the Regional AMR Administrator holds nearly as many but
+#: is confined by scope resolution to its own block, and lacks outright the
+#: three that are national by nature — creating a regional block, publishing the
+#: programme's breakpoint table, and permitting a facility to depart from it.
+#: A regional role that could create blocks could hand itself a second region;
+#: one that could publish breakpoints would put a second definition of
+#: resistance into a shared dataset.
 ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
     Role.LABORATORY_STAFF: frozenset(
         {
@@ -76,6 +102,10 @@ ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
         {
             Permission.VIEW_OWN_FACILITY,
             Permission.MANAGE_FACILITY_USERS,
+            # Holding this does not by itself allow a local departure from the
+            # national table: the facility must also carry the superadmin's
+            # grant. See amrss.security.breakpoint_scope.may_edit_locally.
+            Permission.EDIT_LOCAL_BREAKPOINTS,
         }
     ),
     Role.DATA_STEWARD: frozenset(
@@ -112,15 +142,56 @@ ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
             Permission.MANAGE_DICTIONARY,
             Permission.REVIEW_MAPPING,
             Permission.MANAGE_QC_GATING,
-            # Overall platform authority, formerly the System Administrator.
+            # Account administration across the block. Scope resolution — not
+            # this table — is what keeps it inside the block: see
+            # amrss.security.scope.administers_users_of.
             Permission.MANAGE_USERS,
             Permission.SYSTEM_ADMIN,
             Permission.PURGE_DATA,
+            # Local breakpoint editing for facilities in the block that the
+            # superadmin has granted an override to.
+            Permission.EDIT_LOCAL_BREAKPOINTS,
+            # Deliberately absent: CREATE_BLOCK, PUBLISH_NATIONAL_BREAKPOINTS,
+            # GRANT_BREAKPOINT_OVERRIDE. All three are national.
         }
     ),
     Role.CLINICIAN: frozenset({Permission.VIEW_REGIONAL}),
     Role.AUDITOR: frozenset({Permission.READ_AUDIT}),
+    # The national authority: everything, without exception. Written as "every
+    # member of Permission" rather than as a list, so a permission added later
+    # cannot be one the superadmin silently lacks.
+    Role.SUPERADMIN: frozenset(Permission),
 }
+
+
+#: Precedence, for the one question the permission set cannot answer: may this
+#: administrator hand out that role?
+#:
+#: An administrator may grant a role no higher than its own. Without an ordering
+#: the rule has to be written as a matrix that grows quadratically and gets one
+#: cell wrong; with it, the rule is a comparison. Roles that confer no
+#: administrative authority sit at the bottom together — the ordering is about
+#: *authority over accounts*, not about seniority in a laboratory.
+ROLE_RANK: dict[Role, int] = {
+    Role.CLINICIAN: 0,
+    Role.AUDITOR: 0,
+    Role.LABORATORY_STAFF: 0,
+    Role.DATA_STEWARD: 1,
+    Role.FACILITY_ADMINISTRATOR: 2,
+    Role.REGIONAL_AMR_ADMINISTRATOR: 3,
+    Role.SUPERADMIN: 4,
+}
+
+
+def outranks_or_equals(actor: Role, subject: Role) -> bool:
+    """Whether ``actor`` may create, edit or become ``subject``.
+
+    Equality is allowed on purpose: a superadmin appoints the next superadmin,
+    and a regional administrator appoints its successor. What is refused is
+    reaching *upward* — the rule that stops a regional administrator promoting
+    itself, or anyone else, to national authority.
+    """
+    return ROLE_RANK.get(actor, 0) >= ROLE_RANK.get(subject, 0)
 
 
 def permissions_for(role: Role) -> frozenset[Permission]:

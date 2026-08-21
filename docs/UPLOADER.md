@@ -1,15 +1,28 @@
-# The laboratory uploader
+# The desktop application
 
-`apps/uploader` is the desktop application a laboratory runs beside WHONET. It
-reads the laboratory's WHONET database, shows the laboratory its own data
-interpreted as S/I/R, checks every record before anything is sent, and submits
-de-identified surveillance records to the platform.
+`apps/uploader` is the desktop half of AMRSS. It runs beside WHONET in a
+laboratory, and it runs on an administrator's own machine.
+
+**For a laboratory** it reads the WHONET database, shows the laboratory its own
+data interpreted as S/I/R, checks every record before anything is sent, and
+submits de-identified surveillance records to the platform.
 
 It is the only part of AMRSS that ever touches identifiable patient data, and
 the boundary is structural: what leaves the building is assembled field by field
 from an allow-list in `src/core/deidentify.ts`, so a patient name, hospital
 number, date of birth, ward or free-text comment has no route out, whatever a
 facility's WHONET happens to contain.
+
+**For an administrator** it carries the same consoles the browser does —
+accounts, the network of regions and laboratories, the submission queues, the
+audit trail, and the platform's own regional figures. Administrators are not
+facility users and are not asked to pretend to be one: on a machine with no
+WHONET file the laboratory modules simply do not appear. Which consoles do
+appear is decided by the permissions the platform issued that account, read
+from the session rather than from role names written into the client, and every
+one of them is refused at the API for an account that should not reach it —
+exactly as it is for the browser. Hiding a control is a courtesy, never a
+control.
 
 ---
 
@@ -75,6 +88,16 @@ anything.
 | **Breakpoints** | The CLSI table itself, laid out as the standard prints it, editable in place. |
 | **Upload history** | Every batch sent from this computer, hash-chained. |
 | **Settings** | Facility, schedule, alerts, breakpoints, code mapping. |
+
+And, for the accounts that hold the permissions for them:
+
+| Console | What it answers | Needs |
+|---|---|---|
+| **Regional picture** | What the platform's figures say across every contributing facility — antibiogram, trends, signals. Deliberately separate from Analysis, which is this computer's WHONET file. | `surveillance:view_regional` |
+| **Submissions** | Which batches are waiting on a decision, and which facility codes are holding data out of the aggregates until somebody maps them. | `batch:review`, `mapping:review` |
+| **Accounts** | Who can sign in, what they may do, and where their authority stops. Role changes are their own step. | `user:manage`, `user:manage_facility` |
+| **Network** | Regions, districts and laboratories as one structure; enrolment, status, and the breakpoint override. | `facility:enroll`, `block:manage` |
+| **Audit trail** | Who did what, filtered by the decisions that change what the platform means. | `audit:read` |
 
 Every table and figure downloads as `.xlsx`, and every download carries its own
 provenance sheet: the filters that produced it, the counting rules behind its
@@ -159,7 +182,27 @@ the reason, and the old value comes back — the table on screen never shows a
 threshold the software would not accept. **Add an antimicrobial** on any section
 adds a row, pre-set to that organism group.
 
-The table itself arrives four ways:
+The table itself arrives five ways, and one of them is the answer for a
+laboratory that has none:
+
+- **Start from the blank CLSI layout** loads the *blueprint* — the printed
+  table's shape with every threshold removed. Every organism group, every agent
+  the standard prints against it, both methods where both are printed, the disk
+  potencies, and not one number. It ships with every build because it carries
+  nothing licensed, and it turns "AMRSS supplies no breakpoints" from a dead end
+  into a form. Export it to Excel, fill it in beside your own copy of M100,
+  import it back — or type straight into the page.
+
+  A blank row is safe to hold: the engine selects on thresholds, so a row with
+  none never matches and the measurement stays `PI`. What the page will not let
+  it do is look like coverage, which is why the fill meter sits above the table
+  and each organism group says how far it has got.
+
+  **New edition…** carries the structure forward into the next year with every
+  number blanked. A new edition is a new table rather than an edit to the old
+  one: results already interpreted cite the version they were interpreted
+  under, and editing a published edition in place would rewrite what past
+  antibiograms mean.
 
 - **Load the supplied CLSI table** uses the copy installed beside the
   application — CLSI M100 36th edition (2026), 707 criteria. It is offered as a
@@ -175,9 +218,19 @@ The table itself arrives four ways:
 - **Type it in.** The loaded table is listed in full and is editable — add a
   criterion, correct a threshold, remove one.
 
-**Export** writes the template CSV, and it is the file Import reads: export the
-table, correct a threshold in Excel, import it back. An Excel export is offered
-too, for reading rather than round-tripping.
+**Export and import are the same file, in both formats.** The CSV round-trips,
+and so does the Excel workbook: the export writes the columns the import reads,
+and a filled-in workbook is recognised by its header rather than being sent to
+the M100 converter — which is a lossy path and the wrong one for a file AMRSS
+wrote itself. The workbook carries a second sheet saying which column is which
+and which way round zones and MICs run.
+
+**Who may edit it.** Breakpoints are set nationally, so that a susceptible
+result at one laboratory means what it means at every other. The page is
+read-only unless the account may change the table — because it holds national
+authority, or because a superadmin has granted this facility an override,
+recorded against the facility with a stated reason. The server decides and the
+page says why.
 
 ### Converting a CLSI workbook
 

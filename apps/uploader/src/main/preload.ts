@@ -64,6 +64,11 @@ contextBridge.exposeInMainWorld("amrss", {
   loadSuppliedBreakpoints: () => ipcRenderer.invoke("breakpoints:loadSupplied"),
   exportBreakpoints: (input: { format?: "csv" | "xlsx" }) =>
     ipcRenderer.invoke("breakpoints:export", input),
+  blueprints: () => ipcRenderer.invoke("breakpoints:blueprints"),
+  loadBlueprint: (input: { edition?: string }) =>
+    ipcRenderer.invoke("breakpoints:loadBlueprint", input),
+  newBreakpointEdition: (input: { edition: string }) =>
+    ipcRenderer.invoke("breakpoints:newEdition", input),
   breakpointTable: (request: unknown) => ipcRenderer.invoke("breakpoints:table", request),
   breakpointCatalogue: (request: unknown) => ipcRenderer.invoke("breakpoints:catalogue", request),
   setBreakpointCell: (input: unknown) => ipcRenderer.invoke("breakpoints:setCell", input),
@@ -82,6 +87,40 @@ contextBridge.exposeInMainWorld("amrss", {
   exportAnalytics: (filters: unknown) => ipcRenderer.invoke("export:analytics", filters),
   exportTrend: (input: unknown) => ipcRenderer.invoke("export:trend", input),
   exportHistory: () => ipcRenderer.invoke("export:history"),
+
+  // The administrator consoles. Each is one call to the platform; none of them
+  // grants the renderer authority its account does not already have, because
+  // every one is refused at the API for an account that should not make it.
+  platformUsers: () => ipcRenderer.invoke("platform:users"),
+  platformUserOptions: () => ipcRenderer.invoke("platform:userOptions"),
+  platformCreateUser: (input: unknown) => ipcRenderer.invoke("platform:createUser", input),
+  platformUpdateUser: (input: unknown) => ipcRenderer.invoke("platform:updateUser", input),
+  platformChangeRole: (input: unknown) => ipcRenderer.invoke("platform:changeRole", input),
+  platformResetPassword: (input: unknown) => ipcRenderer.invoke("platform:resetPassword", input),
+  platformUnlockUser: (input: unknown) => ipcRenderer.invoke("platform:unlockUser", input),
+  platformDeleteUser: (input: unknown) => ipcRenderer.invoke("platform:deleteUser", input),
+
+  platformBlocks: () => ipcRenderer.invoke("platform:blocks"),
+  platformCreateBlock: (input: unknown) => ipcRenderer.invoke("platform:createBlock", input),
+  platformDistricts: (input: unknown) => ipcRenderer.invoke("platform:districts", input),
+  platformCreateDistrict: (input: unknown) => ipcRenderer.invoke("platform:createDistrict", input),
+
+  platformFacilities: (input: unknown) => ipcRenderer.invoke("platform:facilities", input),
+  platformEnrollFacility: (input: unknown) => ipcRenderer.invoke("platform:enrollFacility", input),
+  platformTransitionFacility: (input: unknown) =>
+    ipcRenderer.invoke("platform:transitionFacility", input),
+  platformSetBreakpointOverride: (input: unknown) =>
+    ipcRenderer.invoke("platform:setBreakpointOverride", input),
+
+  platformBatches: (input: unknown) => ipcRenderer.invoke("platform:batches", input),
+  platformTransitionBatch: (input: unknown) =>
+    ipcRenderer.invoke("platform:transitionBatch", input),
+  platformMappings: (input: unknown) => ipcRenderer.invoke("platform:mappings", input),
+  platformReviewMapping: (input: unknown) => ipcRenderer.invoke("platform:reviewMapping", input),
+  platformAudit: (input: unknown) => ipcRenderer.invoke("platform:audit", input),
+  platformSurveillance: (input: unknown) => ipcRenderer.invoke("platform:surveillance", input),
+  platformBreakpointAuthority: (input: unknown) =>
+    ipcRenderer.invoke("platform:breakpointAuthority", input),
 
   onStatus: (listener: Listener) => subscribe("amrss:status", listener),
   onData: (listener: Listener) => subscribe("amrss:data", listener),

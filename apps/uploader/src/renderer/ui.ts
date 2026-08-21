@@ -41,6 +41,32 @@ export function svg(tag: string, attrs: Record<string, string | number> = {}): S
   return node;
 }
 
+/**
+ * One navigation mark.
+ *
+ * Stroked on a 24-unit grid and inheriting `currentColor`, so a single set of
+ * shapes works against the sidebar's rest, hover and active states, and in both
+ * themes, without a second copy for either. `aria-hidden` because every icon
+ * here sits beside its own label — announcing it again would read the menu
+ * twice to anyone using a screen reader.
+ */
+export function icon(path: string, size = 18): SVGElement {
+  const node = svg("svg", {
+    viewBox: "0 0 24 24",
+    width: size,
+    height: size,
+    fill: "none",
+    stroke: "currentColor",
+    "stroke-width": 1.6,
+    "stroke-linecap": "round",
+    "stroke-linejoin": "round",
+    "aria-hidden": "true",
+    class: "icon",
+  });
+  node.append(svg("path", { d: path }));
+  return node;
+}
+
 export function clear(node: HTMLElement): HTMLElement {
   node.replaceChildren();
   return node;
@@ -102,7 +128,11 @@ export function stat(
     children: [
       el("div", { className: "label", text: label }),
       el("div", {
-        className: String(value).length > 12 ? "value long" : "value",
+        // A figure gets display size; a phrase does not. The cut is at nine
+        // characters because that is where a number stops being one — "1,234,567"
+        // still reads as a quantity, "WHONET 2025" is a label wearing a number's
+        // clothes and looks absurd at 25px.
+        className: String(value).length > 9 ? "value long" : "value",
         text: value,
       }),
       hint ? el("div", { className: "hint", text: hint }) : null,

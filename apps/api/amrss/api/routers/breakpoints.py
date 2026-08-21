@@ -50,9 +50,11 @@ from amrss.analytics.m100_workbook import (
 )
 from amrss.api.deps import CurrentPrincipal, DbSession, client_context, requires
 from amrss.audit import AuditAction
-from amrss.models import MethodologyVersion
+from amrss.models import Facility, MethodologyVersion
 from amrss.models.enums import MethodologyComponent
+from amrss.security import breakpoint_scope
 from amrss.security.permissions import Permission
+from amrss.security.scope import resolve_block_id
 
 router = APIRouter(prefix="/breakpoints", tags=["breakpoints"])
 
@@ -87,6 +89,10 @@ class ImportResponse(BaseModel):
     warnings: list[str]
     #: Present only when a workbook was converted on the way in.
     conversion: ConversionReport | None = None
+    #: Rows the draft carried that nobody had typed a threshold into, left
+    #: behind rather than published as coverage that does not exist. They stay
+    #: in the draft to be finished. Zero for a file import, which has no draft.
+    held_back: int = 0
 
 
 class PreviewResponse(BaseModel):
@@ -289,6 +295,52 @@ class ActiveBreakpointsResponse(BaseModel):
     criteria: list[dict]
 
 
+class BreakpointAuthorityResponse(BaseModel):
+    """What the signed-in account may do to breakpoints, and where its table
+    comes from.
+
+    Clients ask this once at sign-in rather than inferring it from the
+    permission list. Local editing needs three things to line up — a permission,
+    a facility grant and a scope — and an interface that guessed at the
+    combination would offer an editable table the server then refuses, which is
+    the worst of both.
+    """
+
+    #: May publish the national table every facility reads by default.
+    may_publish_national: bool
+    #: May grant or revoke another facility's local override.
+    may_grant_override: bool
+    #: May edit breakpoints for the facility in question.
+    may_edit_locally: bool
+    #: Whether the facility carries the national authority's grant at all,
+    #: independent of whether *this* account could use it.
+    facility_override_granted: bool
+    #: Why local editing is refused, in words worth showing. Empty when allowed.
+    refusal: str
+    #: "national" or "facility" — whose table this facility interprets against.
+    source: str
+
+
+@router.get("/authority", response_model=BreakpointAuthorityResponse)
+def breakpoint_authority(
+    db: DbSession,
+    principal: CurrentPrincipal,
+    facility_id: uuid.UUID | None = None,
+) -> BreakpointAuthorityResponse:
+    """Resolve breakpoint authority for a facility, defaulting to one's own."""
+    resolved = breakpoint_scope.authority(db, principal, facility_id=facility_id)
+    facility = db.get(Facility, resolved.facility_id) if resolved.facility_id else None
+    granted = bool(facility and facility.breakpoint_override_granted)
+    return BreakpointAuthorityResponse(
+        may_publish_national=resolved.may_publish_national,
+        may_grant_override=resolved.may_grant_override,
+        may_edit_locally=resolved.may_edit_locally,
+        facility_override_granted=granted,
+        refusal=resolved.refusal,
+        source="facility" if granted else "national",
+    )
+
+
 @router.get("/active", response_model=ActiveBreakpointsResponse)
 def active_breakpoints(
     db: DbSession,
@@ -307,7 +359,7 @@ def active_breakpoints(
     yet imported its tables gets measurements marked pending, which is the honest
     answer, not a failed sync it cannot act on.
     """
-    scope = regional_block_id if regional_block_id is not None else principal.regional_block_id
+    scope = _reading_scope(db, principal, regional_block_id)
     methodology = methodology_engine.resolve(
         db,
         regional_block_id=scope,
@@ -404,6 +456,63 @@ def run_interpretation(
 # individually sane and still duplicate another row's scope or overlap its band,
 # and the engine that catches that only sees it when it sees the set.
 
+
+def _reading_scope(
+    db: DbSession, principal: CurrentPrincipal, regional_block_id: uuid.UUID | None
+) -> uuid.UUID | None:
+    """Whose table this caller *reads*.
+
+    Deliberately permissive where publication is strict. Every account needs to
+    read the table in force — a laboratory syncing its uploader holds no
+    administrative permission at all — and reading a block's published
+    thresholds discloses nothing a published table was meant to keep. What it
+    must not do is let a caller read a *different* block's table by editing a
+    query parameter, so an out-of-scope request falls back to the caller's own
+    scope rather than being honoured.
+    """
+    if regional_block_id is None:
+        return resolve_block_id(db, principal)
+    if principal.is_national or regional_block_id == resolve_block_id(db, principal):
+        return regional_block_id
+    return resolve_block_id(db, principal)
+
+
+def _publication_scope(
+    db: DbSession, principal: CurrentPrincipal, regional_block_id: uuid.UUID | None
+) -> uuid.UUID | None:
+    """Which table this caller is editing: the national one, or a block's.
+
+    ``None`` means national — the table every facility falls back to, and the
+    one ``methodology.resolve`` reaches when no block-scoped row applies. That
+    is precisely why it needs its own permission: a block-scoped edit affects
+    one region, a national one affects the whole programme, and the two arrive
+    at this router through the same endpoints.
+
+    A regional administrator therefore always lands on its own block, even if it
+    asks for another or for none. Only national authority resolves to ``None``.
+    """
+    scope = regional_block_id if regional_block_id is not None else principal.regional_block_id
+
+    if scope is None:
+        if not principal.has(Permission.PUBLISH_NATIONAL_BREAKPOINTS):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=(
+                    "Publishing the national breakpoint table requires "
+                    "superadmin authority. Name a regional block to edit that "
+                    "block's table instead."
+                ),
+            )
+        return None
+
+    if not principal.is_national and scope != principal.regional_block_id:
+        # Reaching into another region's table. 404 rather than 403 for the same
+        # reason as everywhere else: the existence of the block is not this
+        # caller's business.
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unknown regional block")
+    return scope
+
+
 #: Where a draft sits so no computation can resolve it. Any date beyond the
 #: programme's life would do; the maximum makes the intent unmistakable.
 DRAFT_EFFECTIVE_FROM = date(9999, 12, 31)
@@ -444,6 +553,41 @@ def _scope_key(criterion: dict) -> tuple[str, ...]:
     )
 
 
+#: Threshold columns. A row with none of them is a placeholder.
+THRESHOLD_FIELDS = (
+    "mic_susceptible_max",
+    "mic_sdd_min",
+    "mic_sdd_max",
+    "mic_intermediate_min",
+    "mic_intermediate_max",
+    "mic_resistant_min",
+    "disk_susceptible_min",
+    "disk_sdd_min",
+    "disk_sdd_max",
+    "disk_intermediate_min",
+    "disk_intermediate_max",
+    "disk_resistant_max",
+)
+
+
+def _is_placeholder(criterion: dict) -> bool:
+    """Whether this row states no threshold at all.
+
+    A **placeholder**: the combination is real, the numbers have not been typed
+    yet. Drafts are full of them, because a draft usually starts from the
+    blueprint — the printed table's shape with every value left blank — and a
+    programme works through it organism group by organism group over days.
+
+    They are safe to hold and impossible to be misled by: the interpretation
+    engine selects on thresholds, so a row with none never matches and the
+    measurement stays pending, which is exactly what it is.
+    """
+    return all(
+        criterion.get(field) is None or str(criterion.get(field)).strip() == ""
+        for field in THRESHOLD_FIELDS
+    )
+
+
 def _validate_table(criteria: list[dict], version: str) -> list[str]:
     """Every problem in the draft, using the importer's own checks.
 
@@ -451,8 +595,11 @@ def _validate_table(criteria: list[dict], version: str) -> list[str]:
     threshold read from a CSV are the same claim about a patient's result, and it
     would be indefensible for one route to be checked and the other not.
     """
+    stated = [c for c in criteria if not _is_placeholder(c)]
+    if not stated:
+        return []
     try:
-        parse_breakpoint_csv(to_template_csv(criteria), version=version)
+        parse_breakpoint_csv(to_template_csv(stated), version=version)
     except BreakpointImportError as exc:
         return exc.problems
     return []
@@ -500,6 +647,10 @@ class DraftResponse(BaseModel):
     #: is being changed rather than presenting the table as if from nowhere.
     based_on: str | None
     criteria_count: int
+    #: Rows that state at least one threshold — the ones that would actually be
+    #: published. Distinct from ``criteria_count`` because a draft started from
+    #: the blueprint has hundreds of rows and, on day one, none of these.
+    stated_count: int
     criteria: list[dict]
     #: Everything wrong with the draft as it stands. A draft is allowed to be
     #: invalid while it is being worked on; publishing is what refuses.
@@ -520,7 +671,7 @@ def export_breakpoint_table(
     have to be reworked by hand before it could go back in, which is where
     transcription errors come from.
     """
-    scope = regional_block_id if regional_block_id is not None else principal.regional_block_id
+    scope = _publication_scope(db, principal, regional_block_id)
     methodology = methodology_engine.resolve(
         db, regional_block_id=scope, components=[MethodologyComponent.AST_BREAKPOINTS]
     )
@@ -554,7 +705,7 @@ def read_draft(
     what was imported. Starting empty would mean re-entering nine hundred rows to
     change one.
     """
-    scope = regional_block_id if regional_block_id is not None else principal.regional_block_id
+    scope = _publication_scope(db, principal, regional_block_id)
     row = _draft_row(db, scope)
 
     if row is None:
@@ -587,6 +738,7 @@ def read_draft(
         label=row.parameters.get("label"),
         based_on=row.parameters.get("based_on"),
         criteria_count=len(criteria),
+        stated_count=sum(1 for c in criteria if not _is_placeholder(c)),
         criteria=criteria,
         problems=_validate_table(criteria, row.version) if criteria else [],
     )
@@ -610,7 +762,7 @@ def upsert_draft_criterion(
     because two rows the engine cannot choose between is a worse state than
     either row alone.
     """
-    scope = regional_block_id if regional_block_id is not None else principal.regional_block_id
+    scope = _publication_scope(db, principal, regional_block_id)
     row = _draft_row(db, scope)
     if row is None:
         raise HTTPException(
@@ -646,6 +798,7 @@ def upsert_draft_criterion(
         label=row.parameters.get("label"),
         based_on=row.parameters.get("based_on"),
         criteria_count=len(criteria),
+        stated_count=sum(1 for c in criteria if not _is_placeholder(c)),
         criteria=criteria,
         problems=_validate_table(criteria, row.version),
     )
@@ -668,7 +821,7 @@ def remove_draft_criterion(
     regional_block_id: uuid.UUID | None = None,
 ) -> DraftResponse:
     """Remove one criterion from the draft, addressed by its scope."""
-    scope = regional_block_id if regional_block_id is not None else principal.regional_block_id
+    scope = _publication_scope(db, principal, regional_block_id)
     row = _draft_row(db, scope)
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="There is no draft.")
@@ -709,6 +862,7 @@ def remove_draft_criterion(
         label=row.parameters.get("label"),
         based_on=row.parameters.get("based_on"),
         criteria_count=len(criteria),
+        stated_count=sum(1 for c in criteria if not _is_placeholder(c)),
         criteria=criteria,
         problems=_validate_table(criteria, row.version) if criteria else [],
     )
@@ -745,7 +899,7 @@ def publish_draft(
     rows out of nine hundred would put three wrong thresholds into clinical
     reports, with no way afterwards to tell which results they touched.
     """
-    scope = regional_block_id if regional_block_id is not None else principal.regional_block_id
+    scope = _publication_scope(db, principal, regional_block_id)
     row = _draft_row(db, scope)
     if row is None or not _criteria_of(row):
         raise HTTPException(
@@ -753,10 +907,27 @@ def publish_draft(
             detail="The draft is empty. There is nothing to publish.",
         )
 
+    # A published table has to interpret something, so rows nobody has typed a
+    # threshold into are left behind rather than published as coverage that
+    # does not exist. They are not an error and they are not discarded: the
+    # draft keeps them, so the next edition of the same table can be finished
+    # from where this one stopped.
+    draft_criteria = _criteria_of(row)
+    stated = [c for c in draft_criteria if not _is_placeholder(c)]
+    held_back = len(draft_criteria) - len(stated)
+    if not stated:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                f"None of the draft's {len(draft_criteria)} rows has a threshold in it "
+                "yet, so there is nothing to interpret against. Fill some in first."
+            ),
+        )
+
     try:
         result = import_breakpoints(
             db,
-            to_template_csv(_criteria_of(row)),
+            to_template_csv(stated),
             version=body.version,
             source_edition=body.source_edition,
             effective_from=body.effective_from,
@@ -771,9 +942,23 @@ def publish_draft(
             detail={"message": str(exc), "problems": exc.problems},
         ) from exc
 
-    # The draft has become the published version; keeping it would leave two
-    # tables in play and no way to tell which one an operator was editing.
-    db.delete(row)
+    # The draft has become the published version; keeping it whole would leave
+    # two tables in play and no way to tell which one an operator was editing.
+    #
+    # Unless rows were held back. Those are the programme's unfinished work —
+    # combinations it has not got to yet — and throwing them away would mean
+    # re-deriving the list from the blueprint to carry on. So the draft
+    # survives holding exactly them, and the next publication adds whatever has
+    # been filled in since.
+    if held_back:
+        row.parameters = {
+            **row.parameters,
+            "based_on": body.version,
+            "label": f"Still to fill in after {body.version}",
+            "breakpoints": [c for c in draft_criteria if _is_placeholder(c)],
+        }
+    else:
+        db.delete(row)
 
     ip, agent = client_context(request)
     audit.record(
@@ -798,6 +983,17 @@ def publish_draft(
         version=result.version,
         source_edition=result.source_edition,
         imported=result.imported,
-        warnings=result.warnings,
+        warnings=(
+            result.warnings
+            + (
+                [
+                    f"{held_back} row(s) had no threshold typed into them and were not "
+                    "published. They are still in the draft, ready to be finished."
+                ]
+                if held_back
+                else []
+            )
+        ),
         conversion=None,
+        held_back=held_back,
     )

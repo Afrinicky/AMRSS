@@ -36,14 +36,20 @@ build/
 # The default stays "ignored" so that dropping a file in this directory cannot
 # put licensed material into a commit by accident.
 #
-# The exceptions are the two files the programme distributes deliberately: the
-# empty template, and the converted CLSI M100 Ed36 table committed at the
-# programme owner's direction. See data/breakpoints/README.md for what that
+# The exceptions are the files the programme distributes deliberately: the empty
+# template, the blueprints, and the converted CLSI M100 Ed36 table committed at
+# the programme owner's direction. See data/breakpoints/README.md for what that
 # means for your own CLSI licence.
+#
+# The blueprint exception is wildcarded by year because a blueprint carries no
+# thresholds at all — that is the point of the file — so there is nothing in one
+# for this rule to protect, and a new edition should not need this line edited
+# before it can be committed.
 data/breakpoints/*.csv
 data/breakpoints/*.xlsx
 data/breakpoints/*.xlsm
 !data/breakpoints/*.template.csv
+!data/breakpoints/clsi_m100_blueprint_*.csv
 !data/breakpoints/clsi_m100_ed36.csv
 !data/breakpoints/clsi_m100_ed36.not-converted.csv
 *.sqlite

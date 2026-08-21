@@ -6,8 +6,11 @@ import { test } from "node:test";
 import {
   advisoriesFor,
   BREAKPOINT_COLUMNS,
+  breakpointSheetRows,
   catalogue,
+  completeness,
   organismGroupsIn,
+  readBreakpointSheet,
   setCell,
   breakpointCsv,
   criterionKey,
@@ -17,7 +20,12 @@ import {
   upsertCriterion,
   validateCriterion,
 } from "../core/breakpoints";
-import { parseBreakpointCsv, type BreakpointCriterion } from "../core/interpret";
+import {
+  BreakpointIndex,
+  interpretReading,
+  parseBreakpointCsv,
+  type BreakpointCriterion,
+} from "../core/interpret";
 import {
   CODE_CATEGORIES,
   codebookWorkbook,
@@ -706,4 +714,204 @@ test("the outstanding gaps are read off the data, not off the validation report"
   // Already mapped is not a gap.
   const mapped = unmappedCodes(records, { ...emptyMappings, specimen: { zzq: "ur" } });
   assert.deepEqual(mapped.specimen, []);
+});
+
+/* ------------------------------------------------------------------ *
+ * The blueprint.
+ * ------------------------------------------------------------------ *
+ *
+ * AMRSS ships no thresholds, and for a long time that meant a laboratory with
+ * no licensed file to hand had an empty screen and nine hundred rows to invent.
+ * The blueprint is the table's shape without its numbers: safe to distribute,
+ * safe to hold, and a form somebody can fill in.
+ *
+ * Two properties have to hold, and each has a way of failing quietly.
+ *
+ * The blueprint must carry **no threshold at all** — a leak would be
+ * distributing licensed values, and nobody would notice one number in seven
+ * hundred rows. And a blank row must be **holdable but never interpretable** —
+ * held, or the blueprint cannot be loaded; never interpretable, or a laboratory
+ * would believe it has coverage it does not.
+ */
+
+const BLUEPRINT = join(
+  __dirname,
+  "..",
+  "..",
+  "..",
+  "..",
+  "data",
+  "breakpoints",
+  "clsi_m100_blueprint_2026.csv",
+);
+
+const VALUE_COLUMNS = BREAKPOINT_COLUMNS.filter(
+  (column) =>
+    (column.startsWith("mic_") || column.startsWith("disk_")) && column !== "disk_content",
+);
+
+function blueprintCriteria(): BreakpointCriterion[] {
+  const parsed = parseBreakpointCsv(readFileSync(BLUEPRINT, "utf8"));
+  assert.deepEqual(parsed.problems, [], "the shipped blueprint must parse cleanly");
+  return parsed.criteria;
+}
+
+test("the blueprint carries no threshold whatsoever", () => {
+  const criteria = blueprintCriteria();
+  assert.ok(criteria.length > 500, "the blueprint should cover the printed table");
+
+  const leaked: string[] = [];
+  for (const criterion of criteria) {
+    const row = criterion as unknown as Record<string, unknown>;
+    for (const column of VALUE_COLUMNS) {
+      const value = row[column];
+      if (value !== undefined && value !== null && String(value).trim() !== "") {
+        leaked.push(`${criterion.organism_group}/${criterion.agent_code}: ${column}=${value}`);
+      }
+    }
+  }
+  // Not a sample — every row, every column. A single leaked value is a licensed
+  // threshold being distributed, and it is the kind of thing that survives a
+  // spot check.
+  assert.deepEqual(leaked, [], "the blueprint must contain no threshold values");
+});
+
+test("the blueprint covers the combinations the conversion could not", () => {
+  const criteria = blueprintCriteria();
+  const has = (group: string, agent: string, method: string): boolean =>
+    criteria.some(
+      (criterion) =>
+        criterion.organism_group === group &&
+        criterion.agent_code === agent &&
+        criterion.method === method,
+    );
+
+  // Cefoxitin is the one that matters: it is the standard disk screen for
+  // methicillin resistance, and without a row for it a laboratory screening
+  // MRSA that way gets no MRSA rate at all.
+  assert.ok(has("Staphylococcus spp.", "FOX", "DISK"), "staphylococcal cefoxitin disk");
+  assert.ok(has("Staphylococcus spp.", "ERY", "DISK"), "staphylococcal erythromycin");
+  assert.ok(has("Staphylococcus spp.", "GEN", "DISK"), "staphylococcal gentamicin");
+  assert.ok(has("Enterobacterales", "COL", "MIC"), "colistin, which the extraction damaged");
+  assert.ok(has("Pseudomonas aeruginosa", "GEN", "DISK"), "pseudomonal gentamicin");
+});
+
+test("a blank row is held, and a half-filled one is still refused", () => {
+  const placeholder: BreakpointCriterion = {
+    organism_group: "Enterobacterales",
+    agent_code: "AMP",
+    method: "DISK",
+    disk_content: "10 µg",
+    standard: "CLSI M100",
+  };
+  // Held: a blueprint is nothing but rows like this, and refusing them would
+  // make it unloadable.
+  assert.deepEqual(validateCriterion(placeholder), []);
+
+  // Still refused: an intermediate band with no bounds either side looks like
+  // coverage and is not — every measurement above and below it is
+  // unclassifiable.
+  const halfFilled: BreakpointCriterion = {
+    ...placeholder,
+    disk_intermediate_min: 14,
+    disk_intermediate_max: 16,
+  };
+  const problems = validateCriterion(halfFilled);
+  assert.ok(problems.length > 0, "a band with no bounds must be refused");
+  assert.match(problems[0]!, /susceptible or a resistant/);
+});
+
+test("a blank row never interprets anything", () => {
+  const set = {
+    version: "blueprint",
+    label: null,
+    effectiveFrom: null,
+    source: "blueprint" as const,
+    syncedAt: null,
+    criteria: blueprintCriteria(),
+  };
+  const index = new BreakpointIndex(set);
+
+  // The table is loaded and covers the combination — and still cannot
+  // categorise a reading, because there is no threshold to compare against.
+  // Pending is the honest answer and the one the engine gives.
+  const result = interpretReading(
+    {
+      antibioticCode: "AMP",
+      canonicalCode: "AMP",
+      column: "AMP_ND10",
+      method: "disk_diffusion",
+      potency: "10",
+      raw: "20",
+      zoneDiameterMm: 20,
+      micValue: null,
+      micOperator: null,
+      recordedCategory: null,
+      quantitative: true,
+      unreadable: false,
+    },
+    "eco",
+    null,
+    index,
+  );
+  assert.equal(result.category, "PI");
+  assert.notEqual(result.origin, "engine");
+});
+
+test("completeness counts what can actually interpret, not what is listed", () => {
+  const criteria = blueprintCriteria();
+  const blank = completeness(criteria);
+  assert.equal(blank.rows, criteria.length);
+  assert.equal(blank.filled, 0);
+  assert.equal(blank.percent, 0);
+
+  // One threshold typed in, and the figure moves off zero — which is the whole
+  // point of showing it: "736 criteria" reads as a complete table.
+  const started = [...criteria];
+  started[0] = { ...started[0]!, disk_susceptible_min: 17, disk_resistant_max: 13 };
+  assert.equal(completeness(started).filled, 1);
+  assert.ok(completeness(started).percent > 0);
+});
+
+test("the blueprint round-trips through the spreadsheet export", () => {
+  const criteria = blueprintCriteria().slice(0, 40);
+
+  // Out to Excel, exactly as the export writes it.
+  const workbook = buildWorkbook([
+    { name: "Breakpoints", header: [...BREAKPOINT_COLUMNS], rows: breakpointSheetRows(criteria) },
+  ]);
+
+  // Somebody fills two thresholds in, the way they would in the spreadsheet.
+  const sheet = readWorkbook(workbook).sheet("Breakpoints");
+  const header = sheet[0]!.map((cell) => cell.trim().toLowerCase());
+  const sColumn = header.indexOf("disk_susceptible_min");
+  const rColumn = header.indexOf("disk_resistant_max");
+  const target = sheet.findIndex((row, index) => index > 0 && row[2] === "DISK");
+  assert.ok(target > 0, "the sample should contain a disk row to fill in");
+  sheet[target]![sColumn] = "17";
+  sheet[target]![rColumn] = "13";
+
+  // And back in.
+  const read = readBreakpointSheet(sheet);
+  assert.ok(read, "an exported workbook must be recognised as the template, not converted");
+  assert.deepEqual(read!.problems, []);
+  assert.equal(read!.criteria.length, criteria.length);
+  assert.equal(completeness(read!.criteria).filled, 1);
+
+  // The scopes came back unchanged — nothing was reshaped on the way through.
+  assert.deepEqual(
+    read!.criteria.map(criterionKey),
+    criteria.map(criterionKey),
+  );
+});
+
+test("somebody else's workbook is not mistaken for the template", () => {
+  // The CLSI M100 workbook a laboratory actually holds has no template header,
+  // and must go to the converter rather than being read as if it were ours.
+  const foreign = readWorkbook(
+    buildWorkbook([
+      { name: "Table 2A", header: ["Organism", "Antimicrobial Agent", "S", "I", "R"], rows: [] },
+    ]),
+  ).sheet("Table 2A");
+  assert.equal(readBreakpointSheet(foreign), null);
 });

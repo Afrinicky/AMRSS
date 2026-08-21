@@ -51,6 +51,14 @@ extraResources:
     to: breakpoints/clsi_m100_ed36.csv
   - from: ../../data/breakpoints/clsi_m100_ed36.not-converted.csv
     to: breakpoints/clsi_m100_ed36.not-converted.csv
+  # The blueprint: the same table's shape with every threshold removed. Unlike
+  # the file above it carries nothing licensed, so it ships with every build
+  # regardless of what the deployment's CLSI licence permits — and it is what
+  # turns "AMRSS supplies no breakpoints" from a dead end into a form to fill
+  # in. One file per edition year; the application offers the newest and lists
+  # the rest.
+  - from: ../../data/breakpoints/clsi_m100_blueprint_2026.csv
+    to: breakpoints/clsi_m100_blueprint_2026.csv
 
 asar: true
 # The native module cannot be executed from inside an asar archive.

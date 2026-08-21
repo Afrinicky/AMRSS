@@ -8,7 +8,7 @@ The repository holds two deployable services and one desktop client:
 | | Path | What it is |
 |---|---|---|
 | **Surveillance platform** | `apps/api`, `apps/web` | The regional API and dashboard: ingestion, quality gating, antibiograms, trends, reports, administration. Deployed from `infra/docker/` — see **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**. |
-| **Laboratory uploader** | `apps/uploader` | Runs inside a laboratory beside WHONET. Reads the WHONET database live, interprets it as S/I/R, checks every record, de-identifies, and submits only the result — see **[docs/UPLOADER.md](docs/UPLOADER.md)**. |
+| **Desktop application** | `apps/uploader` | Runs beside WHONET in a laboratory — reads the database live, interprets it as S/I/R, checks every record, de-identifies, submits only the result — and carries the administrator consoles on their own machines. See **[docs/UPLOADER.md](docs/UPLOADER.md)**. |
 | **Laboratory service** | `src/amrss` | The bench-side service. Its own stack: the root `Dockerfile` and `docker-compose.yml`, and the quick start below. |
 | **CLSI engine** | `packages/clsi` | The interpretive engine both halves share rather than reimplement (ADR-0005). |
 
@@ -23,12 +23,34 @@ cp infra/docker/.env.example infra/docker/.env      # then fill it in
 docker compose -f infra/docker/docker-compose.yml \
                -f infra/docker/docker-compose.prod.yml up -d --build
 docker compose ... exec api python -m amrss.seed              # dictionaries
-docker compose ... exec api python -m amrss.cli create-block  # your region
-docker compose ... exec api python -m amrss.cli create-user   # first admin
+docker compose ... exec api python -m amrss.cli create-user \
+    admin@example.org "Name" superadmin                       # national authority
+docker compose ... exec api python -m amrss.cli create-block  # first region
 ```
 
-A new deployment has no accounts and no facilities, by design. Laboratories are
-registered from **Administration → Facility enrollment** once you can sign in.
+A new deployment has no accounts and no facilities, by design. Create the
+**superadmin** first: it is the national authority, and the only role that can
+bring a region into existence or publish the breakpoint table the programme
+interprets against. Regions, districts and laboratories follow from
+**Administration** once you can sign in.
+
+### Who can do what
+
+| Role | Reaches |
+|---|---|
+| `superadmin` | Everything, nationally. The only role that creates a regional block, publishes the national breakpoint table, or permits a facility to depart from it. Need belong to no facility or region. |
+| `regional_amr_administrator` | Everything within its own block: its facilities, its accounts, its uploads, its methodology. Nothing outside it. |
+| `data_steward` | Batch review and dictionary stewardship across the block. |
+| `facility_administrator` | One laboratory's accounts, and its local breakpoints where an override has been granted. |
+| `laboratory_staff` | Uploads and QC attestations for one laboratory. |
+| `clinician` | The regional antibiogram and empiric guidance. |
+| `auditor` | The audit trail, and nothing else — so accountability stays independent of the administration it examines. |
+
+Two rules keep the ladder from being climbable: an administrator reaches only
+accounts inside its own scope, and may grant no role above its own. So a
+regional administrator can appoint its own successor and cannot appoint a
+superadmin — for a colleague or, since nobody may edit their own role, for
+itself.
 
 ---
 
@@ -44,7 +66,13 @@ converted for AMRSS at the programme owner's direction. **CLSI M100 is
 copyrighted by the Clinical and Laboratory Standards Institute**; whether you
 may use or redistribute that file depends on your own licence with CLSI, not on
 this repository's licence. If your deployment cannot rely on that, delete it and
-import from your own licensed copy — nothing depends on its presence. See
+import from your own licensed copy — nothing depends on its presence.
+
+`data/breakpoints/clsi_m100_blueprint_2026.csv` is the same table's *shape*
+with every threshold removed: 736 rows, 15 organism groups, 98 agents, no
+values. It carries nothing licensed, ships with every build, and is what a
+laboratory starts from — load it, export it to a spreadsheet, fill it in beside
+your own copy of the standard, import it back. See
 [data/breakpoints/README.md](data/breakpoints/README.md) and
 [docs/clsi.md](docs/clsi.md).
 

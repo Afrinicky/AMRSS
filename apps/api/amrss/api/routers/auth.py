@@ -7,9 +7,11 @@ from sqlalchemy import func, or_, select
 from amrss import audit
 from amrss.api.deps import ClientContext, CurrentPrincipal, DbSession
 from amrss.audit import AuditAction
-from amrss.models import AppUser
+from amrss.models import AppUser, Facility
 from amrss.models.enums import Role
+from amrss.security import breakpoint_scope
 from amrss.security.passwords import hash_password, needs_rehash, verify_password
+from amrss.security.scope import Principal
 from amrss.security.tokens import (
     HANDOFF_TTL,
     TokenError,
@@ -58,6 +60,29 @@ class ProfileResponse(BaseModel):
     #: client, and the reason it is not enforced server-side is that locking a
     #: user out of the change-password endpoint itself would be a deadlock.
     must_change_password: bool = False
+
+    #: What this account may do to breakpoints, resolved once at sign-in.
+    #:
+    #: The desktop uploader needs it before it draws anything: whether the
+    #: breakpoint table is editable here is the difference between a page of
+    #: input boxes and a page of read-only reference, and working that out from
+    #: the permission list alone is impossible — local editing also depends on a
+    #: grant recorded against the facility.
+    breakpoints: "BreakpointStanding"
+
+
+class BreakpointStanding(BaseModel):
+    """Where this account's breakpoints come from, and who may change them."""
+
+    #: "national" — the table the superadmin publishes for the whole programme —
+    #: or "facility", when this facility holds a granted override.
+    source: str
+    may_edit_locally: bool
+    may_publish_national: bool
+    may_grant_override: bool
+    #: Shown verbatim when editing is refused, so the interface can explain
+    #: rather than simply disable a control.
+    refusal: str = ""
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -327,4 +352,17 @@ def me(principal: CurrentPrincipal, db: DbSession) -> ProfileResponse:
         ),
         permissions=sorted(p.value for p in principal.permissions),
         must_change_password=bool(user and user.must_change_password),
+        breakpoints=_breakpoint_standing(db, principal),
+    )
+
+
+def _breakpoint_standing(db: DbSession, principal: Principal) -> BreakpointStanding:
+    resolved = breakpoint_scope.authority(db, principal)
+    facility = db.get(Facility, resolved.facility_id) if resolved.facility_id else None
+    return BreakpointStanding(
+        source=("facility" if facility and facility.breakpoint_override_granted else "national"),
+        may_edit_locally=resolved.may_edit_locally,
+        may_publish_national=resolved.may_publish_national,
+        may_grant_override=resolved.may_grant_override,
+        refusal=resolved.refusal,
     )

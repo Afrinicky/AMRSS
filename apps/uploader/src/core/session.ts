@@ -45,7 +45,37 @@ export interface Profile {
   regionalBlockId: string | null;
   permissions: string[];
   mustChangePassword: boolean;
+  /** Where this account's breakpoints come from, and who may change them.
+   *
+   * Resolved by the server at sign-in rather than inferred here. Whether the
+   * table is editable on this machine depends on a grant recorded against the
+   * facility, which no amount of reading the permission list can tell you. */
+  breakpoints: BreakpointStanding;
 }
+
+export interface BreakpointStanding {
+  /** "national" — the table the superadmin publishes for the whole programme —
+   * or "facility", when this facility holds a granted override. */
+  source: "national" | "facility";
+  mayEditLocally: boolean;
+  mayPublishNational: boolean;
+  mayGrantOverride: boolean;
+  /** Shown verbatim where editing is refused, so the interface explains itself
+   * instead of presenting a disabled control with no reason attached. */
+  refusal: string;
+}
+
+/** What an installation assumes before it has heard from the server: the
+ * national table, read-only. The safe direction — a laboratory shown a
+ * read-only table it may in fact edit asks about it, where one shown editable
+ * boxes it may not use loses the work it typed into them. */
+export const DEFAULT_BREAKPOINT_STANDING: BreakpointStanding = {
+  source: "national",
+  mayEditLocally: false,
+  mayPublishNational: false,
+  mayGrantOverride: false,
+  refusal: "",
+};
 
 export interface CredentialRecord {
   identifier: string;
@@ -87,8 +117,28 @@ export const ROLE_LABELS: Record<string, string> = {
   facility_administrator: "Facility administrator",
   data_steward: "Data steward",
   regional_amr_administrator: "Regional AMR administrator",
+  superadmin: "Superadmin",
   auditor: "Auditor",
   system_administrator: "System administrator",
+};
+
+/** One line on what each role is for, shown beside the name wherever a role is
+ * chosen. A bare enum value is a poor thing to put in front of somebody
+ * deciding who gets national authority. */
+export const ROLE_DESCRIPTIONS: Record<string, string> = {
+  superadmin:
+    "National authority over the whole programme. Creates regional blocks, "
+    + "publishes the breakpoint table every facility interprets against, and "
+    + "administers every account.",
+  regional_amr_administrator:
+    "Overall authority within one regional block: enrols its facilities, "
+    + "reviews its uploads and administers its accounts.",
+  data_steward:
+    "Reviews and retracts batches, curates the dictionary and approves code mappings.",
+  facility_administrator: "Manages the accounts at one laboratory.",
+  laboratory_staff: "Uploads results and attests quality control for one laboratory.",
+  clinician: "Reads the regional antibiogram and empiric guidance.",
+  auditor: "Reads the audit trail and nothing else.",
 };
 
 export function roleLabel(role: string): string {
@@ -193,6 +243,39 @@ export interface FetchOptions {
   timeoutMs?: number;
 }
 
+/** The result of one platform call. A value rather than an exception, because
+ * every caller here is drawing a screen and has to say something either way. */
+export type PlatformResult<T> =
+  | { ok: true; status: number; data: T }
+  | { ok: false; status: number; error: string };
+
+/**
+ * What went wrong, in words worth showing.
+ *
+ * FastAPI puts the useful sentence in `detail`, sometimes as a string and
+ * sometimes as an object carrying a message and a list of problems — the
+ * breakpoint importer answers that way. Both are unwrapped here so a refusal
+ * the API took care to phrase well is not replaced by "HTTP 422".
+ */
+export function describeApiError(status: number, body: unknown): string {
+  const detail = (body as { detail?: unknown } | null)?.detail;
+  if (typeof detail === "string" && detail.trim()) return detail;
+  if (detail && typeof detail === "object") {
+    const message = (detail as { message?: unknown }).message;
+    if (typeof message === "string" && message.trim()) return message;
+  }
+  if (Array.isArray(detail) && detail.length > 0) {
+    // Pydantic validation errors: one entry per field.
+    const first = detail[0] as { loc?: unknown[]; msg?: string };
+    const field = Array.isArray(first.loc) ? first.loc[first.loc.length - 1] : null;
+    if (first.msg) return field ? `${String(field)}: ${first.msg}` : first.msg;
+  }
+  if (status === 403) return "Your role does not allow that.";
+  if (status === 404) return "Not found, or outside what your account can reach.";
+  if (status === 409) return "That conflicts with the current state.";
+  return `The platform answered ${status}.`;
+}
+
 /** Every network call the uploader makes goes through here, so a laboratory on
  * a slow link waits a stated amount of time and then gets a stated answer. */
 export async function apiFetch(
@@ -274,6 +357,24 @@ function toProfile(body: Record<string, unknown>): Profile {
     regionalBlockId: (body.regional_block_id as string | null) ?? null,
     permissions: Array.isArray(body.permissions) ? (body.permissions as string[]) : [],
     mustChangePassword: Boolean(body.must_change_password),
+    breakpoints: toBreakpointStanding(body.breakpoints),
+  };
+}
+
+/** Read the server's answer, falling back to read-only.
+ *
+ * An uploader talking to a platform that predates this field gets the national,
+ * read-only assumption rather than a crash — and rather than an editable table
+ * whose edits the server would refuse. */
+function toBreakpointStanding(raw: unknown): BreakpointStanding {
+  if (!raw || typeof raw !== "object") return DEFAULT_BREAKPOINT_STANDING;
+  const body = raw as Record<string, unknown>;
+  return {
+    source: body.source === "facility" ? "facility" : "national",
+    mayEditLocally: Boolean(body.may_edit_locally),
+    mayPublishNational: Boolean(body.may_publish_national),
+    mayGrantOverride: Boolean(body.may_grant_override),
+    refusal: String(body.refusal ?? ""),
   };
 }
 
@@ -533,6 +634,81 @@ export class SessionManager {
     } catch {
       return null;
     }
+  }
+
+  /**
+   * One authenticated call to the platform, with the token handled here.
+   *
+   * Everything the administrator consoles do goes through this. Three things it
+   * takes off every call site:
+   *
+   * - **The token.** It is held in this object and never leaves the main
+   *   process; a caller that had to pass it would be a caller that had to hold
+   *   it.
+   * - **Expiry.** A 401 mid-session means the access token aged out, not that
+   *   the person is no longer who they were. It is refreshed once and the call
+   *   is retried, so a console left open over lunch does not throw the user
+   *   back to the sign-in screen.
+   * - **The failure vocabulary.** Every outcome is a value — `ok`, `status`,
+   *   `error` — rather than a mixture of thrown network errors, thrown JSON
+   *   parse errors and HTTP statuses that a caller has to remember to check.
+   *   A screen that renders half a list because one of those slipped through is
+   *   worse than one that says it could not load.
+   */
+  async request<T>(
+    apiUrl: string,
+    path: string,
+    init: RequestInit = {},
+    options: FetchOptions & { retried?: boolean } = {},
+  ): Promise<PlatformResult<T>> {
+    if (!this.accessToken) {
+      return {
+        ok: false,
+        status: 0,
+        error:
+          this.session?.mode === "offline"
+            ? "This needs a connection to the surveillance platform, and you are working offline."
+            : "Sign in to the surveillance platform first.",
+      };
+    }
+
+    let response: Response;
+    try {
+      response = await apiFetch(
+        apiUrl,
+        path,
+        {
+          ...init,
+          headers: {
+            authorization: `Bearer ${this.accessToken}`,
+            ...(init.body ? { "content-type": "application/json" } : {}),
+            ...(init.headers ?? {}),
+          },
+        },
+        options,
+      );
+    } catch (error) {
+      return {
+        ok: false,
+        status: 0,
+        error:
+          (error as Error).name === "AbortError"
+            ? "The platform did not answer in time."
+            : "The platform could not be reached from this computer.",
+      };
+    }
+
+    if (response.status === 401 && !options.retried && (await this.refresh(apiUrl))) {
+      return this.request<T>(apiUrl, path, init, { ...options, retried: true });
+    }
+
+    if (response.status === 204) return { ok: true, status: 204, data: undefined as T };
+
+    const body = (await response.json().catch(() => null)) as unknown;
+    if (!response.ok) {
+      return { ok: false, status: response.status, error: describeApiError(response.status, body) };
+    }
+    return { ok: true, status: response.status, data: body as T };
   }
 
   /** Re-mint the access token from the refresh token. Called when a request

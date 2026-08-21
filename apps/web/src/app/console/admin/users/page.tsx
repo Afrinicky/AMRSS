@@ -17,12 +17,19 @@ import {
 
 export const metadata = { title: "Accounts" };
 
+/** Fallback labels.
+ *
+ * The assignable roles arrive from the API described, so these are only reached
+ * for a role this caller may not grant — a superadmin's row seen by a regional
+ * administrator, or an account still carrying a retired value. Without them
+ * such a row would show a raw enum string. */
 const ROLE_LABEL: Record<string, string> = {
   clinician: "Clinician",
   laboratory_staff: "Laboratory staff",
   facility_administrator: "Facility administrator",
   data_steward: "Data steward",
   regional_amr_administrator: "Regional AMR administrator",
+  superadmin: "Superadmin",
   auditor: "Auditor",
   // Retained so an account still carrying the retired role (before the merge
   // migration runs) is labelled rather than shown as a raw string.
@@ -35,8 +42,12 @@ const ROLE_NOTE: Record<string, string> = {
   facility_administrator: "Manages accounts at their own laboratory, and nothing beyond it.",
   data_steward: "Reviews batches and dictionary mappings across the block.",
   regional_amr_administrator:
-    "The overall authority: enrols facilities, sets methodology, manages every account, " +
-    "and can reset the system to start a new surveillance cycle.",
+    "The overall authority within one region: enrols its facilities, sets its methodology, " +
+    "reviews its uploads and manages its accounts. Sees nothing outside its own region.",
+  superadmin:
+    "National authority over the whole programme. The only role that can create a regional " +
+    "block, publish the breakpoint table every facility interprets against, or permit a " +
+    "facility to depart from it. Need not belong to any facility or region.",
   auditor: "Reads the audit trail and holds no operational permission.",
   system_administrator: "Retired — its authority is now held by the regional AMR administrator.",
 };
@@ -48,11 +59,12 @@ const MIN_PASSWORD = 12;
 /**
  * Accounts (SDD 7, 10.2).
  *
- * Two kinds of administrator reach this page. The regional AMR administrator —
- * the platform's overall authority — manages every account; a facility
- * administrator manages their own laboratory's staff and nothing else. What each
- * one may reach is enforced at the API; the console only ever declines to draw a
- * control the caller could not use.
+ * Three kinds of administrator reach this page, each reaching exactly as far as
+ * its authority runs: a superadmin manages every account on the platform, a
+ * regional AMR administrator every account belonging to its own region, and a
+ * facility administrator their own laboratory's staff and nothing else. What
+ * each one may reach is enforced at the API; the console only ever declines to
+ * draw a control the caller could not use.
  *
  * The page states what each role can do rather than listing permission strings.
  * "Reads the audit trail and holds no operational permission" is a sentence an
@@ -228,18 +240,20 @@ function RoleSelect({
       <select id={id} name="role" required defaultValue={defaultValue ?? ""} className={FIELD}>
         {defaultValue ? null : <option value="">Choose a role</option>}
         {options.roles.map((role) => (
-          <option key={role} value={role}>
-            {ROLE_LABEL[role] ?? role}
+          <option key={role.value} value={role.value}>
+            {role.label}
           </option>
         ))}
       </select>
       {/* What each role means, in one line each. Nobody should have to open the
-          SDD to decide whether "data steward" is the right answer. */}
+          SDD to decide whether "data steward" is the right answer — and for
+          "superadmin" the sentence is the difference between a considered
+          appointment and a click. */}
       <ul className="mt-2 space-y-0.5 text-xs text-ink-muted">
         {options.roles.map((role) => (
-          <li key={role}>
-            <span className="font-medium text-ink">{ROLE_LABEL[role] ?? role}</span> —{" "}
-            {ROLE_NOTE[role]}
+          <li key={role.value}>
+            <span className="font-medium text-ink">{role.label}</span> —{" "}
+            {role.description || ROLE_NOTE[role.value]}
           </li>
         ))}
       </ul>
@@ -488,9 +502,19 @@ function ManageAccount({
               disabled={isSelf}
               className={`${FIELD} disabled:opacity-60`}
             >
-              {options.roles.map((role) => (
-                <option key={role} value={role}>
-                  {ROLE_LABEL[role] ?? role}
+              {/* A role this caller cannot grant is still shown when the
+                  account already holds it, or the select would silently offer
+                  to demote somebody by omission. The API refuses the change
+                  either way. */}
+              {(options.roles.some((role) => role.value === user.role)
+                ? options.roles
+                : [
+                    { value: user.role, label: ROLE_LABEL[user.role] ?? user.role },
+                    ...options.roles,
+                  ]
+              ).map((role) => (
+                <option key={role.value} value={role.value}>
+                  {role.label}
                 </option>
               ))}
             </select>

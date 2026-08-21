@@ -768,7 +768,7 @@ def get_scope(db: DbSession, principal: CurrentPrincipal) -> ScopeResponse:
         district_query = district_query.where(District.regional_block_id == block_id)
     districts = list(db.scalars(district_query))
 
-    pinned = principal.facility_id
+    pinned = principal.home_facility_id
     can_select_facility = pinned is not None or principal.has(Permission.VIEW_CROSS_FACILITY)
 
     facilities: list[Facility] = []

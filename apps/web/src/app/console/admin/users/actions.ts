@@ -35,6 +35,16 @@ function scopeFor(role: string, form: FormData) {
   if (role === "laboratory_staff" || role === "facility_administrator") {
     return { facility_id: text(form, "facility_id") ?? null, regional_block_id: null };
   }
+  // The national role. Both selectors are optional for it — a superadmin may
+  // be recorded where the person actually sits, and neither field bounds what
+  // they can reach — so whatever was chosen is passed through, including
+  // nothing at all.
+  if (role === "superadmin") {
+    return {
+      facility_id: text(form, "facility_id") ?? null,
+      regional_block_id: text(form, "regional_block_id") ?? null,
+    };
+  }
   return { facility_id: null, regional_block_id: text(form, "regional_block_id") ?? null };
 }
 

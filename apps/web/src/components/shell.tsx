@@ -64,6 +64,7 @@ const ROLE_LABELS: Record<string, string> = {
   facility_administrator: "Facility administrator",
   data_steward: "Data steward",
   regional_amr_administrator: "Regional AMR administrator",
+  superadmin: "Superadmin",
   auditor: "Auditor",
   system_administrator: "System administrator",
 };

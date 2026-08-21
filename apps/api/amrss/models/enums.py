@@ -150,17 +150,33 @@ class UploadSchedule(StrEnum):
 class Role(StrEnum):
     """SDD 7. Enforced at the API layer, never solely in the UI.
 
-    The ``regional_amr_administrator`` is the single overall authority: it
-    subsumes the former ``system_administrator``, holding both regional
-    oversight and platform/account administration. The old ``system_administrator``
-    value is retained in the database enum for historical audit rows but is no
-    longer assignable; the 20260817 migration reassigns any account that held it.
+    Authority runs national → regional → facility, and each level is bounded by
+    the one above it:
+
+    - ``superadmin`` is **national**. It holds every permission the platform
+      defines, and it is the only role that can bring a new regional block into
+      existence or publish the breakpoint table the whole programme reads. It
+      may sit in a facility or a block, and it may sit in neither — a national
+      programme office is not a laboratory, and forcing it to pretend otherwise
+      would put a national account inside one region's data.
+    - ``regional_amr_administrator`` is **regional**. It is the overall
+      authority *within its own block* and nowhere else: it enrols the block's
+      facilities, administers the block's accounts, and cannot see or touch
+      another region. It previously created blocks; that is now national.
+    - everything below is facility- or function-scoped as before.
+
+    The old ``system_administrator`` value is retained in the database enum for
+    historical audit rows but is no longer assignable; the 20260817 migration
+    reassigned any account that held it.
     """
 
     LABORATORY_STAFF = "laboratory_staff"
     FACILITY_ADMINISTRATOR = "facility_administrator"
     DATA_STEWARD = "data_steward"
     REGIONAL_AMR_ADMINISTRATOR = "regional_amr_administrator"
+    #: The national authority. Deliberately last in declaration order but first
+    #: in precedence — see ``amrss.security.permissions.ROLE_RANK``.
+    SUPERADMIN = "superadmin"
     CLINICIAN = "clinician"
     AUDITOR = "auditor"
 

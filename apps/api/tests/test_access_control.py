@@ -79,18 +79,33 @@ def test_regional_administrator_is_the_single_overall_authority():
     assert admin.has(Permission.PURGE_DATA)
 
 
-def test_purge_data_is_held_only_by_the_overall_authority():
+def test_purge_data_is_held_only_by_the_overall_authorities():
     """Deleting facilities or wiping the dataset is irreversible, so no other
-    role — not even a data steward who retracts batches — can reach it."""
+    role — not even a data steward who retracts batches — can reach it.
+
+    Two roles hold it, at two levels: the regional administrator inside its own
+    block, and the national superadmin everywhere. Scope, not this permission,
+    is what keeps the first from reaching the second's range.
+    """
     holders = {role for role in Role if Permission.PURGE_DATA in permissions_for(role)}
 
-    assert holders == {Role.REGIONAL_AMR_ADMINISTRATOR}
+    assert holders == {Role.REGIONAL_AMR_ADMINISTRATOR, Role.SUPERADMIN}
 
 
-def test_only_the_auditor_reads_the_audit_trail():
-    holders = {role for role in Role if Permission.READ_AUDIT in permissions_for(role)}
+def test_the_auditor_holds_the_audit_trail_and_nothing_else():
+    """The separation that matters is the auditor's, and it runs one way.
 
-    assert holders == {Role.AUDITOR}
+    The auditor must hold *no* operational permission, so the account examining
+    the administration cannot also perform it. It was never the converse — that
+    nobody else may read the trail — and asserting that would have made the
+    national authority the one role unable to review its own programme. Reading
+    is not tampering: the trail is append-only and hash-chained at the database,
+    so a superadmin who reads it still cannot alter it (see test_audit_chain).
+    """
+    assert permissions_for(Role.AUDITOR) == frozenset({Permission.READ_AUDIT})
+
+    readers = {role for role in Role if Permission.READ_AUDIT in permissions_for(role)}
+    assert readers == {Role.AUDITOR, Role.SUPERADMIN}
 
 
 def test_facility_administrator_cannot_upload_or_edit_surveillance_data():

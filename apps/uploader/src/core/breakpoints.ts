@@ -120,8 +120,14 @@ export function breakpointCsv(criteria: BreakpointCriterion[]): string {
   return `${lines.join("\n")}\n`;
 }
 
-/** The table as a spreadsheet, for a laboratory that would rather read it in
- * Excel than in a text editor. The CSV is what re-imports. */
+/** The table as a spreadsheet.
+ *
+ * Excel is where a laboratory actually fills a blueprint in — it is what is on
+ * the machine, it is what a person can put a printed page beside, and it is
+ * what gets emailed to the colleague who owns the licensed copy of M100. So the
+ * workbook round-trips as exactly as the CSV does: same columns, same order,
+ * same header, and `readBreakpointSheet` below reads it straight back.
+ */
 export function breakpointSheetRows(criteria: BreakpointCriterion[]): (string | number | null)[][] {
   return criteria.map((criterion) => {
     const row = criterion as unknown as Record<string, unknown>;
@@ -131,6 +137,69 @@ export function breakpointSheetRows(criteria: BreakpointCriterion[]): (string | 
       return typeof value === "number" ? value : String(value);
     });
   });
+}
+
+/**
+ * Read an exported workbook back into criteria.
+ *
+ * The counterpart to `breakpointSheetRows`, and the reason the export is worth
+ * having: a blueprint goes out as a spreadsheet, somebody types the thresholds
+ * from their licensed M100 into the S / I / R columns, and it comes back here.
+ * Round-tripping through the *same* columns is what makes that safe — an export
+ * in some other shape would have to be reworked by hand before it could go
+ * back, and reworking a nine-hundred-row table by hand is where transposed
+ * thresholds come from.
+ *
+ * Recognising the sheet is a matter of the header row: a workbook whose first
+ * row carries the template's columns is one of ours. Anything else is somebody
+ * else's spreadsheet — most likely the CLSI workbook itself — and is left for
+ * the M100 converter, which knows how to read that instead of guessing.
+ */
+export function readBreakpointSheet(rows: string[][]): {
+  criteria: BreakpointCriterion[];
+  problems: string[];
+} | null {
+  const headerIndex = rows.findIndex((row) =>
+    row.some((cell) => (cell ?? "").trim().toLowerCase() === "organism_group"),
+  );
+  if (headerIndex < 0) return null;
+
+  const header = (rows[headerIndex] ?? []).map((cell) => (cell ?? "").trim().toLowerCase());
+  for (const required of ["organism_group", "agent_code", "method"]) {
+    if (!header.includes(required)) return null;
+  }
+
+  const criteria: BreakpointCriterion[] = [];
+  const problems: string[] = [];
+
+  for (const [offset, row] of rows.slice(headerIndex + 1).entries()) {
+    const record: Record<string, string> = {};
+    header.forEach((name, position) => {
+      record[name] = (row[position] ?? "").trim();
+    });
+    // A wholly blank line is the gap somebody left between sections, not an
+    // error. A line with a group but no agent is a mistake worth naming.
+    if (!record.organism_group && !record.agent_code) continue;
+
+    const line = headerIndex + offset + 2;
+    if (!record.organism_group) problems.push(`row ${line}: organism_group is required`);
+    if (!record.agent_code) problems.push(`row ${line}: agent_code is required`);
+
+    const method = (record.method ?? "").toUpperCase();
+    if (!BREAKPOINT_METHODS.includes(method as BreakpointMethod)) {
+      problems.push(`row ${line}: method ${record.method || "(blank)"} is not MIC, DISK or GRADIENT`);
+      continue;
+    }
+
+    criteria.push({
+      ...(record as unknown as BreakpointCriterion),
+      organism_group: record.organism_group ?? "",
+      agent_code: (record.agent_code ?? "").toUpperCase(),
+      method,
+    });
+  }
+
+  return { criteria, problems };
 }
 
 /* ------------------------------------------------------------------ *
@@ -188,8 +257,89 @@ const MAX_ZONE_MM = 50;
  * - **a row with no thresholds at all** — silently interprets nothing while
  *   appearing in the table as coverage.
  */
-export function validateCriterion(criterion: BreakpointCriterion): string[] {
+/**
+ * Whether a row states no threshold at all.
+ *
+ * A **placeholder** — the row exists, the combination is real, nobody has typed
+ * the numbers yet. It is the unit a blueprint is made of: the printed table's
+ * organism groups and agents laid out with the values left for a person to read
+ * off their licensed copy.
+ *
+ * Placeholders are safe to hold because they cannot mislead. The interpretation
+ * engine selects on thresholds, so a row with none never matches; a measurement
+ * against it stays `PI` — measured, pending interpretation — which is exactly
+ * what it is. Nothing is guessed and nothing is lost.
+ *
+ * What is *not* safe, and stays refused, is a half-filled row: a susceptible
+ * bound with no resistant one, or bands that contradict each other. Those look
+ * like coverage and are not.
+ */
+export function isPlaceholder(criterion: BreakpointCriterion): boolean {
+  const disk = (criterion.method ?? "").trim().toUpperCase() === "DISK";
+  const values = disk
+    ? [
+        criterion.disk_susceptible_min,
+        criterion.disk_resistant_max,
+        criterion.disk_intermediate_min,
+        criterion.disk_intermediate_max,
+        criterion.disk_sdd_min,
+        criterion.disk_sdd_max,
+      ]
+    : [
+        criterion.mic_susceptible_max,
+        criterion.mic_resistant_min,
+        criterion.mic_intermediate_min,
+        criterion.mic_intermediate_max,
+        criterion.mic_sdd_min,
+        criterion.mic_sdd_max,
+      ];
+  return values.every((value) => numberOf(value) === null);
+}
+
+export interface Completeness {
+  /** Rows in the table. */
+  rows: number;
+  /** Rows that state at least one threshold. */
+  filled: number;
+  /** Rows still waiting for their numbers. */
+  placeholders: number;
+  percent: number;
+}
+
+/**
+ * How much of the table can actually interpret anything.
+ *
+ * The number that matters while a blueprint is being filled in, and the reason
+ * it is shown beside the table rather than buried in a report: "707 criteria"
+ * sounds like a complete table, and a blueprint with 707 empty rows is not one.
+ */
+export function completeness(criteria: BreakpointCriterion[]): Completeness {
+  const filled = criteria.filter((criterion) => !isPlaceholder(criterion)).length;
+  return {
+    rows: criteria.length,
+    filled,
+    placeholders: criteria.length - filled,
+    percent: criteria.length === 0 ? 0 : (filled / criteria.length) * 100,
+  };
+}
+
+export interface ValidationOptions {
+  /** Accept a row that states no threshold at all.
+   *
+   * True wherever a table is being *worked on* — the editor, the file import,
+   * the blueprint — because a blueprint is nothing but such rows and refusing
+   * them would make it unloadable. False where a table is being *relied on*.
+   * Half-filled rows are refused either way; this only decides whether an
+   * entirely empty one is an error or a job not yet done. */
+  allowPlaceholder?: boolean;
+}
+
+export function validateCriterion(
+  criterion: BreakpointCriterion,
+  options: ValidationOptions = {},
+): string[] {
   const problems: string[] = [];
+  const placeholder = (options.allowPlaceholder ?? true) && isPlaceholder(criterion);
 
   if (!(criterion.organism_group ?? "").trim()) {
     problems.push("An organism group is required — the scope the thresholds apply to.");
@@ -218,7 +368,7 @@ export function validateCriterion(criterion: BreakpointCriterion): string[] {
     // An intermediate band alone categorises nothing: every measurement above
     // and below it is unclassifiable, so the row is coverage that does not
     // exist. The platform refuses it too.
-    if (s === null && r === null) {
+    if (s === null && r === null && !placeholder) {
       problems.push(
         "A disk row needs a susceptible or a resistant zone diameter. An intermediate band on its own categorises nothing.",
       );
@@ -227,7 +377,7 @@ export function validateCriterion(criterion: BreakpointCriterion): string[] {
     // disk it was read around — 30 µg gentamicin and 10 µg gentamicin have
     // different thresholds — and a row the uploader accepted but the platform
     // would reject is a table that cannot be published.
-    if (!(criterion.disk_content ?? "").trim()) {
+    if (!(criterion.disk_content ?? "").trim() && !placeholder) {
       problems.push("A disk row needs its disk content, e.g. 10 µg.");
     }
     for (const [label, value] of [
@@ -262,7 +412,7 @@ export function validateCriterion(criterion: BreakpointCriterion): string[] {
     const iMin = numberOf(criterion.mic_intermediate_min);
     const iMax = numberOf(criterion.mic_intermediate_max);
 
-    if (s === null && r === null) {
+    if (s === null && r === null && !placeholder) {
       problems.push(
         "An MIC row needs a susceptible or a resistant concentration. An intermediate band on its own categorises nothing.",
       );
@@ -434,7 +584,9 @@ export function describeSet(set: BreakpointSet): string {
       ? "synced from the platform"
       : set.source === "local-import"
         ? "imported on this computer"
-        : "not loaded";
+        : set.source === "blueprint"
+          ? "blank layout, ready to fill in"
+          : "not loaded";
   const name = set.label ?? set.version ?? "Breakpoint table";
   return set.criteria.length === 0 ? "No breakpoint table loaded" : `${name} — ${where}`;
 }
@@ -541,6 +693,8 @@ export interface CatalogueRow {
   };
   /** Anything true but worth saying — an SDD band with no dosing regimen. */
   advisories: string[];
+  /** No threshold typed yet. The row is a place for a number, not a number. */
+  placeholder: boolean;
 }
 
 export interface CatalogueSection {
@@ -549,6 +703,10 @@ export interface CatalogueSection {
   tableReference: string;
   classes: Array<{ label: string; rows: CatalogueRow[] }>;
   rowCount: number;
+  /** How far this organism group has been filled in. Shown in the section
+   * heading, because "which groups still need work" is the question somebody
+   * typing from a printed table asks every few minutes. */
+  filled: number;
 }
 
 export interface Catalogue {
@@ -556,7 +714,13 @@ export interface Catalogue {
   method: "DISK" | "MIC";
   unit: string;
   loaded: boolean;
+  /** The table described in full — name and where it came from. Used where
+   * there is room for a sentence. */
   edition: string;
+  /** Its name alone. The provenance strip states the source separately, and
+   * "CLSI M100, 2026 edition — blank layout · blank layout" is what happens
+   * when both do it. */
+  editionLabel: string;
   /** Criteria in the whole table, both methods. */
   criteria: number;
   /** Criteria for the method shown. */
@@ -566,6 +730,16 @@ export interface Catalogue {
    * laboratory does not conclude an organism is missing when it is simply
    * covered by MICs and the zone view is open. */
   onlyUnderOtherMethod: string[];
+  /** How much of the whole table states thresholds, and how much is still a
+   * form. Over the whole table rather than the filtered view: a laboratory
+   * working through Enterobacterales needs to know where the *table* stands. */
+  completeness: Completeness;
+  /** Over the rows currently shown, so the section headings can say how far
+   * this organism group has got. */
+  shownCompleteness: Completeness;
+  /** True when the table carries no thresholds at all — a blueprint that
+   * nobody has started filling in. */
+  blueprint: boolean;
 }
 
 function plain(value: unknown): string {
@@ -621,6 +795,7 @@ function catalogueRow(criterion: BreakpointCriterion, disk: boolean): CatalogueR
       tableReference: plain(criterion.table_reference),
     },
     advisories: advisoriesFor(criterion),
+    placeholder: isPlaceholder(criterion),
   };
 }
 
@@ -705,20 +880,26 @@ export function catalogue(set: BreakpointSet, options: CatalogueOptions): Catalo
           "",
         classes,
         rowCount: criteria.length,
+        filled: criteria.filter((criterion) => !isPlaceholder(criterion)).length,
       };
     });
 
+  const whole = completeness(set.criteria);
   return {
     method: options.method,
     unit: disk ? "mm" : "µg/mL",
     loaded: set.criteria.length > 0,
     edition: describeSet(set),
+    editionLabel: set.label ?? set.version ?? "Breakpoint table",
     criteria: set.criteria.length,
     shown: forMethod.length,
     sections,
     onlyUnderOtherMethod: [...groupsWithAny]
       .filter((group) => group !== "" && !groupsHere.has(group))
       .sort(),
+    completeness: whole,
+    shownCompleteness: completeness(matching),
+    blueprint: set.criteria.length > 0 && whole.filled === 0,
   };
 }
 

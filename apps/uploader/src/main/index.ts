@@ -20,7 +20,7 @@ import { readFile } from "node:fs/promises";
 import { basename, join, normalize } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { readDeploymentDefaults, suppliedBreakpointPath } from "../core/deployment";
+import { blueprintFiles, readDeploymentDefaults, suppliedBreakpointPath } from "../core/deployment";
 import { ORGANISMS, organismLabel, SPECIMEN_TYPES, specimenLabel } from "../core/dictionary";
 import {
   clearCorrection,
@@ -38,16 +38,19 @@ import {
   breakpointSheetRows,
   catalogue,
   type CellField,
+  completeness,
   criterionRow,
   describeSet,
   matchesPreference,
   organismGroupsIn,
+  readBreakpointSheet,
   removeCriterion,
   setCell,
   upsertCriterion,
 } from "../core/breakpoints";
 import { convertM100Workbook } from "../core/m100";
 import { buildWorkbook } from "../core/xlsx";
+import { readWorkbook } from "../core/xlsx-read";
 import {
   codebookWorkbook,
   describeImport,
@@ -70,6 +73,8 @@ import {
   roleLabel,
   SessionManager,
 } from "../core/session";
+import { PlatformClient } from "../core/platform";
+import type { PlatformResult } from "../core/session";
 import { daysUntilDue, LocalStore, setupComplete, type UploaderState, verifyLog } from "../core/store";
 import { uploadableRecords } from "../core/validation";
 import { detectProfile, toSourceIsolates } from "../core/whonet";
@@ -114,6 +119,15 @@ const store = new LocalStore(join(app.getPath("userData"), "amrss"), deployment)
 const credentials = new CredentialStore(join(app.getPath("userData"), "amrss"));
 const session = new SessionManager(credentials);
 const workspace = new Workspace(store);
+
+/**
+ * The platform, for the parts of the application that administer it.
+ *
+ * Reads the API address on every call rather than capturing it, because a
+ * laboratory can change it in Settings without restarting, and a client holding
+ * the old one would fail in a way nobody would connect to the change.
+ */
+const platform = new PlatformClient(session, () => store.read().apiUrl);
 
 /** Organism codes the dictionary marks fungal, so the batch can label kingdom
  * without asking the renderer to carry a list that would go stale. */
@@ -454,6 +468,8 @@ function statusPayload(state: UploaderState) {
           facilityId: current.profile.facilityId,
           permissions: current.profile.permissions,
           mustChangePassword: current.profile.mustChangePassword,
+          regionalBlockId: current.profile.regionalBlockId,
+          breakpoints: current.profile.breakpoints,
           mode: current.mode,
           offlineDaysRemaining: current.offlineDaysRemaining,
           signedInAt: current.signedInAt,
@@ -917,6 +933,147 @@ ipcMain.handle("breakpoints:loadSupplied", async () => {
   };
 });
 
+/**
+ * The blueprints this installation carries, newest first.
+ *
+ * Distinct from the supplied table: the blueprint holds no thresholds at all,
+ * so it ships regardless of what a deployment's CLSI licence permits, and
+ * loading it turns "no breakpoint table" from a dead end into a form to fill
+ * in.
+ */
+ipcMain.handle("breakpoints:blueprints", () =>
+  blueprintFiles(RESOURCE_DIRECTORIES).map((file) => ({
+    edition: file.edition,
+    label: `CLSI M100, ${file.edition} edition — structure only, no thresholds`,
+  })),
+);
+
+/**
+ * Load a blueprint as the working table.
+ *
+ * Every row arrives as a placeholder: the combination is real, the numbers are
+ * not there yet. That is safe to hold and impossible to be misled by — the
+ * interpretation engine selects on thresholds, so a row with none never
+ * matches and the measurement stays `PI`, which is exactly what it is.
+ *
+ * Refuses to overwrite a table that already has thresholds in it. Loading a
+ * blueprint over a filled table would discard somebody's typing with no way
+ * back, and the two are one click apart on the same screen.
+ */
+ipcMain.handle("breakpoints:loadBlueprint", async (_event, input: { edition?: string } = {}) => {
+  const available = blueprintFiles(RESOURCE_DIRECTORIES);
+  const chosen = input.edition
+    ? available.find((file) => file.edition === input.edition)
+    : available[0];
+  if (!chosen) {
+    return {
+      ok: false,
+      message: "This installation was not built with a breakpoint blueprint.",
+    };
+  }
+
+  const existing = store.readBreakpoints();
+  const filled = completeness(existing.criteria).filled;
+  if (filled > 0) {
+    return {
+      ok: false,
+      message:
+        `The table already holds ${filled} threshold${filled === 1 ? "" : "s"}. Loading a ` +
+        "blueprint would replace them. Export what you have first, or start a new edition, " +
+        "which keeps this one intact.",
+    };
+  }
+
+  const parsed = parseBreakpointCsv(await readFile(chosen.path, "utf8"));
+  if (parsed.problems.length > 0) {
+    return {
+      ok: false,
+      message: `The blueprint could not be read. ${parsed.problems.slice(0, 3).join("; ")}`,
+      problems: parsed.problems.slice(0, 20),
+    };
+  }
+
+  const preference = store.read().testingMethod;
+  const criteria = parsed.criteria.filter((criterion) => matchesPreference(criterion, preference));
+  store.writeBreakpoints({
+    version: `M100-blueprint-${chosen.edition}`,
+    label: `CLSI M100, ${chosen.edition} edition`,
+    effectiveFrom: `${chosen.edition}-01-01`,
+    source: "blueprint",
+    syncedAt: new Date().toISOString(),
+    criteria,
+  });
+  reloadAndNotify("breakpoints");
+  return {
+    ok: true,
+    message:
+      `Loaded the ${chosen.edition} layout: ${criteria.length} rows across ` +
+      `${new Set(criteria.map((criterion) => criterion.organism_group)).size} organism groups, ` +
+      "with every threshold blank. Export it, fill it in from your licensed M100, and import " +
+      "it back — or type the values straight into the table.",
+  };
+});
+
+/**
+ * Begin the next edition from this one's structure.
+ *
+ * A new edition is a new table, not an edit to the old one. Every result
+ * already interpreted cites the version it was interpreted under, so changing
+ * a threshold inside a published edition would silently rewrite what past
+ * antibiograms mean. Starting fresh keeps the old table exportable and the old
+ * results explicable.
+ *
+ * What carries over is the *shape* — organism groups, agents, disk potencies,
+ * site and route qualifiers — because that is what does not change much between
+ * editions and what would take a day to retype. What does not carry over is a
+ * single number.
+ */
+ipcMain.handle("breakpoints:newEdition", async (_event, input: { edition: string }) => {
+  const edition = (input.edition ?? "").trim();
+  if (!/^\d{4}$/.test(edition)) {
+    return { ok: false, message: "An edition is a four-digit year, e.g. 2027." };
+  }
+
+  const existing = store.readBreakpoints();
+  if (existing.criteria.length === 0) {
+    return {
+      ok: false,
+      message: "There is no table to take a structure from. Load a blueprint first.",
+    };
+  }
+
+  const criteria = existing.criteria.map((criterion) => ({
+    organism_group: criterion.organism_group,
+    agent_code: criterion.agent_code,
+    method: criterion.method,
+    standard: criterion.standard ?? "CLSI M100",
+    table_reference: criterion.table_reference ?? null,
+    tier: criterion.tier ?? null,
+    site: criterion.site ?? null,
+    route: criterion.route ?? null,
+    disk_content: criterion.disk_content ?? null,
+    dosage_note: null,
+    comment: `Carried forward from ${describeSet(existing)} — enter the ${edition} thresholds.`,
+  }));
+
+  store.writeBreakpoints({
+    version: `M100-blueprint-${edition}`,
+    label: `CLSI M100, ${edition} edition`,
+    effectiveFrom: `${edition}-01-01`,
+    source: "blueprint",
+    syncedAt: new Date().toISOString(),
+    criteria,
+  });
+  reloadAndNotify("breakpoints");
+  return {
+    ok: true,
+    message:
+      `Started the ${edition} edition from ${criteria.length} rows of structure. Every ` +
+      "threshold is blank; the previous edition is no longer loaded, so export it first if " +
+      "you have not already.",
+  };
+});
+
 ipcMain.handle("breakpoints:sync", async () => {
   const state = store.read();
   if (!session.isOnline) {
@@ -958,6 +1115,42 @@ ipcMain.handle("breakpoints:import", async () => {
   let notes: string[] = [];
 
   if (path.toLowerCase().endsWith(".xlsx")) {
+    // Two quite different workbooks arrive through this dialogue, and telling
+    // them apart matters. One is *ours* — a blueprint or a table exported from
+    // here, filled in in Excel, coming back. The other is the laboratory's own
+    // licensed CLSI M100, which has to be converted and loses rows on the way.
+    // The header row says which: a sheet carrying the template's columns is
+    // ours and is read exactly, not converted approximately.
+    const sheet = readTemplateSheet(path);
+    if (sheet) {
+      if (sheet.problems.length > 0) {
+        return {
+          ok: false,
+          message: `The workbook was not imported. ${sheet.problems.slice(0, 5).join("; ")}`,
+          problems: sheet.problems.slice(0, 20),
+        };
+      }
+      criteria = sheet.criteria.filter((criterion) => matchesPreference(criterion, preference));
+      const stated = completeness(criteria);
+      store.writeBreakpoints({
+        version: `local-import-${new Date().toISOString().slice(0, 10)}`,
+        label: `Imported from ${basename(path)}`,
+        effectiveFrom: new Date().toISOString().slice(0, 10),
+        source: stated.filled === 0 ? "blueprint" : "local-import",
+        syncedAt: new Date().toISOString(),
+        criteria,
+      });
+      reloadAndNotify("breakpoints");
+      return {
+        ok: true,
+        message:
+          `Loaded ${criteria.length} rows, ${stated.filled} of them with thresholds` +
+          (stated.placeholders > 0
+            ? `. ${stated.placeholders} are still blank — those combinations read as pending until they are filled in.`
+            : "."),
+      };
+    }
+
     let conversion;
     try {
       conversion = convertM100Workbook(readFileSync(path), {
@@ -992,26 +1185,56 @@ ipcMain.handle("breakpoints:import", async () => {
     label = `Imported from ${basename(path)}`;
   }
 
+  const stated = completeness(criteria);
   const set: BreakpointSet = {
     version: `local-import-${new Date().toISOString().slice(0, 10)}`,
     label,
     effectiveFrom: new Date().toISOString().slice(0, 10),
-    source: "local-import",
+    // A file with rows but no thresholds is a blueprint however it was
+    // produced, and saying so is what lets the rest of the application explain
+    // why nothing is being interpreted yet.
+    source: stated.filled === 0 && criteria.length > 0 ? "blueprint" : "local-import",
     syncedAt: new Date().toISOString(),
     criteria,
   };
   store.writeBreakpoints(set);
   reloadAndNotify("breakpoints");
+
+  const filled =
+    stated.placeholders > 0
+      ? ` ${stated.filled} state thresholds; ${stated.placeholders} are blank and read as pending until filled in.`
+      : "";
   return {
     ok: true,
     message:
       notes.length === 0
-        ? `Loaded ${criteria.length} breakpoint criteria.`
-        : `Loaded ${criteria.length} breakpoint criteria. ${notes.length} row(s) could not be read `
+        ? `Loaded ${criteria.length} breakpoint rows.${filled}`
+        : `Loaded ${criteria.length} breakpoint rows.${filled} ${notes.length} row(s) could not be read `
           + "and are listed below — add them in the table if your laboratory reports those agents.",
     problems: notes.slice(0, 40),
   };
 });
+
+/** Read an .xlsx as the template, or say it is not one.
+ *
+ * Every sheet is tried, because a laboratory that has been working in the file
+ * may well have put its notes on the first one. A workbook that is not ours at
+ * all returns null and goes to the M100 converter instead. */
+function readTemplateSheet(
+  path: string,
+): { criteria: BreakpointCriterion[]; problems: string[] } | null {
+  let workbook;
+  try {
+    workbook = readWorkbook(readFileSync(path));
+  } catch {
+    return null;
+  }
+  for (const name of workbook.sheetNames) {
+    const parsed = readBreakpointSheet(workbook.sheet(name));
+    if (parsed) return parsed;
+  }
+  return null;
+}
 
 /** The loaded table as the template CSV — the file Import accepts. Exporting,
  * correcting a threshold in Excel and importing again is a supported loop. */
@@ -1021,6 +1244,8 @@ ipcMain.handle("breakpoints:export", async (_event, input: { format?: "csv" | "x
     return { ok: false, message: "There is no breakpoint table loaded to export." };
   }
 
+  const stated = completeness(set.criteria);
+
   if (input.format === "xlsx") {
     return saveWorkbook(`amrss-breakpoints-${stamp()}.xlsx`, () =>
       buildWorkbook([
@@ -1028,20 +1253,62 @@ ipcMain.handle("breakpoints:export", async (_event, input: { format?: "csv" | "x
           name: "Breakpoints",
           header: [...BREAKPOINT_COLUMNS],
           rows: breakpointSheetRows(set.criteria),
+          // Wide enough to type in without fighting the column. The four
+          // threshold columns a person actually fills in come first among the
+          // numeric ones, and the comment is last and widest because it is
+          // read rather than edited.
+          columnWidths: [34, 12, 9, 14, 12, 10, 13, 10, 7, ...Array(12).fill(11), 18, 70],
         },
         {
-          name: "About",
+          name: "How to use this",
           header: ["", ""],
           rows: [
             ["Table", describeSet(set)],
-            ["Criteria", set.criteria.length],
+            ["Rows", set.criteria.length],
+            ["With thresholds", stated.filled],
+            ["Still blank", stated.placeholders],
             ["Exported", new Date().toISOString()],
+            ["", ""],
             [
-              "To re-import",
-              "Use the CSV export, not this workbook: the CSV is the format Import reads.",
+              "Filling it in",
+              "Type the thresholds from your own licensed CLSI M100 into the "
+                + "mic_* and disk_* columns on the Breakpoints sheet. Leave a cell "
+                + "empty where the standard states nothing — empty means "
+                + "'not stated', not zero.",
+            ],
+            [
+              "Zone diameters",
+              "disk_susceptible_min is the S bound (≥) and disk_resistant_max is "
+                + "the R bound (≤). Larger zone means more susceptible, so S must "
+                + "be the larger number.",
+            ],
+            [
+              "MICs",
+              "mic_susceptible_max is the S bound (≤) and mic_resistant_min is "
+                + "the R bound (≥). These run the opposite way to zones: S is the "
+                + "smaller number.",
+            ],
+            [
+              "Putting it back",
+              "Save the workbook and use Import a table. This file imports "
+                + "unchanged — same columns, same order — and so does the CSV "
+                + "export. Every row is validated on the way in, and a row that "
+                + "contradicts itself is refused with the reason.",
+            ],
+            [
+              "Rows you do not need",
+              "Delete them. A row your laboratory does not report is a row "
+                + "nothing will ever match, and leaving it blank costs nothing "
+                + "either.",
+            ],
+            [
+              "Rows that are missing",
+              "Add them. Organism group, agent code, method and — for a disk "
+                + "row — the disk content are what identify a row; the rest is "
+                + "the thresholds.",
             ],
           ],
-          columnWidths: [18, 90],
+          columnWidths: [22, 96],
         },
       ]),
     );
@@ -1057,7 +1324,12 @@ ipcMain.handle("breakpoints:export", async (_event, input: { format?: "csv" | "x
     writeFileSync(chosen.filePath, breakpointCsv(set.criteria), "utf8");
     return {
       ok: true,
-      message: `Saved ${set.criteria.length} criteria to ${chosen.filePath}. This file imports back unchanged.`,
+      message:
+        `Saved ${set.criteria.length} rows to ${chosen.filePath}` +
+        (stated.placeholders > 0
+          ? `, ${stated.placeholders} of them blank and waiting for thresholds. `
+          : ". ") +
+        "This file imports back unchanged.",
     };
   } catch (error) {
     return { ok: false, message: `Could not save the file: ${(error as Error).message}` };
@@ -1146,10 +1418,24 @@ ipcMain.handle(
     // a disk laboratory is not shown a page of concentrations it never reads.
     const preference = store.read().testingMethod;
     const method = input.method ?? (preference === "mic" ? "MIC" : "DISK");
+    const standing = session.current?.profile.breakpoints;
     return {
       ...catalogue(set, { method, search: input.search, organismGroup: input.organismGroup }),
       organismGroups: organismGroupsIn(set),
       testingMethod: preference,
+      source: set.source,
+      // Whether this account may change the table here, decided by the
+      // platform at sign-in and not by this process. Breakpoints are national;
+      // a facility edits its own only where the national authority has granted
+      // it an exception, and that grant is recorded against the facility
+      // rather than against the role.
+      //
+      // An installation that has never been online has no standing yet. It is
+      // treated as editable, because a laboratory setting itself up offline
+      // with a blueprint and a printed page has to be able to type into it —
+      // and what it types is checked again when it reaches the platform.
+      editable: standing?.mayEditLocally ?? true,
+      editRefusal: standing?.mayEditLocally === false ? standing.refusal : "",
     };
   },
 );
@@ -1428,6 +1714,194 @@ ipcMain.handle(
 
 ipcMain.handle("export:history", async () =>
   saveWorkbook(`amrss-upload-history-${stamp()}.xlsx`, () => historyWorkbook(store.read().log)),
+);
+
+/* ------------------------------------------------------------------ *
+ * The administrator consoles.
+ * ------------------------------------------------------------------ *
+ *
+ * Every channel below is one call to the platform, with the answer turned into
+ * the same `{ ok, message }` shape the rest of the bridge speaks so a view can
+ * render a failure without knowing whether it came from HTTP, from a dropped
+ * connection, or from a permission the account does not hold.
+ *
+ * Nothing here decides anything. The consoles hide controls an account cannot
+ * use, which is a courtesy; the refusal that counts happens at the API, exactly
+ * as it does for the browser console. A renderer that reached these channels
+ * directly would gain no authority its account did not already have.
+ */
+
+/**
+ * One platform result, as the renderer wants it.
+ *
+ * Never a thrown error, always a sentence, and the data only when there is
+ * data. The renderer draws a screen either way and has nothing to do with an
+ * exception; what it needs is something to put on the page.
+ *
+ * The success message is the caller's rather than the server's, because the
+ * server's is written for an API client — "204 No Content" is true and useless
+ * — while the caller knows what was just done and to whom.
+ */
+function bridged<T>(
+  result: PlatformResult<T>,
+  onSuccess: string,
+): { ok: boolean; message: string; data?: T } {
+  return result.ok
+    ? { ok: true, message: onSuccess, data: result.data }
+    : { ok: false, message: result.error };
+}
+
+ipcMain.handle("platform:users", async () =>
+  bridged(await platform.users(), "Accounts loaded."),
+);
+
+ipcMain.handle("platform:userOptions", async () =>
+  bridged(await platform.userOptions(), "Options loaded."),
+);
+
+ipcMain.handle("platform:createUser", async (_event, input: Parameters<PlatformClient["createUser"]>[0]) =>
+  bridged(await platform.createUser(input), `Created ${input.email}.`),
+);
+
+ipcMain.handle(
+  "platform:updateUser",
+  async (_event, input: { userId: string; patch: Parameters<PlatformClient["updateUser"]>[1] }) =>
+    bridged(await platform.updateUser(input.userId, input.patch), "Account updated."),
+);
+
+/**
+ * Change somebody's role.
+ *
+ * Its own channel, mirroring its own endpoint. A regional administrator being
+ * promoted to superadmin gains authority over every region in the programme,
+ * and that is not something that should travel as one field inside a general
+ * update alongside a corrected surname.
+ */
+ipcMain.handle(
+  "platform:changeRole",
+  async (_event, input: { userId: string } & Parameters<PlatformClient["changeRole"]>[1]) => {
+    const { userId, ...change } = input;
+    return bridged(await platform.changeRole(userId, change), `Role changed to ${change.role}.`);
+  },
+);
+
+ipcMain.handle(
+  "platform:resetPassword",
+  async (_event, input: { userId: string; password: string }) =>
+    bridged(
+      await platform.resetPassword(input.userId, input.password),
+      "Password set. The account must change it at next sign-in — deliver it in person, not by email.",
+    ),
+);
+
+ipcMain.handle("platform:unlockUser", async (_event, input: { userId: string }) =>
+  bridged(await platform.unlockUser(input.userId), "Lockout cleared."),
+);
+
+ipcMain.handle(
+  "platform:deleteUser",
+  async (_event, input: { userId: string; confirm: string }) =>
+    bridged(await platform.deleteUser(input.userId, input.confirm), "Account deleted."),
+);
+
+ipcMain.handle("platform:blocks", async () => bridged(await platform.blocks(), "Regions loaded."));
+
+ipcMain.handle("platform:createBlock", async (_event, input: Parameters<PlatformClient["createBlock"]>[0]) =>
+  bridged(await platform.createBlock(input), `Created the ${input.name} region.`),
+);
+
+ipcMain.handle("platform:districts", async (_event, input: { regionalBlockId?: string } = {}) =>
+  bridged(await platform.districts(input.regionalBlockId), "Districts loaded."),
+);
+
+ipcMain.handle(
+  "platform:createDistrict",
+  async (_event, input: { regionalBlockId: string; name: string }) =>
+    bridged(
+      await platform.createDistrict(input.regionalBlockId, input.name),
+      `Added the ${input.name} district.`,
+    ),
+);
+
+ipcMain.handle("platform:facilities", async (_event, input: Parameters<PlatformClient["facilities"]>[0] = {}) =>
+  bridged(await platform.facilities(input), "Facilities loaded."),
+);
+
+ipcMain.handle("platform:enrollFacility", async (_event, input: Parameters<PlatformClient["enrollFacility"]>[0]) =>
+  bridged(
+    await platform.enrollFacility(input),
+    `${input.name} enrolled. It contributes nothing until it is activated.`,
+  ),
+);
+
+ipcMain.handle(
+  "platform:transitionFacility",
+  async (_event, input: { facilityId: string; target: string; reason: string }) =>
+    bridged(
+      await platform.transitionFacility(input.facilityId, input.target, input.reason),
+      `Facility moved to ${input.target}.`,
+    ),
+);
+
+ipcMain.handle(
+  "platform:setBreakpointOverride",
+  async (_event, input: { facilityId: string; granted: boolean; reason: string }) =>
+    bridged(
+      await platform.setBreakpointOverride(input.facilityId, input.granted, input.reason),
+      input.granted
+        ? "This facility may now keep its own breakpoint table. The exception is recorded with your name on it."
+        : "Override withdrawn. The facility falls back to the national table at its next sync; nothing it entered has been deleted.",
+    ),
+);
+
+ipcMain.handle("platform:batches", async (_event, input: { status?: string } = {}) =>
+  bridged(await platform.batches(input.status), "Submissions loaded."),
+);
+
+ipcMain.handle(
+  "platform:transitionBatch",
+  async (_event, input: { batchId: string; target: string; reason: string }) =>
+    bridged(
+      await platform.transitionBatch(input.batchId, input.target, input.reason),
+      `Batch moved to ${input.target}.`,
+    ),
+);
+
+ipcMain.handle("platform:mappings", async (_event, input: { status?: string } = {}) =>
+  bridged(await platform.mappings(input.status), "Mappings loaded."),
+);
+
+ipcMain.handle(
+  "platform:reviewMapping",
+  async (_event, input: { mappingId: string; approve: boolean; note: string }) =>
+    bridged(
+      await platform.reviewMapping(input.mappingId, input.approve, input.note),
+      input.approve ? "Mapping approved." : "Mapping rejected.",
+    ),
+);
+
+ipcMain.handle("platform:audit", async (_event, input: { action?: string; limit?: number } = {}) =>
+  bridged(await platform.audit(input), "Audit trail loaded."),
+);
+
+/**
+ * The platform's own surveillance figures.
+ *
+ * Distinct from the `analytics:*` channels, which compute over the WHONET file
+ * on this machine. These are the regional numbers — every contributing
+ * facility, deduplicated and quality-gated by the platform — and a laboratory
+ * needs both: its own data to check, and the region's to compare itself
+ * against. Conflating them in one screen is how a facility reads a national
+ * resistance rate as its own.
+ */
+ipcMain.handle(
+  "platform:surveillance",
+  async (_event, input: { path: string; params?: Record<string, unknown> }) =>
+    bridged(await platform.surveillance(input.path, input.params ?? {}), "Loaded."),
+);
+
+ipcMain.handle("platform:breakpointAuthority", async (_event, input: { facilityId?: string } = {}) =>
+  bridged(await platform.breakpointAuthority(input.facilityId), "Loaded."),
 );
 
 ipcMain.handle("app:openStateFolder", async () => {
