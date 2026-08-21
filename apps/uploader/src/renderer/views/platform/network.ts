@@ -168,7 +168,7 @@ function regionCard(
       children: [
         statTile("Districts", String(districts.length)),
         statTile("Facilities", String(region.facilityCount)),
-        statTile("Status", region.status),
+        statTile("Status", region.status.replaceAll("_", " ")),
         statTile(
           "WHONET standard",
           region.whonetConfigStandard ?? "not set",
@@ -194,7 +194,7 @@ function statTile(label: string, value: string, hint?: string | null): HTMLEleme
     className: "stat",
     children: [
       el("div", { className: "label", text: label }),
-      el("div", { className: value.length > 12 ? "value long" : "value", text: value }),
+      el("div", { className: value.length > 9 ? "value long" : "value", text: value }),
       hint ? el("div", { className: "hint", text: hint }) : null,
     ].filter(Boolean) as Node[],
   });
@@ -297,10 +297,13 @@ function facilityCard(
                 el("div", {
                   className: "cell-badges",
                   children: [
-                    badge(facility.qcStatus === "satisfactory" ? "ok" : "warn", `QC ${facility.qcStatus}`),
+                    badge(
+                      facility.qcStatus === "satisfactory" ? "ok" : "warn",
+                      `QC ${facility.qcStatus.replaceAll("_", " ")}`,
+                    ),
                     badge(
                       facility.eqaStatus === "satisfactory" ? "ok" : "warn",
-                      `EQA ${facility.eqaStatus}`,
+                      `EQA ${facility.eqaStatus.replaceAll("_", " ")}`,
                     ),
                   ],
                 }),

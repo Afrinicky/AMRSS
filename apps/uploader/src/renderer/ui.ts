@@ -128,7 +128,11 @@ export function stat(
     children: [
       el("div", { className: "label", text: label }),
       el("div", {
-        className: String(value).length > 12 ? "value long" : "value",
+        // A figure gets display size; a phrase does not. The cut is at nine
+        // characters because that is where a number stops being one — "1,234,567"
+        // still reads as a quantity, "WHONET 2025" is a label wearing a number's
+        // clothes and looks absurd at 25px.
+        className: String(value).length > 9 ? "value long" : "value",
         text: value,
       }),
       hint ? el("div", { className: "hint", text: hint }) : null,

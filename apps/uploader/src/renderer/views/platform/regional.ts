@@ -294,7 +294,7 @@ function tile(label: string, value: string, hint?: string | null): HTMLElement {
     className: "stat",
     children: [
       el("div", { className: "label", text: label }),
-      el("div", { className: value.length > 12 ? "value long" : "value", text: value }),
+      el("div", { className: value.length > 9 ? "value long" : "value", text: value }),
       hint ? el("div", { className: "hint", text: hint }) : null,
     ].filter(Boolean) as Node[],
   });
