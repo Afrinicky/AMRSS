@@ -7,7 +7,16 @@ module — or anywhere in application source — names a specific region.
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import Date, DateTime, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy import (
+    Boolean,
+    Date,
+    DateTime,
+    ForeignKey,
+    String,
+    Text,
+    UniqueConstraint,
+    false,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from amrss.models.base import Base, TimestampMixin, pg_enum, pk_column
@@ -87,6 +96,22 @@ class Facility(Base, TimestampMixin):
     #: Only meaningful when upload_schedule is CUSTOM.
     upload_interval_days: Mapped[int | None] = mapped_column()
     last_accepted_upload_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    #: Whether the national authority has permitted this facility to hold its
+    #: own breakpoint table rather than reading the national one.
+    #:
+    #: Default false, and that is the design rather than a cautious default:
+    #: one programme, one definition of resistance. A laboratory running a
+    #: method the national table does not cover — a species-specific gradient
+    #: strip, an agent added locally — needs a documented exception, and this
+    #: column *is* the document. Granting it is audited; so is revoking it.
+    breakpoint_override_granted: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
+    )
+    #: Why the exception was granted. Required by the API when granting, because
+    #: an exception nobody wrote a reason for is one nobody can review later.
+    breakpoint_override_note: Mapped[str | None] = mapped_column(Text)
+    breakpoint_override_granted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     mou_signed_on: Mapped[date | None] = mapped_column(Date)
     mou_reference: Mapped[str | None] = mapped_column(String(128))

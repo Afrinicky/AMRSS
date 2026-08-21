@@ -131,7 +131,11 @@ def resolve(
     # A facility-scoped user is pinned to their own facility whatever they ask
     # for. Honouring the parameter would let a laboratory account read a
     # neighbouring facility by editing a URL.
-    if principal.facility_id is not None:
+    #
+    # ``home_facility_id`` rather than ``facility_id``: a national account may be
+    # recorded at a facility without being confined to it, and pinning it there
+    # would make the superadmin the only role that cannot see the whole country.
+    if principal.home_facility_id is not None:
         if facility_id is not None and facility_id != principal.facility_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,

@@ -39,6 +39,7 @@ from amrss.models.enums import (
     UploadSchedule,
 )
 from amrss.security.permissions import Permission
+from amrss.security.scope import resolve_block_id
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -96,26 +97,59 @@ def _block_response(db: DbSession, block: RegionalBlock) -> BlockResponse:
     )
 
 
+def _assert_block_in_scope(
+    db: DbSession, principal: CurrentPrincipal, regional_block_id: uuid.UUID
+) -> None:
+    """Refuse an administrative act aimed at somebody else's region.
+
+    ``resolve_block_id`` returning ``None`` means national authority, which is
+    unbounded. Anything else is a boundary, and reaching past it is refused with
+    404 rather than 403: confirming that a block exists is itself a disclosure
+    to an administrator who has no business in it.
+    """
+    scope = resolve_block_id(db, principal)
+    if scope is not None and scope != regional_block_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Unknown regional block",
+        )
+
+
 @router.get(
     "/blocks",
     response_model=list[BlockResponse],
     dependencies=[Depends(requires(Permission.MANAGE_BLOCK))],
 )
-def list_blocks(db: DbSession) -> list[BlockResponse]:
-    blocks = db.scalars(select(RegionalBlock).order_by(RegionalBlock.name)).all()
-    return [_block_response(db, block) for block in blocks]
+def list_blocks(db: DbSession, principal: CurrentPrincipal) -> list[BlockResponse]:
+    """Every block, or the one the caller administers.
+
+    A regional administrator listing all blocks would be listing the regions it
+    has no authority over — and the console builds its block selector from this,
+    so what is listed is what can be acted on.
+    """
+    query = select(RegionalBlock).order_by(RegionalBlock.name)
+    scope = resolve_block_id(db, principal)
+    if scope is not None:
+        query = query.where(RegionalBlock.id == scope)
+    return [_block_response(db, block) for block in db.scalars(query)]
 
 
 @router.post(
     "/blocks",
     response_model=BlockResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(requires(Permission.MANAGE_BLOCK))],
+    dependencies=[Depends(requires(Permission.CREATE_BLOCK))],
 )
 def create_block(
     request: Request, db: DbSession, principal: CurrentPrincipal, payload: BlockCreate
 ) -> BlockResponse:
-    """Create a surveillance block. Configuration, never a code change (ADR-0002)."""
+    """Create a surveillance block. Configuration, never a code change (ADR-0002).
+
+    National authority only. A regional administrator runs the block it belongs
+    to; deciding that another region exists is a different act, and a role able
+    to perform it could give itself a second region — with itself already
+    installed as its administrator.
+    """
     if db.scalar(select(RegionalBlock).where(RegionalBlock.code == payload.code)):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -164,10 +198,16 @@ def create_block(
     dependencies=[Depends(requires(Permission.MANAGE_BLOCK))],
 )
 def list_districts(
-    db: DbSession, regional_block_id: uuid.UUID | None = None
+    db: DbSession,
+    principal: CurrentPrincipal,
+    regional_block_id: uuid.UUID | None = None,
 ) -> list[DistrictResponse]:
     query = select(District).order_by(District.name)
+    scope = resolve_block_id(db, principal)
+    if scope is not None:
+        query = query.where(District.regional_block_id == scope)
     if regional_block_id is not None:
+        _assert_block_in_scope(db, principal, regional_block_id)
         query = query.where(District.regional_block_id == regional_block_id)
 
     return [
@@ -197,6 +237,7 @@ def create_district(
     regional_block_id: Annotated[uuid.UUID, Query()],
     name: Annotated[str, Query(max_length=128)],
 ) -> DistrictResponse:
+    _assert_block_in_scope(db, principal, regional_block_id)
     if db.get(RegionalBlock, regional_block_id) is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unknown regional block")
 

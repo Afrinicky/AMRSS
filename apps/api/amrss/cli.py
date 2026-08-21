@@ -224,6 +224,16 @@ def _cmd_create_user(args: argparse.Namespace) -> int:
         print(f"Role {role.value} is facility-scoped: pass --facility CODE.", file=sys.stderr)
         return 1
 
+    # The national authority is the one role that needs no geography at all. It
+    # may still be given one, and that is recorded as where the person sits
+    # rather than as a limit on what they may reach.
+    if role is Role.SUPERADMIN:
+        print(
+            "Creating a superadmin: national authority over every region, "
+            "facility and account, and the only role that can create a regional "
+            "block or publish the programme's breakpoint table."
+        )
+
     email = args.email.strip().lower()
 
     with SessionLocal() as db:

@@ -23,11 +23,11 @@ def _resolve_upload_facility(
     A facility-scoped account (laboratory staff) can only be one laboratory, and
     the payload must agree with it. A non-scoped authority — the regional AMR
     administrator uploading on a laboratory's behalf — names the facility in the
-    payload instead, and may reach any facility within its own block. Either way
-    the batch lands against a real, in-scope facility rather than wherever the
-    payload asked.
+    payload instead, and may reach any facility within its own block; the
+    national authority reaches any facility at all. Either way the batch lands
+    against a real, in-scope facility rather than wherever the payload asked.
     """
-    if principal.facility_id is not None:
+    if principal.home_facility_id is not None:
         facility = db.get(Facility, principal.facility_id)
         if facility is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Facility not found")
@@ -184,7 +184,7 @@ def list_batches(
         .limit(min(limit, 200))
     )
 
-    if principal.facility_id is not None:
+    if principal.home_facility_id is not None:
         statement = statement.where(UploadBatch.facility_id == principal.facility_id)
     elif not principal.has(Permission.REVIEW_BATCH):
         raise HTTPException(
