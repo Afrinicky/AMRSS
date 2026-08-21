@@ -11,6 +11,7 @@ removes exactly one of them.
 """
 
 import uuid
+from typing import ClassVar
 
 import pytest
 from fastapi import HTTPException
@@ -177,3 +178,55 @@ class TestPublicationScope:
     def test_the_national_authority_may_publish_into_any_block(self):
         actor = principal(Role.SUPERADMIN)
         assert router._publication_scope(_Db(), actor, OTHER_BLOCK) == OTHER_BLOCK
+
+
+class TestPlaceholderRows:
+    """A draft usually starts from the blueprint — the printed table's shape
+    with every threshold blank — and a programme works through it over days. So
+    the editor has to hold rows nobody has typed into yet, and publication has
+    to do something sensible with the ones still empty."""
+
+    DISK: ClassVar[dict] = {
+        "organism_group": "Enterobacterales",
+        "agent_code": "AMP",
+        "method": "DISK",
+        "standard": "CLSI M100",
+        "disk_content": "10 ug",
+        "disk_susceptible_min": 17,
+        "disk_resistant_max": 13,
+    }
+    #: What the blueprint is made of: the scope, the potency, the standard —
+    #: everything that says *which test this is* — and no number.
+    BLANK: ClassVar[dict] = {
+        "organism_group": "Enterobacterales",
+        "agent_code": "CIP",
+        "method": "DISK",
+        "standard": "CLSI M100",
+        "disk_content": "5 ug",
+    }
+
+    def test_a_row_with_no_threshold_is_a_placeholder(self):
+        assert router._is_placeholder(self.BLANK)
+        assert not router._is_placeholder(self.DISK)
+
+    def test_an_empty_string_counts_as_no_threshold(self):
+        """CSV and spreadsheet round trips produce empty strings where a form
+        produces nulls. Treating them differently would make a blueprint that
+        came back from Excel unpublishable for reasons nobody could see."""
+        assert router._is_placeholder({**self.BLANK, "disk_susceptible_min": ""})
+        assert router._is_placeholder({**self.BLANK, "disk_susceptible_min": "   "})
+
+    def test_validating_a_draft_ignores_its_placeholders(self):
+        """A draft is allowed to be unfinished. Reporting every blank row as a
+        problem would bury the real ones under seven hundred false ones."""
+        assert router._validate_table([self.DISK, self.BLANK], "draft") == []
+
+    def test_a_draft_of_nothing_but_placeholders_is_not_an_error(self):
+        assert router._validate_table([self.BLANK], "draft") == []
+
+    def test_a_half_filled_row_is_still_a_problem(self):
+        """The distinction that matters. A row with a band and no bounds either
+        side is not unfinished — it is coverage that cannot categorise
+        anything, and it looks like coverage that can."""
+        broken = {**self.BLANK, "disk_intermediate_min": 14, "disk_intermediate_max": 16}
+        assert router._validate_table([broken], "draft") != []

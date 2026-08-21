@@ -18,7 +18,7 @@
  *    connected yet and to ask IT, rather than presenting an empty box.
  */
 
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 export interface DeploymentDefaults {
@@ -94,4 +94,62 @@ export function suppliedBreakpointPath(directories: string[]): string | null {
     if (existsSync(path)) return path;
   }
   return null;
+}
+
+/**
+ * The blueprint: the printed table's shape with every threshold left out.
+ *
+ * A different thing from the supplied table above, and the difference is the
+ * point. The supplied table carries CLSI's numbers, so whether a deployment may
+ * hold it at all depends on that deployment's licence. The blueprint carries
+ * none — only the organism groups, the agents, the disk potencies and the
+ * layout — so it can ship anywhere, and it turns "AMRSS ships no breakpoints"
+ * from a dead end into a form to fill in.
+ *
+ * One file per edition year. A laboratory adopting the next edition starts from
+ * that year's blueprint rather than editing last year's table in place, because
+ * every result already interpreted cites the version it was interpreted under
+ * and rewriting that in place would silently change what past antibiograms
+ * mean.
+ */
+export const BLUEPRINT_DIRECTORY = "breakpoints";
+
+const BLUEPRINT_PATTERN = /^clsi_m100_blueprint_(\d{4})\.csv$/i;
+
+export interface BlueprintFile {
+  path: string;
+  /** The edition year, from the file name. */
+  edition: string;
+}
+
+/**
+ * Every blueprint this installation was built with, newest edition first.
+ *
+ * Plural because adopting a new edition is a yearly event and both are worth
+ * having on disk during the changeover: last year's is what current results
+ * were interpreted under, this year's is what the laboratory is filling in.
+ */
+export function blueprintFiles(directories: string[]): BlueprintFile[] {
+  const found = new Map<string, string>();
+  for (const directory of directories) {
+    if (!directory) continue;
+    const folder = join(directory, BLUEPRINT_DIRECTORY);
+    if (!existsSync(folder)) continue;
+    let entries: string[];
+    try {
+      entries = readdirSync(folder);
+    } catch {
+      continue;
+    }
+    for (const entry of entries) {
+      const match = BLUEPRINT_PATTERN.exec(entry);
+      // First directory wins for a given edition: the search order runs from
+      // the packaged application outwards, so a facility's own copy beside the
+      // executable takes precedence over the one in the source tree.
+      if (match && !found.has(match[1]!)) found.set(match[1]!, join(folder, entry));
+    }
+  }
+  return [...found.entries()]
+    .sort(([a], [b]) => b.localeCompare(a))
+    .map(([edition, path]) => ({ edition, path }));
 }

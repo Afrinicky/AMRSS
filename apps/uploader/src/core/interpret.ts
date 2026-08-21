@@ -69,8 +69,14 @@ export interface BreakpointSet {
   version: string | null;
   label: string | null;
   effectiveFrom: string | null;
-  /** Where the table came from — the platform, or a file imported here. */
-  source: "platform" | "local-import" | "none";
+  /** Where the table came from.
+   *
+   * `blueprint` is its own source rather than a kind of local import, because
+   * it is the one that carries no thresholds: everything that reports on the
+   * table — the coverage figure, the empty state, the export's covering note —
+   * has to be able to say "this is a form, not a table" without inspecting
+   * nine hundred rows to work it out. */
+  source: "platform" | "local-import" | "blueprint" | "none";
   syncedAt: string | null;
   criteria: BreakpointCriterion[];
 }

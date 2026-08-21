@@ -64,6 +64,11 @@ contextBridge.exposeInMainWorld("amrss", {
   loadSuppliedBreakpoints: () => ipcRenderer.invoke("breakpoints:loadSupplied"),
   exportBreakpoints: (input: { format?: "csv" | "xlsx" }) =>
     ipcRenderer.invoke("breakpoints:export", input),
+  blueprints: () => ipcRenderer.invoke("breakpoints:blueprints"),
+  loadBlueprint: (input: { edition?: string }) =>
+    ipcRenderer.invoke("breakpoints:loadBlueprint", input),
+  newBreakpointEdition: (input: { edition: string }) =>
+    ipcRenderer.invoke("breakpoints:newEdition", input),
   breakpointTable: (request: unknown) => ipcRenderer.invoke("breakpoints:table", request),
   breakpointCatalogue: (request: unknown) => ipcRenderer.invoke("breakpoints:catalogue", request),
   setBreakpointCell: (input: unknown) => ipcRenderer.invoke("breakpoints:setCell", input),

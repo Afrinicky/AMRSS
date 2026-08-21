@@ -22,11 +22,30 @@
  * so a correction that makes the row self-contradictory is refused at the
  * moment it is typed rather than at publication, when whoever typed it has
  * moved on.
+ *
+ * **The blueprint.** AMRSS ships no thresholds, and for a long time that left a
+ * laboratory with an empty screen and nine hundred rows to invent. It now ships
+ * the table's *shape* instead: every organism group, every agent the standard
+ * prints against it, both methods where both are printed, the disk potencies —
+ * and not one number. Loading it fills this page with rows whose values are
+ * waiting to be typed, from the page or from a spreadsheet and back.
+ *
+ * A blank row is safe to hold and impossible to be misled by. The engine
+ * selects on thresholds, so a row with none never matches and the measurement
+ * stays `PI` — measured, pending interpretation — which is exactly what it is.
+ * What the page has to do is never let a blank row *look* like coverage, which
+ * is why the fill meter sits above the table rather than in a report.
+ *
+ * **Who may edit.** Breakpoints are set nationally so that a susceptible result
+ * at one laboratory means what it means at every other. This page is read-only
+ * unless the account may change the table — either because it holds national
+ * authority, or because the superadmin has granted this facility an exception.
+ * The server decides; this page shows the answer and says why.
  */
 
 import { api, type Catalogue, type CatalogueRow } from "../api.js";
 import type { ViewContext } from "../app.js";
-import { button, card, el, modal, notice, select, textInput, toast } from "../ui.js";
+import { button, el, field, modal, notice, select, textInput, toast } from "../ui.js";
 
 /** Which half of the table is open, and what is filtered. Module-level so the
  * position survives the redraw after every edit. */
@@ -53,6 +72,19 @@ export async function renderBreakpoints(host: HTMLElement, context: ViewContext)
   if (!data.loaded) {
     host.append(emptyState(refresh));
     return;
+  }
+
+  host.append(provenance(data));
+
+  if (!data.editable) {
+    host.append(
+      notice(
+        "info",
+        data.editRefusal ||
+          "This table is read-only for your account. It is the table your results are "
+            + "interpreted against; changing it is a national decision.",
+      ),
+    );
   }
 
   host.append(toolbar(data, redraw));
@@ -97,37 +129,63 @@ function head(
           el("h2", { text: "Breakpoints" }),
           el("p", {
             text: data.loaded
-              ? `${data.edition} — ${data.criteria.toLocaleString()} criteria, of which ${data.shown.toLocaleString()} are ${data.method === "DISK" ? "zone diameters" : "MICs"}.`
+              ? data.blueprint
+                ? "Every organism group and antimicrobial the standard prints, with the "
+                  + "thresholds still to be entered. Nothing is interpreted until they are — "
+                  + "measurements read as PI, which is what they are."
+                : `${data.edition} — the table that decides every S, I and R on this computer.`
               : "The table that decides every S, I and R on this computer.",
           }),
         ],
       }),
+      // With no table loaded there is nothing to export and no edition to
+      // succeed, and the empty state below already offers the two things that
+      // do make sense. Showing the full row here would put four buttons in
+      // front of somebody where three of them fail.
       el("div", {
         className: "page-actions",
-        children: [
-          button("Import a table…", async () => {
-            const result = await api.importBreakpoints();
-            report(result, "Rows that could not be read");
-            await refresh();
-          }),
-          button("Export as CSV", async () => {
-            const result = await api.exportBreakpoints({ format: "csv" });
-            toast(result.message, result.ok ? "ok" : "warn");
-          }),
-          button("Export as Excel", async () => {
-            const result = await api.exportBreakpoints({ format: "xlsx" });
-            toast(result.message, result.ok ? "ok" : "warn");
-          }),
-          button(
-            "Sync from platform",
-            async () => {
-              const result = await api.syncBreakpoints();
-              toast(result.message, result.ok ? "ok" : "warn");
-              await refresh();
-            },
-            "ghost",
-          ),
-        ],
+        children: (data.loaded
+          ? [
+              // Export leads, because on a blueprint it is the first thing
+              // anybody does: take the form to the spreadsheet, fill it in
+              // beside the printed page, bring it back.
+              button("Export as Excel", async () => {
+                const result = await api.exportBreakpoints({ format: "xlsx" });
+                toast(result.message, result.ok ? "ok" : "warn");
+              }),
+              button("Export as CSV", async () => {
+                const result = await api.exportBreakpoints({ format: "csv" });
+                toast(result.message, result.ok ? "ok" : "warn");
+              }),
+              button(
+                "Import a table…",
+                async () => {
+                  const result = await api.importBreakpoints();
+                  report(result, "Rows that could not be read");
+                  await refresh();
+                },
+                data.blueprint ? "primary" : "default",
+                {
+                  title:
+                    "Reads back the spreadsheet or CSV this page exports, and a licensed "
+                    + "CLSI M100 workbook.",
+                },
+              ),
+              button(
+                "Sync from platform",
+                async () => {
+                  const result = await api.syncBreakpoints();
+                  toast(result.message, result.ok ? "ok" : "warn");
+                  await refresh();
+                },
+                "ghost",
+              ),
+              data.editable
+                ? button("New edition…", () => openNewEdition(refresh), "ghost")
+                : null,
+            ]
+          : []
+        ).filter(Boolean) as Node[],
       }),
     ],
   });
@@ -136,57 +194,237 @@ function head(
 /**
  * What a laboratory sees before it has a table.
  *
- * Deliberately one large, obvious action rather than four equal buttons. An
- * installation that ships with the standard has a working table one click away,
- * and until now the only way to discover that was to read the row of controls.
+ * The order of what is offered here is the whole design. Until now the only
+ * paths out were "import your own licensed file" and "sync from a platform you
+ * may not be able to reach", and a laboratory with neither to hand was stuck
+ * looking at an empty screen — with no way to discover that the alternative was
+ * nine hundred rows of typing from nothing.
+ *
+ * So the **blueprint** leads: the printed table's shape, every organism group
+ * and agent laid out, no thresholds. It ships with every installation because
+ * it carries nothing licensed. One click and this page is a form.
+ *
+ * The supplied CLSI table comes second, where a deployment has one, because
+ * whether it may be used at all depends on that deployment's licence — and a
+ * table that appeared by itself is a table nobody checked against the edition
+ * their laboratory reports under.
  */
 function emptyState(refresh: () => Promise<void>): HTMLElement {
   const panel = el("div", { className: "bp-empty" });
 
-  void api.suppliedBreakpoints().then((supplied) => {
-    panel.replaceChildren(
-      el("h3", { text: "No breakpoint table is loaded" }),
-      el("p", {
-        text: "Until one is, every measurement reads as PI — measured, pending interpretation. Nothing is guessed, and nothing is lost: the results still upload and are still counted as tested.",
-      }),
-      supplied.available
-        ? el("div", {
-            children: [
-              button(
-                "Load the supplied CLSI table",
-                async () => {
-                  const result = await api.loadSuppliedBreakpoints();
-                  toast(result.message, result.ok ? "ok" : "warn");
-                  await refresh();
-                },
-                "primary",
-              ),
-              el("p", { className: "small muted", text: supplied.label }),
-            ],
-          })
-        : el("p", {
-            className: "small muted",
-            text: "This installation was not built with a table. Import your own licensed CLSI M100 workbook, or sync from the platform.",
-          }),
-      el("div", {
-        className: "toolbar",
-        children: [
-          button("Import a table…", async () => {
-            const result = await api.importBreakpoints();
-            report(result, "Rows that could not be read");
-            await refresh();
-          }),
-          button("Sync from platform", async () => {
-            const result = await api.syncBreakpoints();
-            toast(result.message, result.ok ? "ok" : "warn");
-            await refresh();
-          }),
-        ],
-      }),
-    );
-  });
+  void Promise.all([api.suppliedBreakpoints(), api.blueprints()]).then(
+    ([supplied, blueprints]) => {
+      const blueprint = blueprints[0];
+
+      const children: Array<Node | null> = [
+        el("h3", { text: "No breakpoint table is loaded" }),
+        el("p", {
+          text: "Until one is, every measurement reads as PI — measured, pending "
+            + "interpretation. Nothing is guessed, and nothing is lost: the results still "
+            + "upload and are still counted as tested.",
+        }),
+
+        blueprint
+          ? el("div", {
+              className: "bp-start",
+              children: [
+                button(
+                  "Start from the blank CLSI layout",
+                  async () => {
+                    const result = await api.loadBlueprint({ edition: blueprint.edition });
+                    toast(result.message, result.ok ? "ok" : "bad");
+                    await refresh();
+                  },
+                  "primary",
+                ),
+                el("p", {
+                  className: "small muted",
+                  text: `Every organism group and antimicrobial the ${blueprint.edition} `
+                    + "edition prints, with the thresholds left blank. Export it to Excel, "
+                    + "fill it in from your own licensed copy, and import it back — or type "
+                    + "the values straight into the table.",
+                }),
+                blueprints.length > 1
+                  ? el("div", {
+                      className: "small muted",
+                      children: [
+                        document.createTextNode("Other editions: "),
+                        ...blueprints.slice(1).map((other) =>
+                          el("button", {
+                            className: "link-button",
+                            text: other.edition,
+                            onClick: async () => {
+                              const result = await api.loadBlueprint({ edition: other.edition });
+                              toast(result.message, result.ok ? "ok" : "bad");
+                              await refresh();
+                            },
+                          }),
+                        ),
+                      ],
+                    })
+                  : null,
+              ].filter(Boolean) as Node[],
+            })
+          : null,
+
+        supplied.available
+          ? el("div", {
+              className: "bp-secondary",
+              children: [
+                button(
+                  "Load the supplied CLSI table",
+                  async () => {
+                    const result = await api.loadSuppliedBreakpoints();
+                    toast(result.message, result.ok ? "ok" : "warn");
+                    await refresh();
+                  },
+                ),
+                el("p", {
+                  className: "small muted",
+                  text: `${supplied.label}. Thresholds included — check it against your own `
+                    + "copy of the edition before you rely on it.",
+                }),
+              ],
+            })
+          : null,
+
+        el("div", {
+          className: "toolbar",
+          children: [
+            button("Import a table…", async () => {
+              const result = await api.importBreakpoints();
+              report(result, "Rows that could not be read");
+              await refresh();
+            }),
+            button("Sync from platform", async () => {
+              const result = await api.syncBreakpoints();
+              toast(result.message, result.ok ? "ok" : "warn");
+              await refresh();
+            }),
+          ],
+        }),
+      ];
+      panel.replaceChildren(...(children.filter(Boolean) as Node[]));
+    },
+  );
 
   return panel;
+}
+
+/**
+ * Which table this is, where it came from, and how much of it is filled in.
+ *
+ * The fill figure is the one that has to be here rather than in a report. "707
+ * criteria" sounds like a complete table; a blueprint with 707 blank rows is
+ * not one, and a laboratory that read the count and stopped reading would
+ * believe it was interpreting results it is not.
+ */
+function provenance(data: Catalogue): HTMLElement {
+  const { completeness: fill } = data;
+  const source =
+    data.source === "platform"
+      ? "synced from the platform"
+      : data.source === "blueprint"
+        ? "blank layout"
+        : "imported on this computer";
+
+  const meter = el("div", {
+    className: "bp-fill",
+    title: `${fill.filled} of ${fill.rows} rows state a threshold`,
+    children: [
+      el("div", {
+        className: "bp-fill-track",
+        children: [
+          (() => {
+            const bar = el("div", { className: "bp-fill-bar" });
+            bar.style.width = `${Math.round(fill.percent)}%`;
+            return bar;
+          })(),
+        ],
+      }),
+      el("span", {
+        text:
+          fill.placeholders === 0
+            ? "complete"
+            : `${fill.filled.toLocaleString()} of ${fill.rows.toLocaleString()} filled in`,
+      }),
+    ],
+  });
+
+  return el("div", {
+    className: "bp-provenance",
+    children: [
+      el("strong", { text: data.editionLabel }),
+      el("span", { className: "sep", text: "·" }),
+      el("span", { text: source }),
+      el("span", { className: "sep", text: "·" }),
+      meter,
+      el("div", { className: "topbar-spacer" }),
+      fill.placeholders > 0
+        ? el("span", {
+            className: "small",
+            text: `${fill.placeholders.toLocaleString()} combination${
+              fill.placeholders === 1 ? "" : "s"
+            } read as pending until filled in`,
+          })
+        : null,
+    ].filter(Boolean) as Node[],
+  });
+}
+
+/**
+ * Begin the next edition.
+ *
+ * A new edition is a new table rather than an edit to this one, and the
+ * dialogue says so: every result already interpreted cites the version it was
+ * interpreted under, so changing thresholds inside a published edition would
+ * quietly rewrite what past antibiograms mean. The structure carries over —
+ * groups, agents, potencies, qualifiers — because that is what barely changes
+ * between editions and what would take a day to retype. No number does.
+ */
+function openNewEdition(refresh: () => Promise<void>): void {
+  const nextYear = String(new Date().getFullYear() + 1);
+  const edition = textInput(nextYear, { placeholder: "2027" });
+  const problems = el("div");
+
+  const close = modal(
+    "Start a new edition",
+    el("div", {
+      children: [
+        el("p", {
+          text: "The structure of the table you have now — every organism group, agent, disk "
+            + "potency and qualifier — carried forward with every threshold blank, ready to be "
+            + "filled in from the new standard.",
+        }),
+        notice(
+          "warn",
+          "This replaces the loaded table. Export the current one first if you have not "
+            + "already: results interpreted under it cite its version, and you will want it "
+            + "on file.",
+        ),
+        field("Edition year", edition),
+        problems,
+      ],
+    }),
+    [
+      button("Cancel", () => close(), "ghost"),
+      button(
+        "Start it",
+        async () => {
+          problems.replaceChildren();
+          const result = await api.newBreakpointEdition({ edition: edition.value.trim() });
+          if (!result.ok) {
+            problems.replaceChildren(notice("bad", result.message));
+            return;
+          }
+          close();
+          toast(result.message, "ok");
+          await refresh();
+        },
+        "primary",
+      ),
+    ],
+  );
 }
 
 /* --- Filters -------------------------------------------------------------- */
@@ -302,25 +540,28 @@ function sectionTable(
     children: [
       el("div", {
         className: "bp-section-head",
-        children: [
+        children: ([
           el("div", {
             children: [
               el("h3", { text: section.organismGroup }),
               el("p", {
                 className: "small muted",
-                text: `${section.rowCount} ${section.rowCount === 1 ? "criterion" : "criteria"}${
-                  section.tableReference ? ` · Table ${section.tableReference}` : ""
-                } · thresholds in ${data.unit}`,
+                text:
+                  `${section.filled} of ${section.rowCount} filled in` +
+                  (section.tableReference ? ` · Table ${section.tableReference}` : "") +
+                  ` · thresholds in ${data.unit}`,
               }),
             ],
           }),
-          button(
-            "Add an antimicrobial",
-            () => openEditor(null, section.organismGroup, data, refresh),
-            "ghost",
-            { small: true },
-          ),
-        ],
+          data.editable
+            ? button(
+                "Add an antimicrobial",
+                () => openEditor(null, section.organismGroup, data, refresh),
+                "ghost",
+                { small: true },
+              )
+            : null,
+        ].filter(Boolean) as Node[]),
       }),
       el("div", { className: "bp-scroll", children: [table] }),
     ],
@@ -334,7 +575,13 @@ function dataRow(
   redraw: () => void,
 ): HTMLElement {
   const node = el("tr", {
-    className: row.advisories.length > 0 ? "bp-row flagged" : "bp-row",
+    className: [
+      "bp-row",
+      row.advisories.length > 0 ? "flagged" : "",
+      row.placeholder ? "placeholder" : "",
+    ]
+      .filter(Boolean)
+      .join(" "),
     children: [
       el("td", {
         className: "bp-agent",
@@ -350,19 +597,21 @@ function dataRow(
       cell(row, "resistant", data, refresh),
       el("td", {
         className: "bp-actions",
-        children: [
-          button("Edit", () => openEditor(row, "", data, refresh), "ghost", { small: true }),
-          button(
-            "Remove",
-            async () => {
-              const result = await api.removeBreakpoint({ key: row.key });
-              toast(result.message, result.ok ? "ok" : "warn");
-              await refresh();
-            },
-            "ghost",
-            { small: true },
-          ),
-        ],
+        children: data.editable
+          ? [
+              button("Edit", () => openEditor(row, "", data, refresh), "ghost", { small: true }),
+              button(
+                "Remove",
+                async () => {
+                  const result = await api.removeBreakpoint({ key: row.key });
+                  toast(result.message, result.ok ? "ok" : "warn");
+                  await refresh();
+                },
+                "ghost",
+                { small: true },
+              ),
+            ]
+          : [],
       }),
     ],
   });
@@ -411,6 +660,17 @@ function cell(
     input.value = value;
     input.inputMode = "decimal";
     input.title = `${row.agentName} — ${column}`;
+    // A blank cell on a blueprint has to read as *waiting for a value*, not as
+    // "not applicable". The placeholder glyph is what makes an unfilled form
+    // look like a form.
+    if (value === "") input.placeholder = "–";
+
+    if (!data.editable) {
+      input.readOnly = true;
+      input.disabled = true;
+      input.title = data.editRefusal || input.title;
+      return input;
+    }
 
     const commit = async (): Promise<void> => {
       if (input.value.trim() === value.trim()) return;

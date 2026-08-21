@@ -89,6 +89,10 @@ class ImportResponse(BaseModel):
     warnings: list[str]
     #: Present only when a workbook was converted on the way in.
     conversion: ConversionReport | None = None
+    #: Rows the draft carried that nobody had typed a threshold into, left
+    #: behind rather than published as coverage that does not exist. They stay
+    #: in the draft to be finished. Zero for a file import, which has no draft.
+    held_back: int = 0
 
 
 class PreviewResponse(BaseModel):
@@ -550,6 +554,41 @@ def _scope_key(criterion: dict) -> tuple[str, ...]:
     )
 
 
+#: Threshold columns. A row with none of them is a placeholder.
+THRESHOLD_FIELDS = (
+    "mic_susceptible_max",
+    "mic_sdd_min",
+    "mic_sdd_max",
+    "mic_intermediate_min",
+    "mic_intermediate_max",
+    "mic_resistant_min",
+    "disk_susceptible_min",
+    "disk_sdd_min",
+    "disk_sdd_max",
+    "disk_intermediate_min",
+    "disk_intermediate_max",
+    "disk_resistant_max",
+)
+
+
+def _is_placeholder(criterion: dict) -> bool:
+    """Whether this row states no threshold at all.
+
+    A **placeholder**: the combination is real, the numbers have not been typed
+    yet. Drafts are full of them, because a draft usually starts from the
+    blueprint — the printed table's shape with every value left blank — and a
+    programme works through it organism group by organism group over days.
+
+    They are safe to hold and impossible to be misled by: the interpretation
+    engine selects on thresholds, so a row with none never matches and the
+    measurement stays pending, which is exactly what it is.
+    """
+    return all(
+        criterion.get(field) is None or str(criterion.get(field)).strip() == ""
+        for field in THRESHOLD_FIELDS
+    )
+
+
 def _validate_table(criteria: list[dict], version: str) -> list[str]:
     """Every problem in the draft, using the importer's own checks.
 
@@ -557,8 +596,11 @@ def _validate_table(criteria: list[dict], version: str) -> list[str]:
     threshold read from a CSV are the same claim about a patient's result, and it
     would be indefensible for one route to be checked and the other not.
     """
+    stated = [c for c in criteria if not _is_placeholder(c)]
+    if not stated:
+        return []
     try:
-        parse_breakpoint_csv(to_template_csv(criteria), version=version)
+        parse_breakpoint_csv(to_template_csv(stated), version=version)
     except BreakpointImportError as exc:
         return exc.problems
     return []
@@ -606,6 +648,10 @@ class DraftResponse(BaseModel):
     #: is being changed rather than presenting the table as if from nowhere.
     based_on: str | None
     criteria_count: int
+    #: Rows that state at least one threshold — the ones that would actually be
+    #: published. Distinct from ``criteria_count`` because a draft started from
+    #: the blueprint has hundreds of rows and, on day one, none of these.
+    stated_count: int
     criteria: list[dict]
     #: Everything wrong with the draft as it stands. A draft is allowed to be
     #: invalid while it is being worked on; publishing is what refuses.
@@ -693,6 +739,7 @@ def read_draft(
         label=row.parameters.get("label"),
         based_on=row.parameters.get("based_on"),
         criteria_count=len(criteria),
+        stated_count=sum(1 for c in criteria if not _is_placeholder(c)),
         criteria=criteria,
         problems=_validate_table(criteria, row.version) if criteria else [],
     )
@@ -752,6 +799,7 @@ def upsert_draft_criterion(
         label=row.parameters.get("label"),
         based_on=row.parameters.get("based_on"),
         criteria_count=len(criteria),
+        stated_count=sum(1 for c in criteria if not _is_placeholder(c)),
         criteria=criteria,
         problems=_validate_table(criteria, row.version),
     )
@@ -815,6 +863,7 @@ def remove_draft_criterion(
         label=row.parameters.get("label"),
         based_on=row.parameters.get("based_on"),
         criteria_count=len(criteria),
+        stated_count=sum(1 for c in criteria if not _is_placeholder(c)),
         criteria=criteria,
         problems=_validate_table(criteria, row.version) if criteria else [],
     )
@@ -859,10 +908,27 @@ def publish_draft(
             detail="The draft is empty. There is nothing to publish.",
         )
 
+    # A published table has to interpret something, so rows nobody has typed a
+    # threshold into are left behind rather than published as coverage that
+    # does not exist. They are not an error and they are not discarded: the
+    # draft keeps them, so the next edition of the same table can be finished
+    # from where this one stopped.
+    draft_criteria = _criteria_of(row)
+    stated = [c for c in draft_criteria if not _is_placeholder(c)]
+    held_back = len(draft_criteria) - len(stated)
+    if not stated:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                f"None of the draft's {len(draft_criteria)} rows has a threshold in it "
+                "yet, so there is nothing to interpret against. Fill some in first."
+            ),
+        )
+
     try:
         result = import_breakpoints(
             db,
-            to_template_csv(_criteria_of(row)),
+            to_template_csv(stated),
             version=body.version,
             source_edition=body.source_edition,
             effective_from=body.effective_from,
@@ -877,9 +943,23 @@ def publish_draft(
             detail={"message": str(exc), "problems": exc.problems},
         ) from exc
 
-    # The draft has become the published version; keeping it would leave two
-    # tables in play and no way to tell which one an operator was editing.
-    db.delete(row)
+    # The draft has become the published version; keeping it whole would leave
+    # two tables in play and no way to tell which one an operator was editing.
+    #
+    # Unless rows were held back. Those are the programme's unfinished work —
+    # combinations it has not got to yet — and throwing them away would mean
+    # re-deriving the list from the blueprint to carry on. So the draft
+    # survives holding exactly them, and the next publication adds whatever has
+    # been filled in since.
+    if held_back:
+        row.parameters = {
+            **row.parameters,
+            "based_on": body.version,
+            "label": f"Still to fill in after {body.version}",
+            "breakpoints": [c for c in draft_criteria if _is_placeholder(c)],
+        }
+    else:
+        db.delete(row)
 
     ip, agent = client_context(request)
     audit.record(
@@ -904,6 +984,17 @@ def publish_draft(
         version=result.version,
         source_edition=result.source_edition,
         imported=result.imported,
-        warnings=result.warnings,
+        warnings=(
+            result.warnings
+            + (
+                [
+                    f"{held_back} row(s) had no threshold typed into them and were not "
+                    "published. They are still in the draft, ready to be finished."
+                ]
+                if held_back
+                else []
+            )
+        ),
         conversion=None,
+        held_back=held_back,
     )

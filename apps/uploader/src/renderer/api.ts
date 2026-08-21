@@ -369,6 +369,8 @@ export interface CatalogueRow {
   intermediate: string;
   resistant: string;
   comment: string;
+  /** No threshold typed yet — a place for a number rather than a number. */
+  placeholder: boolean;
   values: {
     susceptible: string;
     sddMin: string;
@@ -392,6 +394,15 @@ export interface CatalogueSection {
   tableReference: string;
   classes: Array<{ label: string; rows: CatalogueRow[] }>;
   rowCount: number;
+  /** How many of this group's rows state thresholds. */
+  filled: number;
+}
+
+export interface Completeness {
+  rows: number;
+  filled: number;
+  placeholders: number;
+  percent: number;
 }
 
 export interface Catalogue {
@@ -399,12 +410,25 @@ export interface Catalogue {
   unit: string;
   loaded: boolean;
   edition: string;
+  /** The table's name alone, without the "— synced from…" suffix. */
+  editionLabel: string;
   criteria: number;
   shown: number;
   sections: CatalogueSection[];
   onlyUnderOtherMethod: string[];
   organismGroups: string[];
   testingMethod: "disk" | "mic" | "both";
+  /** How much of the whole table states thresholds. */
+  completeness: Completeness;
+  /** The same, over the rows currently shown. */
+  shownCompleteness: Completeness;
+  /** No thresholds anywhere: a blueprint nobody has started filling in. */
+  blueprint: boolean;
+  /** Where the table came from, so the page can say whose it is. */
+  source: string;
+  /** Whether this account may change it here, and why not when it may not. */
+  editable: boolean;
+  editRefusal: string;
 }
 
 export interface BreakpointTable {
@@ -609,6 +633,9 @@ export interface Bridge {
   importBreakpoints(): Promise<Outcome & { problems?: string[] }>;
   suppliedBreakpoints(): Promise<{ available: boolean; label: string }>;
   loadSuppliedBreakpoints(): Promise<Outcome & { problems?: string[] }>;
+  blueprints(): Promise<Array<{ edition: string; label: string }>>;
+  loadBlueprint(input: { edition?: string }): Promise<Outcome & { problems?: string[] }>;
+  newBreakpointEdition(input: { edition: string }): Promise<Outcome>;
   exportBreakpoints(input: { format?: "csv" | "xlsx" }): Promise<Outcome>;
   breakpointTable(request: {
     search?: string;

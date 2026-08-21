@@ -20,7 +20,7 @@ import { readFile } from "node:fs/promises";
 import { basename, join, normalize } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { readDeploymentDefaults, suppliedBreakpointPath } from "../core/deployment";
+import { blueprintFiles, readDeploymentDefaults, suppliedBreakpointPath } from "../core/deployment";
 import { ORGANISMS, organismLabel, SPECIMEN_TYPES, specimenLabel } from "../core/dictionary";
 import {
   clearCorrection,
@@ -38,16 +38,19 @@ import {
   breakpointSheetRows,
   catalogue,
   type CellField,
+  completeness,
   criterionRow,
   describeSet,
   matchesPreference,
   organismGroupsIn,
+  readBreakpointSheet,
   removeCriterion,
   setCell,
   upsertCriterion,
 } from "../core/breakpoints";
 import { convertM100Workbook } from "../core/m100";
 import { buildWorkbook } from "../core/xlsx";
+import { readWorkbook } from "../core/xlsx-read";
 import {
   codebookWorkbook,
   describeImport,
@@ -929,6 +932,147 @@ ipcMain.handle("breakpoints:loadSupplied", async () => {
   };
 });
 
+/**
+ * The blueprints this installation carries, newest first.
+ *
+ * Distinct from the supplied table: the blueprint holds no thresholds at all,
+ * so it ships regardless of what a deployment's CLSI licence permits, and
+ * loading it turns "no breakpoint table" from a dead end into a form to fill
+ * in.
+ */
+ipcMain.handle("breakpoints:blueprints", () =>
+  blueprintFiles(RESOURCE_DIRECTORIES).map((file) => ({
+    edition: file.edition,
+    label: `CLSI M100, ${file.edition} edition — structure only, no thresholds`,
+  })),
+);
+
+/**
+ * Load a blueprint as the working table.
+ *
+ * Every row arrives as a placeholder: the combination is real, the numbers are
+ * not there yet. That is safe to hold and impossible to be misled by — the
+ * interpretation engine selects on thresholds, so a row with none never
+ * matches and the measurement stays `PI`, which is exactly what it is.
+ *
+ * Refuses to overwrite a table that already has thresholds in it. Loading a
+ * blueprint over a filled table would discard somebody's typing with no way
+ * back, and the two are one click apart on the same screen.
+ */
+ipcMain.handle("breakpoints:loadBlueprint", async (_event, input: { edition?: string } = {}) => {
+  const available = blueprintFiles(RESOURCE_DIRECTORIES);
+  const chosen = input.edition
+    ? available.find((file) => file.edition === input.edition)
+    : available[0];
+  if (!chosen) {
+    return {
+      ok: false,
+      message: "This installation was not built with a breakpoint blueprint.",
+    };
+  }
+
+  const existing = store.readBreakpoints();
+  const filled = completeness(existing.criteria).filled;
+  if (filled > 0) {
+    return {
+      ok: false,
+      message:
+        `The table already holds ${filled} threshold${filled === 1 ? "" : "s"}. Loading a ` +
+        "blueprint would replace them. Export what you have first, or start a new edition, " +
+        "which keeps this one intact.",
+    };
+  }
+
+  const parsed = parseBreakpointCsv(await readFile(chosen.path, "utf8"));
+  if (parsed.problems.length > 0) {
+    return {
+      ok: false,
+      message: `The blueprint could not be read. ${parsed.problems.slice(0, 3).join("; ")}`,
+      problems: parsed.problems.slice(0, 20),
+    };
+  }
+
+  const preference = store.read().testingMethod;
+  const criteria = parsed.criteria.filter((criterion) => matchesPreference(criterion, preference));
+  store.writeBreakpoints({
+    version: `M100-blueprint-${chosen.edition}`,
+    label: `CLSI M100, ${chosen.edition} edition`,
+    effectiveFrom: `${chosen.edition}-01-01`,
+    source: "blueprint",
+    syncedAt: new Date().toISOString(),
+    criteria,
+  });
+  reloadAndNotify("breakpoints");
+  return {
+    ok: true,
+    message:
+      `Loaded the ${chosen.edition} layout: ${criteria.length} rows across ` +
+      `${new Set(criteria.map((criterion) => criterion.organism_group)).size} organism groups, ` +
+      "with every threshold blank. Export it, fill it in from your licensed M100, and import " +
+      "it back — or type the values straight into the table.",
+  };
+});
+
+/**
+ * Begin the next edition from this one's structure.
+ *
+ * A new edition is a new table, not an edit to the old one. Every result
+ * already interpreted cites the version it was interpreted under, so changing
+ * a threshold inside a published edition would silently rewrite what past
+ * antibiograms mean. Starting fresh keeps the old table exportable and the old
+ * results explicable.
+ *
+ * What carries over is the *shape* — organism groups, agents, disk potencies,
+ * site and route qualifiers — because that is what does not change much between
+ * editions and what would take a day to retype. What does not carry over is a
+ * single number.
+ */
+ipcMain.handle("breakpoints:newEdition", async (_event, input: { edition: string }) => {
+  const edition = (input.edition ?? "").trim();
+  if (!/^\d{4}$/.test(edition)) {
+    return { ok: false, message: "An edition is a four-digit year, e.g. 2027." };
+  }
+
+  const existing = store.readBreakpoints();
+  if (existing.criteria.length === 0) {
+    return {
+      ok: false,
+      message: "There is no table to take a structure from. Load a blueprint first.",
+    };
+  }
+
+  const criteria = existing.criteria.map((criterion) => ({
+    organism_group: criterion.organism_group,
+    agent_code: criterion.agent_code,
+    method: criterion.method,
+    standard: criterion.standard ?? "CLSI M100",
+    table_reference: criterion.table_reference ?? null,
+    tier: criterion.tier ?? null,
+    site: criterion.site ?? null,
+    route: criterion.route ?? null,
+    disk_content: criterion.disk_content ?? null,
+    dosage_note: null,
+    comment: `Carried forward from ${describeSet(existing)} — enter the ${edition} thresholds.`,
+  }));
+
+  store.writeBreakpoints({
+    version: `M100-blueprint-${edition}`,
+    label: `CLSI M100, ${edition} edition`,
+    effectiveFrom: `${edition}-01-01`,
+    source: "blueprint",
+    syncedAt: new Date().toISOString(),
+    criteria,
+  });
+  reloadAndNotify("breakpoints");
+  return {
+    ok: true,
+    message:
+      `Started the ${edition} edition from ${criteria.length} rows of structure. Every ` +
+      "threshold is blank; the previous edition is no longer loaded, so export it first if " +
+      "you have not already.",
+  };
+});
+
 ipcMain.handle("breakpoints:sync", async () => {
   const state = store.read();
   if (!session.isOnline) {
@@ -970,6 +1114,42 @@ ipcMain.handle("breakpoints:import", async () => {
   let notes: string[] = [];
 
   if (path.toLowerCase().endsWith(".xlsx")) {
+    // Two quite different workbooks arrive through this dialogue, and telling
+    // them apart matters. One is *ours* — a blueprint or a table exported from
+    // here, filled in in Excel, coming back. The other is the laboratory's own
+    // licensed CLSI M100, which has to be converted and loses rows on the way.
+    // The header row says which: a sheet carrying the template's columns is
+    // ours and is read exactly, not converted approximately.
+    const sheet = readTemplateSheet(path);
+    if (sheet) {
+      if (sheet.problems.length > 0) {
+        return {
+          ok: false,
+          message: `The workbook was not imported. ${sheet.problems.slice(0, 5).join("; ")}`,
+          problems: sheet.problems.slice(0, 20),
+        };
+      }
+      criteria = sheet.criteria.filter((criterion) => matchesPreference(criterion, preference));
+      const stated = completeness(criteria);
+      store.writeBreakpoints({
+        version: `local-import-${new Date().toISOString().slice(0, 10)}`,
+        label: `Imported from ${basename(path)}`,
+        effectiveFrom: new Date().toISOString().slice(0, 10),
+        source: stated.filled === 0 ? "blueprint" : "local-import",
+        syncedAt: new Date().toISOString(),
+        criteria,
+      });
+      reloadAndNotify("breakpoints");
+      return {
+        ok: true,
+        message:
+          `Loaded ${criteria.length} rows, ${stated.filled} of them with thresholds` +
+          (stated.placeholders > 0
+            ? `. ${stated.placeholders} are still blank — those combinations read as pending until they are filled in.`
+            : "."),
+      };
+    }
+
     let conversion;
     try {
       conversion = convertM100Workbook(readFileSync(path), {
@@ -1004,26 +1184,56 @@ ipcMain.handle("breakpoints:import", async () => {
     label = `Imported from ${basename(path)}`;
   }
 
+  const stated = completeness(criteria);
   const set: BreakpointSet = {
     version: `local-import-${new Date().toISOString().slice(0, 10)}`,
     label,
     effectiveFrom: new Date().toISOString().slice(0, 10),
-    source: "local-import",
+    // A file with rows but no thresholds is a blueprint however it was
+    // produced, and saying so is what lets the rest of the application explain
+    // why nothing is being interpreted yet.
+    source: stated.filled === 0 && criteria.length > 0 ? "blueprint" : "local-import",
     syncedAt: new Date().toISOString(),
     criteria,
   };
   store.writeBreakpoints(set);
   reloadAndNotify("breakpoints");
+
+  const filled =
+    stated.placeholders > 0
+      ? ` ${stated.filled} state thresholds; ${stated.placeholders} are blank and read as pending until filled in.`
+      : "";
   return {
     ok: true,
     message:
       notes.length === 0
-        ? `Loaded ${criteria.length} breakpoint criteria.`
-        : `Loaded ${criteria.length} breakpoint criteria. ${notes.length} row(s) could not be read `
+        ? `Loaded ${criteria.length} breakpoint rows.${filled}`
+        : `Loaded ${criteria.length} breakpoint rows.${filled} ${notes.length} row(s) could not be read `
           + "and are listed below — add them in the table if your laboratory reports those agents.",
     problems: notes.slice(0, 40),
   };
 });
+
+/** Read an .xlsx as the template, or say it is not one.
+ *
+ * Every sheet is tried, because a laboratory that has been working in the file
+ * may well have put its notes on the first one. A workbook that is not ours at
+ * all returns null and goes to the M100 converter instead. */
+function readTemplateSheet(
+  path: string,
+): { criteria: BreakpointCriterion[]; problems: string[] } | null {
+  let workbook;
+  try {
+    workbook = readWorkbook(readFileSync(path));
+  } catch {
+    return null;
+  }
+  for (const name of workbook.sheetNames) {
+    const parsed = readBreakpointSheet(workbook.sheet(name));
+    if (parsed) return parsed;
+  }
+  return null;
+}
 
 /** The loaded table as the template CSV — the file Import accepts. Exporting,
  * correcting a threshold in Excel and importing again is a supported loop. */
@@ -1033,6 +1243,8 @@ ipcMain.handle("breakpoints:export", async (_event, input: { format?: "csv" | "x
     return { ok: false, message: "There is no breakpoint table loaded to export." };
   }
 
+  const stated = completeness(set.criteria);
+
   if (input.format === "xlsx") {
     return saveWorkbook(`amrss-breakpoints-${stamp()}.xlsx`, () =>
       buildWorkbook([
@@ -1040,20 +1252,62 @@ ipcMain.handle("breakpoints:export", async (_event, input: { format?: "csv" | "x
           name: "Breakpoints",
           header: [...BREAKPOINT_COLUMNS],
           rows: breakpointSheetRows(set.criteria),
+          // Wide enough to type in without fighting the column. The four
+          // threshold columns a person actually fills in come first among the
+          // numeric ones, and the comment is last and widest because it is
+          // read rather than edited.
+          columnWidths: [34, 12, 9, 14, 12, 10, 13, 10, 7, ...Array(12).fill(11), 18, 70],
         },
         {
-          name: "About",
+          name: "How to use this",
           header: ["", ""],
           rows: [
             ["Table", describeSet(set)],
-            ["Criteria", set.criteria.length],
+            ["Rows", set.criteria.length],
+            ["With thresholds", stated.filled],
+            ["Still blank", stated.placeholders],
             ["Exported", new Date().toISOString()],
+            ["", ""],
             [
-              "To re-import",
-              "Use the CSV export, not this workbook: the CSV is the format Import reads.",
+              "Filling it in",
+              "Type the thresholds from your own licensed CLSI M100 into the "
+                + "mic_* and disk_* columns on the Breakpoints sheet. Leave a cell "
+                + "empty where the standard states nothing — empty means "
+                + "'not stated', not zero.",
+            ],
+            [
+              "Zone diameters",
+              "disk_susceptible_min is the S bound (≥) and disk_resistant_max is "
+                + "the R bound (≤). Larger zone means more susceptible, so S must "
+                + "be the larger number.",
+            ],
+            [
+              "MICs",
+              "mic_susceptible_max is the S bound (≤) and mic_resistant_min is "
+                + "the R bound (≥). These run the opposite way to zones: S is the "
+                + "smaller number.",
+            ],
+            [
+              "Putting it back",
+              "Save the workbook and use Import a table. This file imports "
+                + "unchanged — same columns, same order — and so does the CSV "
+                + "export. Every row is validated on the way in, and a row that "
+                + "contradicts itself is refused with the reason.",
+            ],
+            [
+              "Rows you do not need",
+              "Delete them. A row your laboratory does not report is a row "
+                + "nothing will ever match, and leaving it blank costs nothing "
+                + "either.",
+            ],
+            [
+              "Rows that are missing",
+              "Add them. Organism group, agent code, method and — for a disk "
+                + "row — the disk content are what identify a row; the rest is "
+                + "the thresholds.",
             ],
           ],
-          columnWidths: [18, 90],
+          columnWidths: [22, 96],
         },
       ]),
     );
@@ -1069,7 +1323,12 @@ ipcMain.handle("breakpoints:export", async (_event, input: { format?: "csv" | "x
     writeFileSync(chosen.filePath, breakpointCsv(set.criteria), "utf8");
     return {
       ok: true,
-      message: `Saved ${set.criteria.length} criteria to ${chosen.filePath}. This file imports back unchanged.`,
+      message:
+        `Saved ${set.criteria.length} rows to ${chosen.filePath}` +
+        (stated.placeholders > 0
+          ? `, ${stated.placeholders} of them blank and waiting for thresholds. `
+          : ". ") +
+        "This file imports back unchanged.",
     };
   } catch (error) {
     return { ok: false, message: `Could not save the file: ${(error as Error).message}` };
@@ -1158,10 +1417,24 @@ ipcMain.handle(
     // a disk laboratory is not shown a page of concentrations it never reads.
     const preference = store.read().testingMethod;
     const method = input.method ?? (preference === "mic" ? "MIC" : "DISK");
+    const standing = session.current?.profile.breakpoints;
     return {
       ...catalogue(set, { method, search: input.search, organismGroup: input.organismGroup }),
       organismGroups: organismGroupsIn(set),
       testingMethod: preference,
+      source: set.source,
+      // Whether this account may change the table here, decided by the
+      // platform at sign-in and not by this process. Breakpoints are national;
+      // a facility edits its own only where the national authority has granted
+      // it an exception, and that grant is recorded against the facility
+      // rather than against the role.
+      //
+      // An installation that has never been online has no standing yet. It is
+      // treated as editable, because a laboratory setting itself up offline
+      // with a blueprint and a printed page has to be able to type into it —
+      // and what it types is checked again when it reaches the platform.
+      editable: standing?.mayEditLocally ?? true,
+      editRefusal: standing?.mayEditLocally === false ? standing.refusal : "",
     };
   },
 );

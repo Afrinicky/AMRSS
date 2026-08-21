@@ -2230,3 +2230,72 @@ td.insufficient {
   border-radius: 999px;
   background: var(--brand-600);
 }
+
+/* The blueprint's own states.
+ *
+ * A row waiting for its numbers has to look like a row waiting for its
+ * numbers — not like a row that has nothing to say. The distinction is the
+ * whole reason a blueprint works: an empty cell that reads as "not applicable"
+ * would leave a laboratory believing the table covers something it does not.
+ */
+
+.bp-row.placeholder .bp-agent-name {
+  color: var(--ink-muted);
+  font-weight: 520;
+}
+
+.bp-input::placeholder {
+  color: var(--ink-faint);
+  opacity: 0.65;
+}
+
+.bp-input:disabled {
+  background: transparent;
+  border-color: transparent;
+  cursor: default;
+  -webkit-text-fill-color: var(--ink-muted);
+  opacity: 1;
+}
+
+/* The two ways out of an empty table, weighted. The blueprint ships with every
+ * installation and carries nothing licensed, so it leads; the supplied CLSI
+ * table is a second, quieter offer because whether it may be used at all
+ * depends on the deployment's own licence. */
+.bp-start {
+  padding: 4px 0 6px;
+}
+
+.bp-start p {
+  margin: 12px auto 0;
+  max-width: 54ch;
+}
+
+.bp-secondary {
+  margin-top: 22px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+}
+
+.bp-secondary p {
+  margin: 10px auto 0;
+  max-width: 54ch;
+}
+
+/* A button that is a link: an alternative edition, offered without competing
+ * with the action above it. */
+.link-button {
+  padding: 0 4px;
+  border: 0;
+  background: none;
+  color: var(--brand-700);
+  font: inherit;
+  font-size: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.link-button:hover {
+  background: none;
+  color: var(--brand-600);
+}
