@@ -13,6 +13,7 @@ import {
 import {
   apiUrlProblem,
   daysSince,
+  DEFAULT_BREAKPOINT_STANDING,
   looksLikeDashboardAddress,
   makeVerifier,
   noApiHereMessage,
@@ -140,6 +141,7 @@ test("the offline password check accepts the password the server accepted, and n
       regionalBlockId: null,
       permissions: [],
       mustChangePassword: false,
+      breakpoints: DEFAULT_BREAKPOINT_STANDING,
     },
     lastOnlineAt: new Date().toISOString(),
     apiUrl: "https://amrss-api.example.org",

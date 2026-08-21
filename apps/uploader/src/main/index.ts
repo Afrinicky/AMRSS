@@ -70,6 +70,7 @@ import {
   roleLabel,
   SessionManager,
 } from "../core/session";
+import { PlatformClient } from "../core/platform";
 import { daysUntilDue, LocalStore, setupComplete, type UploaderState, verifyLog } from "../core/store";
 import { uploadableRecords } from "../core/validation";
 import { detectProfile, toSourceIsolates } from "../core/whonet";
@@ -114,6 +115,15 @@ const store = new LocalStore(join(app.getPath("userData"), "amrss"), deployment)
 const credentials = new CredentialStore(join(app.getPath("userData"), "amrss"));
 const session = new SessionManager(credentials);
 const workspace = new Workspace(store);
+
+/**
+ * The platform, for the parts of the application that administer it.
+ *
+ * Reads the API address on every call rather than capturing it, because a
+ * laboratory can change it in Settings without restarting, and a client holding
+ * the old one would fail in a way nobody would connect to the change.
+ */
+const platform = new PlatformClient(session, () => store.read().apiUrl);
 
 /** Organism codes the dictionary marks fungal, so the batch can label kingdom
  * without asking the renderer to carry a list that would go stale. */
@@ -454,6 +464,8 @@ function statusPayload(state: UploaderState) {
           facilityId: current.profile.facilityId,
           permissions: current.profile.permissions,
           mustChangePassword: current.profile.mustChangePassword,
+          regionalBlockId: current.profile.regionalBlockId,
+          breakpoints: current.profile.breakpoints,
           mode: current.mode,
           offlineDaysRemaining: current.offlineDaysRemaining,
           signedInAt: current.signedInAt,
@@ -1428,6 +1440,186 @@ ipcMain.handle(
 
 ipcMain.handle("export:history", async () =>
   saveWorkbook(`amrss-upload-history-${stamp()}.xlsx`, () => historyWorkbook(store.read().log)),
+);
+
+/* ------------------------------------------------------------------ *
+ * The administrator consoles.
+ * ------------------------------------------------------------------ *
+ *
+ * Every channel below is one call to the platform, with the answer turned into
+ * the same `{ ok, message }` shape the rest of the bridge speaks so a view can
+ * render a failure without knowing whether it came from HTTP, from a dropped
+ * connection, or from a permission the account does not hold.
+ *
+ * Nothing here decides anything. The consoles hide controls an account cannot
+ * use, which is a courtesy; the refusal that counts happens at the API, exactly
+ * as it does for the browser console. A renderer that reached these channels
+ * directly would gain no authority its account did not already have.
+ */
+
+/** One platform result, as the renderer wants it: never a thrown error, always
+ * a sentence, and the data only when there is data. */
+function bridged<T>(
+  result: Awaited<ReturnType<PlatformClient["users"]>> | { ok: boolean; status?: number; error?: string; data?: unknown },
+  onSuccess: string,
+): { ok: boolean; message: string; data?: T } {
+  if (result.ok) {
+    return { ok: true, message: onSuccess, data: (result as { data?: T }).data };
+  }
+  return { ok: false, message: (result as { error?: string }).error ?? "That did not work." };
+}
+
+ipcMain.handle("platform:users", async () =>
+  bridged(await platform.users(), "Accounts loaded."),
+);
+
+ipcMain.handle("platform:userOptions", async () =>
+  bridged(await platform.userOptions(), "Options loaded."),
+);
+
+ipcMain.handle("platform:createUser", async (_event, input: Parameters<PlatformClient["createUser"]>[0]) =>
+  bridged(await platform.createUser(input), `Created ${input.email}.`),
+);
+
+ipcMain.handle(
+  "platform:updateUser",
+  async (_event, input: { userId: string; patch: Parameters<PlatformClient["updateUser"]>[1] }) =>
+    bridged(await platform.updateUser(input.userId, input.patch), "Account updated."),
+);
+
+/**
+ * Change somebody's role.
+ *
+ * Its own channel, mirroring its own endpoint. A regional administrator being
+ * promoted to superadmin gains authority over every region in the programme,
+ * and that is not something that should travel as one field inside a general
+ * update alongside a corrected surname.
+ */
+ipcMain.handle(
+  "platform:changeRole",
+  async (_event, input: { userId: string } & Parameters<PlatformClient["changeRole"]>[1]) => {
+    const { userId, ...change } = input;
+    return bridged(await platform.changeRole(userId, change), `Role changed to ${change.role}.`);
+  },
+);
+
+ipcMain.handle(
+  "platform:resetPassword",
+  async (_event, input: { userId: string; password: string }) =>
+    bridged(
+      await platform.resetPassword(input.userId, input.password),
+      "Password set. The account must change it at next sign-in — deliver it in person, not by email.",
+    ),
+);
+
+ipcMain.handle("platform:unlockUser", async (_event, input: { userId: string }) =>
+  bridged(await platform.unlockUser(input.userId), "Lockout cleared."),
+);
+
+ipcMain.handle(
+  "platform:deleteUser",
+  async (_event, input: { userId: string; confirm: string }) =>
+    bridged(await platform.deleteUser(input.userId, input.confirm), "Account deleted."),
+);
+
+ipcMain.handle("platform:blocks", async () => bridged(await platform.blocks(), "Regions loaded."));
+
+ipcMain.handle("platform:createBlock", async (_event, input: Parameters<PlatformClient["createBlock"]>[0]) =>
+  bridged(await platform.createBlock(input), `Created the ${input.name} region.`),
+);
+
+ipcMain.handle("platform:districts", async (_event, input: { regionalBlockId?: string } = {}) =>
+  bridged(await platform.districts(input.regionalBlockId), "Districts loaded."),
+);
+
+ipcMain.handle(
+  "platform:createDistrict",
+  async (_event, input: { regionalBlockId: string; name: string }) =>
+    bridged(
+      await platform.createDistrict(input.regionalBlockId, input.name),
+      `Added the ${input.name} district.`,
+    ),
+);
+
+ipcMain.handle("platform:facilities", async (_event, input: Parameters<PlatformClient["facilities"]>[0] = {}) =>
+  bridged(await platform.facilities(input), "Facilities loaded."),
+);
+
+ipcMain.handle("platform:enrollFacility", async (_event, input: Parameters<PlatformClient["enrollFacility"]>[0]) =>
+  bridged(
+    await platform.enrollFacility(input),
+    `${input.name} enrolled. It contributes nothing until it is activated.`,
+  ),
+);
+
+ipcMain.handle(
+  "platform:transitionFacility",
+  async (_event, input: { facilityId: string; target: string; reason: string }) =>
+    bridged(
+      await platform.transitionFacility(input.facilityId, input.target, input.reason),
+      `Facility moved to ${input.target}.`,
+    ),
+);
+
+ipcMain.handle(
+  "platform:setBreakpointOverride",
+  async (_event, input: { facilityId: string; granted: boolean; reason: string }) =>
+    bridged(
+      await platform.setBreakpointOverride(input.facilityId, input.granted, input.reason),
+      input.granted
+        ? "This facility may now keep its own breakpoint table. The exception is recorded with your name on it."
+        : "Override withdrawn. The facility falls back to the national table at its next sync; nothing it entered has been deleted.",
+    ),
+);
+
+ipcMain.handle("platform:batches", async (_event, input: { status?: string } = {}) =>
+  bridged(await platform.batches(input.status), "Submissions loaded."),
+);
+
+ipcMain.handle(
+  "platform:transitionBatch",
+  async (_event, input: { batchId: string; target: string; reason: string }) =>
+    bridged(
+      await platform.transitionBatch(input.batchId, input.target, input.reason),
+      `Batch moved to ${input.target}.`,
+    ),
+);
+
+ipcMain.handle("platform:mappings", async (_event, input: { status?: string } = {}) =>
+  bridged(await platform.mappings(input.status), "Mappings loaded."),
+);
+
+ipcMain.handle(
+  "platform:reviewMapping",
+  async (_event, input: { mappingId: string; approve: boolean; note: string }) =>
+    bridged(
+      await platform.reviewMapping(input.mappingId, input.approve, input.note),
+      input.approve ? "Mapping approved." : "Mapping rejected.",
+    ),
+);
+
+ipcMain.handle("platform:audit", async (_event, input: { action?: string; limit?: number } = {}) =>
+  bridged(await platform.audit(input), "Audit trail loaded."),
+);
+
+/**
+ * The platform's own surveillance figures.
+ *
+ * Distinct from the `analytics:*` channels, which compute over the WHONET file
+ * on this machine. These are the regional numbers — every contributing
+ * facility, deduplicated and quality-gated by the platform — and a laboratory
+ * needs both: its own data to check, and the region's to compare itself
+ * against. Conflating them in one screen is how a facility reads a national
+ * resistance rate as its own.
+ */
+ipcMain.handle(
+  "platform:surveillance",
+  async (_event, input: { path: string; params?: Record<string, unknown> }) =>
+    bridged(await platform.surveillance(input.path, input.params ?? {}), "Loaded."),
+);
+
+ipcMain.handle("platform:breakpointAuthority", async (_event, input: { facilityId?: string } = {}) =>
+  bridged(await platform.breakpointAuthority(input.facilityId), "Loaded."),
 );
 
 ipcMain.handle("app:openStateFolder", async () => {

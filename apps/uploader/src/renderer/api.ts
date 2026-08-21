@@ -20,11 +20,24 @@ export interface SessionInfo {
   email: string;
   username: string | null;
   facilityId: string | null;
+  regionalBlockId: string | null;
   permissions: string[];
   mustChangePassword: boolean;
+  /** What this account may do to breakpoints, resolved by the server at
+   * sign-in. The permission list cannot answer it on its own: local editing
+   * also depends on a grant recorded against the facility. */
+  breakpoints: BreakpointStanding;
   mode: "online" | "offline";
   offlineDaysRemaining: number | null;
   signedInAt: string;
+}
+
+export interface BreakpointStanding {
+  source: "national" | "facility";
+  mayEditLocally: boolean;
+  mayPublishNational: boolean;
+  mayGrantOverride: boolean;
+  refusal: string;
 }
 
 export interface Connectivity {
@@ -419,6 +432,124 @@ export interface DetectionResult {
   recordCount: number;
 }
 
+/* --- The platform, for the administrator consoles ------------------------- */
+
+/** Every platform call answers in this shape: never a thrown error, always a
+ * sentence, and the data only when there is data. */
+export interface PlatformReply<T> {
+  ok: boolean;
+  message: string;
+  data?: T;
+}
+
+export interface PlatformUser {
+  id: string;
+  email: string;
+  username: string | null;
+  fullName: string;
+  role: string;
+  facilityId: string | null;
+  facilityName: string | null;
+  regionalBlockId: string | null;
+  isActive: boolean;
+  isLocked: boolean;
+  mustChangePassword: boolean;
+  lastLoginAt: string | null;
+  permissions: string[];
+  editable: boolean;
+}
+
+export interface RoleOption {
+  value: string;
+  label: string;
+  description: string;
+  scope: "facility" | "block" | "optional";
+}
+
+export interface ScopeOption {
+  id: string;
+  name: string;
+}
+
+export interface UserOptions {
+  roles: RoleOption[];
+  facilities: ScopeOption[];
+  blocks: ScopeOption[];
+  grantingAs: string;
+}
+
+export interface PlatformBlock {
+  id: string;
+  code: string;
+  name: string;
+  governingBody: string;
+  status: string;
+  activatedOn: string | null;
+  whonetConfigStandard: string | null;
+  districtCount: number;
+  facilityCount: number;
+}
+
+export interface PlatformDistrict {
+  id: string;
+  name: string;
+  regionalBlockId: string;
+  facilityCount: number;
+}
+
+export interface PlatformFacility {
+  id: string;
+  code: string;
+  name: string;
+  districtId: string;
+  districtName: string;
+  regionalBlockId: string;
+  status: string;
+  whonetConfigVersion: string | null;
+  uploadSchedule: string;
+  lastAcceptedUploadAt: string | null;
+  qcStatus: string;
+  eqaStatus: string;
+  availableTransitions: string[];
+  blockingActivation: string[];
+  breakpointOverrideGranted: boolean;
+  breakpointOverrideNote: string | null;
+  breakpointOverrideGrantedAt: string | null;
+}
+
+export interface PlatformBatch {
+  id: string;
+  facilityCode: string;
+  status: string;
+  uploadedAt: string;
+  isolateCount: number;
+  coverageStart: string | null;
+  coverageEnd: string | null;
+  findingCount: number;
+  availableTransitions: string[];
+}
+
+export interface PlatformMapping {
+  id: string;
+  entityType: string;
+  facilityCode: string;
+  sourceCode: string;
+  proposedName: string | null;
+  status: string;
+  observedCount: number;
+}
+
+export interface AuditEntry {
+  id: string;
+  recordedAt: string;
+  action: string;
+  entity: string;
+  entityId: string | null;
+  actor: string;
+  note: string | null;
+  sourceIp: string | null;
+}
+
 export interface Bridge {
   status(): Promise<Status>;
   settings(): Promise<Settings>;
@@ -535,6 +666,103 @@ export interface Bridge {
     bucket: string;
   }): Promise<Outcome>;
   exportHistory(): Promise<Outcome>;
+
+  platformUsers(): Promise<PlatformReply<PlatformUser[]>>;
+  platformUserOptions(): Promise<PlatformReply<UserOptions>>;
+  platformCreateUser(input: {
+    email: string;
+    username?: string | null;
+    fullName: string;
+    role: string;
+    password: string;
+    facilityId?: string | null;
+    regionalBlockId?: string | null;
+  }): Promise<PlatformReply<unknown>>;
+  platformUpdateUser(input: {
+    userId: string;
+    patch: { email?: string; username?: string | null; fullName?: string; isActive?: boolean };
+  }): Promise<PlatformReply<unknown>>;
+  platformChangeRole(input: {
+    userId: string;
+    role: string;
+    facilityId?: string | null;
+    regionalBlockId?: string | null;
+    reason?: string;
+  }): Promise<PlatformReply<unknown>>;
+  platformResetPassword(input: {
+    userId: string;
+    password: string;
+  }): Promise<PlatformReply<unknown>>;
+  platformUnlockUser(input: { userId: string }): Promise<PlatformReply<unknown>>;
+  platformDeleteUser(input: { userId: string; confirm: string }): Promise<PlatformReply<unknown>>;
+
+  platformBlocks(): Promise<PlatformReply<PlatformBlock[]>>;
+  platformCreateBlock(input: {
+    code: string;
+    name: string;
+    governingBody: string;
+    whonetConfigStandard?: string | null;
+    districts: string[];
+  }): Promise<PlatformReply<unknown>>;
+  platformDistricts(input?: {
+    regionalBlockId?: string | null;
+  }): Promise<PlatformReply<PlatformDistrict[]>>;
+  platformCreateDistrict(input: {
+    regionalBlockId: string;
+    name: string;
+  }): Promise<PlatformReply<unknown>>;
+
+  platformFacilities(input?: {
+    regionalBlockId?: string | null;
+    status?: string | null;
+  }): Promise<PlatformReply<PlatformFacility[]>>;
+  platformEnrollFacility(input: {
+    code: string;
+    name: string;
+    districtId: string;
+    whonetConfigVersion?: string | null;
+  }): Promise<PlatformReply<unknown>>;
+  platformTransitionFacility(input: {
+    facilityId: string;
+    target: string;
+    reason: string;
+  }): Promise<PlatformReply<unknown>>;
+  platformSetBreakpointOverride(input: {
+    facilityId: string;
+    granted: boolean;
+    reason: string;
+  }): Promise<PlatformReply<unknown>>;
+
+  platformBatches(input?: { status?: string | null }): Promise<PlatformReply<PlatformBatch[]>>;
+  platformTransitionBatch(input: {
+    batchId: string;
+    target: string;
+    reason: string;
+  }): Promise<PlatformReply<unknown>>;
+  platformMappings(input?: { status?: string | null }): Promise<PlatformReply<PlatformMapping[]>>;
+  platformReviewMapping(input: {
+    mappingId: string;
+    approve: boolean;
+    note: string;
+  }): Promise<PlatformReply<unknown>>;
+  platformAudit(input?: {
+    action?: string | null;
+    limit?: number;
+  }): Promise<PlatformReply<{ entries: AuditEntry[]; total: number }>>;
+  platformSurveillance<T>(input: {
+    path: string;
+    params?: Record<string, unknown>;
+  }): Promise<PlatformReply<T>>;
+  platformBreakpointAuthority(input?: {
+    facilityId?: string | null;
+  }): Promise<PlatformReply<{
+    may_publish_national: boolean;
+    may_grant_override: boolean;
+    may_edit_locally: boolean;
+    facility_override_granted: boolean;
+    refusal: string;
+    source: string;
+  }>>;
 
   onStatus(listener: (payload: Status) => void): () => void;
   onData(listener: (payload: { snapshot: WorkspaceSnapshot; trigger: string }) => void): () => void;
