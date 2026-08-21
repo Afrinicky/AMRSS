@@ -1551,6 +1551,13 @@ td.insufficient {
   display: grid;
   gap: 8px;
   margin-bottom: 18px;
+  /* The list scrolls, not the dialogue. Seven described roles are taller than
+   * any dialogue should be, and letting the whole thing scroll pushes the
+   * scope selector and the reason box — the two things that get filled in
+   * *after* choosing — below the fold behind them. */
+  max-height: min(44vh, 430px);
+  overflow-y: auto;
+  padding-right: 4px;
 }
 
 .role-choice {
@@ -1599,6 +1606,9 @@ td.insufficient {
   font-size: 12.5px;
   line-height: 1.5;
   color: var(--ink-muted);
+  /* Buttons are set at 560 and this is a paragraph inside one. Inheriting that
+   * weight makes a page of explanations read as a page of labels. */
+  font-weight: 400;
 }
 
 /* --- Signals ---------------------------------------------------------- */

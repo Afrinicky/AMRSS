@@ -185,9 +185,8 @@ function head(scope: UserOptions | null, redraw: () => void): HTMLElement {
           el("h2", { text: "Accounts" }),
           el("p", {
             text: scope
-              ? `Signing in as a ${prettyRole(scope.grantingAs)}, you may create ${
-                  scope.roles.length
-                } of the platform's roles.`
+              ? `Signing in as ${article(roleName(scope.roles, scope.grantingAs))}, you may `
+                + `create ${scope.roles.length} of the platform's roles.`
               : "Who can sign in, what they may do, and where their authority stops.",
           }),
         ],
@@ -240,12 +239,46 @@ function toolbar(all: PlatformUser[], shown: number, redraw: () => void): HTMLEl
   });
 }
 
+/**
+ * Fallback labels.
+ *
+ * The assignable roles arrive from the server described, so this table is only
+ * reached for a role the caller cannot grant — a superadmin's row seen by a
+ * regional administrator, whose own list stops one rung below. Without it that
+ * row reads "superadmin" in raw enum form, which is exactly where a reader
+ * needs the label most: it is the only row on the page they cannot act on.
+ */
+const ROLE_LABELS: Record<string, string> = {
+  superadmin: "Superadmin",
+  regional_amr_administrator: "Regional AMR administrator",
+  data_steward: "Data steward",
+  facility_administrator: "Facility administrator",
+  laboratory_staff: "Laboratory staff",
+  clinician: "Clinician",
+  auditor: "Auditor",
+  // Retired before this application shipped, but an account created under it
+  // may still exist and should be named rather than shown as a raw string.
+  system_administrator: "System administrator (retired)",
+};
+
 function roleName(roles: RoleOption[], value: string): string {
   return roles.find((role) => role.value === value)?.label ?? prettyRole(value);
 }
 
 function prettyRole(value: string): string {
-  return value.replaceAll("_", " ");
+  if (ROLE_LABELS[value]) return ROLE_LABELS[value]!;
+  // An unknown role — one added to the platform after this build. Title-cased
+  // rather than left as an identifier, so it reads as a name either way.
+  return value
+    .split("_")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
+/** "a Data steward", "an Auditor". A small thing, and its absence is the kind
+ * of small thing that makes software read as though nobody looked at it. */
+function article(label: string): string {
+  return `${/^[AEIOU]/i.test(label) ? "an" : "a"} ${label}`;
 }
 
 function scopeLabel(scope: UserOptions, user: PlatformUser): string {
@@ -531,7 +564,7 @@ function openRoleChange(user: PlatformUser, scope: UserOptions, redraw: () => vo
             return;
           }
           close();
-          toast(`${user.fullName} is now a ${prettyRole(state.role)}.`, "ok");
+          toast(`${user.fullName} is now ${article(roleName(scope.roles, state.role))}.`, "ok");
           redraw();
         },
         "primary",

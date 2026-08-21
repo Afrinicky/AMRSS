@@ -74,6 +74,7 @@ import {
   SessionManager,
 } from "../core/session";
 import { PlatformClient } from "../core/platform";
+import type { PlatformResult } from "../core/session";
 import { daysUntilDue, LocalStore, setupComplete, type UploaderState, verifyLog } from "../core/store";
 import { uploadableRecords } from "../core/validation";
 import { detectProfile, toSourceIsolates } from "../core/whonet";
@@ -1730,16 +1731,24 @@ ipcMain.handle("export:history", async () =>
  * directly would gain no authority its account did not already have.
  */
 
-/** One platform result, as the renderer wants it: never a thrown error, always
- * a sentence, and the data only when there is data. */
+/**
+ * One platform result, as the renderer wants it.
+ *
+ * Never a thrown error, always a sentence, and the data only when there is
+ * data. The renderer draws a screen either way and has nothing to do with an
+ * exception; what it needs is something to put on the page.
+ *
+ * The success message is the caller's rather than the server's, because the
+ * server's is written for an API client — "204 No Content" is true and useless
+ * — while the caller knows what was just done and to whom.
+ */
 function bridged<T>(
-  result: Awaited<ReturnType<PlatformClient["users"]>> | { ok: boolean; status?: number; error?: string; data?: unknown },
+  result: PlatformResult<T>,
   onSuccess: string,
 ): { ok: boolean; message: string; data?: T } {
-  if (result.ok) {
-    return { ok: true, message: onSuccess, data: (result as { data?: T }).data };
-  }
-  return { ok: false, message: (result as { error?: string }).error ?? "That did not work." };
+  return result.ok
+    ? { ok: true, message: onSuccess, data: result.data }
+    : { ok: false, message: result.error };
 }
 
 ipcMain.handle("platform:users", async () =>
