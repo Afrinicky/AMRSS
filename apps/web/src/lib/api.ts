@@ -731,10 +731,26 @@ export interface AdminUser {
   editable: boolean;
 }
 
+/** One assignable role, described well enough to be chosen from.
+ *
+ * The description is the server's rather than the console's, because both
+ * consoles show it and a role whose meaning changed in one and not the other
+ * would be worse than a role with no description at all. */
+export interface RoleOption {
+  value: string;
+  label: string;
+  description: string;
+  /** "facility", "block" or "optional" — which scope selector the form needs. */
+  scope: "facility" | "block" | "optional";
+}
+
 export interface UserScopeOptions {
-  roles: string[];
+  roles: RoleOption[];
   facilities: Array<{ id: string; name: string }>;
   blocks: Array<{ id: string; name: string }>;
+  /** The caller's own role, so the page can say why the list stops where it
+   * does rather than simply appearing short. */
+  granting_as: string;
 }
 
 export interface UserCreate {
