@@ -23,12 +23,21 @@
  * moment it is typed rather than at publication, when whoever typed it has
  * moved on.
  *
- * **The blueprint.** AMRSS ships no thresholds, and for a long time that left a
- * laboratory with an empty screen and nine hundred rows to invent. It now ships
- * the table's *shape* instead: every organism group, every agent the standard
- * prints against it, both methods where both are printed, the disk potencies —
- * and not one number. Loading it fills this page with rows whose values are
- * waiting to be typed, from the page or from a spreadsheet and back.
+ * **Two ways to start, and the populated one leads.** A deployment built with
+ * the programme's converted CLSI table has its thresholds one click away, and
+ * that is the button offered first — it is what most laboratories want and what
+ * they already have.
+ *
+ * The **blueprint** is the second offer, for the case the first cannot serve: a
+ * laboratory whose licence does not extend to the supplied file, or a
+ * deployment built without one. It is the table's *shape* — every organism
+ * group, every agent the standard prints against it, both methods where both
+ * are printed, the disk potencies — and not one number. Loading it fills this
+ * page with rows whose values are waiting to be typed, from the page or from a
+ * spreadsheet and back.
+ *
+ * Loading a blueprint over a table that already has thresholds in it is refused
+ * outright, so neither offer can cost somebody the table they were using.
  *
  * A blank row is safe to hold and impossible to be misled by. The engine
  * selects on thresholds, so a row with none never matches and the measurement
@@ -194,20 +203,22 @@ function head(
 /**
  * What a laboratory sees before it has a table.
  *
- * The order of what is offered here is the whole design. Until now the only
- * paths out were "import your own licensed file" and "sync from a platform you
- * may not be able to reach", and a laboratory with neither to hand was stuck
- * looking at an empty screen — with no way to discover that the alternative was
- * nine hundred rows of typing from nothing.
+ * The order is the design, and it follows what a laboratory actually has.
  *
- * So the **blueprint** leads: the printed table's shape, every organism group
- * and agent laid out, no thresholds. It ships with every installation because
- * it carries nothing licensed. One click and this page is a form.
+ * **The supplied CLSI table leads**, where the deployment was built with one.
+ * It carries the thresholds — the table is usable the moment it is loaded — and
+ * that is what nearly every laboratory here wants. It is still a button rather
+ * than something applied on first run: a table that appeared by itself is a
+ * table nobody checked against the edition their laboratory reports under.
  *
- * The supplied CLSI table comes second, where a deployment has one, because
- * whether it may be used at all depends on that deployment's licence — and a
- * table that appeared by itself is a table nobody checked against the edition
- * their laboratory reports under.
+ * **The blueprint is the second offer**, and it exists for the case the first
+ * cannot serve — a deployment built without the supplied table, or a laboratory
+ * whose CLSI licence does not extend to it. It carries the printed table's
+ * shape and no values, so it ships regardless of licence, and it turns that
+ * case from a dead end into a form to fill in.
+ *
+ * Where a deployment has no supplied table at all, the blueprint takes the
+ * lead, because then it is the only way to start rather than the fallback.
  */
 function emptyState(refresh: () => Promise<void>): HTMLElement {
   const panel = el("div", { className: "bp-empty" });
@@ -215,6 +226,70 @@ function emptyState(refresh: () => Promise<void>): HTMLElement {
   void Promise.all([api.suppliedBreakpoints(), api.blueprints()]).then(
     ([supplied, blueprints]) => {
       const blueprint = blueprints[0];
+
+      const suppliedOffer = (primary: boolean): HTMLElement =>
+        el("div", {
+          className: primary ? "bp-start" : "bp-secondary",
+          children: [
+            button(
+              "Load the supplied CLSI table",
+              async () => {
+                const result = await api.loadSuppliedBreakpoints();
+                toast(result.message, result.ok ? "ok" : "warn");
+                await refresh();
+              },
+              primary ? "primary" : "default",
+            ),
+            el("p", {
+              className: "small muted",
+              text: `${supplied.label}. Thresholds included, so the table interprets as soon as `
+                + "it is loaded — check it against your own copy of the edition before you rely "
+                + "on it.",
+            }),
+          ],
+        });
+
+      const blueprintOffer = (primary: boolean): HTMLElement =>
+        el("div", {
+          className: primary ? "bp-start" : "bp-secondary",
+          children: [
+            button(
+              primary ? "Start from the blank CLSI layout" : "Start from a blank layout instead",
+              async () => {
+                const result = await api.loadBlueprint({ edition: blueprint!.edition });
+                toast(result.message, result.ok ? "ok" : "bad");
+                await refresh();
+              },
+              primary ? "primary" : "default",
+            ),
+            el("p", {
+              className: "small muted",
+              text: `Every organism group and antimicrobial the ${blueprint!.edition} edition `
+                + "prints, with the thresholds blank for you to enter from your own licensed "
+                + "copy — by spreadsheet, or straight into the table. For a laboratory whose "
+                + "licence does not cover the file above.",
+            }),
+            blueprints.length > 1
+              ? el("div", {
+                  className: "small muted",
+                  children: [
+                    document.createTextNode("Other editions: "),
+                    ...blueprints.slice(1).map((other) =>
+                      el("button", {
+                        className: "link-button",
+                        text: other.edition,
+                        onClick: async () => {
+                          const result = await api.loadBlueprint({ edition: other.edition });
+                          toast(result.message, result.ok ? "ok" : "bad");
+                          await refresh();
+                        },
+                      }),
+                    ),
+                  ],
+                })
+              : null,
+          ].filter(Boolean) as Node[],
+        });
 
       const children: Array<Node | null> = [
         el("h3", { text: "No breakpoint table is loaded" }),
@@ -224,69 +299,15 @@ function emptyState(refresh: () => Promise<void>): HTMLElement {
             + "upload and are still counted as tested.",
         }),
 
-        blueprint
-          ? el("div", {
-              className: "bp-start",
-              children: [
-                button(
-                  "Start from the blank CLSI layout",
-                  async () => {
-                    const result = await api.loadBlueprint({ edition: blueprint.edition });
-                    toast(result.message, result.ok ? "ok" : "bad");
-                    await refresh();
-                  },
-                  "primary",
-                ),
-                el("p", {
-                  className: "small muted",
-                  text: `Every organism group and antimicrobial the ${blueprint.edition} `
-                    + "edition prints, with the thresholds left blank. Export it to Excel, "
-                    + "fill it in from your own licensed copy, and import it back — or type "
-                    + "the values straight into the table.",
-                }),
-                blueprints.length > 1
-                  ? el("div", {
-                      className: "small muted",
-                      children: [
-                        document.createTextNode("Other editions: "),
-                        ...blueprints.slice(1).map((other) =>
-                          el("button", {
-                            className: "link-button",
-                            text: other.edition,
-                            onClick: async () => {
-                              const result = await api.loadBlueprint({ edition: other.edition });
-                              toast(result.message, result.ok ? "ok" : "bad");
-                              await refresh();
-                            },
-                          }),
-                        ),
-                      ],
-                    })
-                  : null,
-              ].filter(Boolean) as Node[],
-            })
-          : null,
-
-        supplied.available
-          ? el("div", {
-              className: "bp-secondary",
-              children: [
-                button(
-                  "Load the supplied CLSI table",
-                  async () => {
-                    const result = await api.loadSuppliedBreakpoints();
-                    toast(result.message, result.ok ? "ok" : "warn");
-                    await refresh();
-                  },
-                ),
-                el("p", {
-                  className: "small muted",
-                  text: `${supplied.label}. Thresholds included — check it against your own `
-                    + "copy of the edition before you rely on it.",
-                }),
-              ],
-            })
-          : null,
+        supplied.available ? suppliedOffer(true) : null,
+        blueprint ? blueprintOffer(!supplied.available) : null,
+        supplied.available || blueprint
+          ? null
+          : el("p", {
+              className: "small muted",
+              text: "This installation was built with neither a table nor a layout. Import your "
+                + "own licensed CLSI M100 workbook, or sync from the platform.",
+            }),
 
         el("div", {
           className: "toolbar",
